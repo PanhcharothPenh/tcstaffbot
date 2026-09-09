@@ -1033,6 +1033,7 @@ export default function AttendanceView({
                       <th className="py-3 px-3 text-center">រយៈពេលធ្វើការ</th>
                       <th className="py-3 px-3 text-center">ស្ថានភាព</th>
                       <th className="py-3 px-3 text-center">ប្រភព</th>
+                      <th className="py-3 px-3 text-center">ឧបករណ៍ / Device</th>
                       <th className="py-3 px-3.5 text-right">សកម្មភាព</th>
                     </tr>
                   </thead>
@@ -1084,26 +1085,31 @@ export default function AttendanceView({
                           </span>
                         </td>
 
-                        {/* Source & Device Badge */}
+                        {/* Source Badge */}
                         <td className="py-3 px-3 text-center">
-                          <div className="flex flex-col items-center gap-0.5">
-                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold inline-flex items-center gap-1 ${
-                              rec.source === 'telegram' 
-                                ? 'bg-sky-50 text-sky-700 border border-sky-200' 
-                                : 'bg-slate-50 text-slate-600 border border-slate-200'
-                            }`}>
-                              {rec.source === 'telegram' ? <Smartphone size={11} /> : <FileText size={11} />}
-                              <span>{rec.source === 'telegram' ? 'Telegram' : 'Manual'}</span>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold inline-flex items-center gap-1 ${
+                            rec.source === 'telegram' 
+                              ? 'bg-sky-50 text-sky-700 border border-sky-200' 
+                              : 'bg-slate-50 text-slate-600 border border-slate-200'
+                          }`}>
+                            {rec.source === 'telegram' ? <Smartphone size={11} /> : <FileText size={11} />}
+                            <span>{rec.source === 'telegram' ? 'Telegram' : 'Manual'}</span>
+                          </span>
+                        </td>
+
+                        {/* Device / Session Info Column */}
+                        <td className="py-3 px-3 text-center">
+                          {(rec.checkInDevice || rec.checkOutDevice) ? (
+                            <span 
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10.5px] font-medium border border-slate-200/80 transition shadow-2xs max-w-[160px] truncate cursor-default"
+                              title={`Check-In: ${rec.checkInDevice || 'N/A'}\nCheck-Out: ${rec.checkOutDevice || 'N/A'}\nPlatform: ${rec.checkInPlatform || rec.checkOutPlatform || 'N/A'}`}
+                            >
+                              <Smartphone size={12} className="text-blue-600 shrink-0" />
+                              <span className="truncate">{rec.checkInDevice || rec.checkOutDevice}</span>
                             </span>
-                            {(rec.checkInDevice || rec.checkOutDevice) && (
-                              <span 
-                                className="text-[9.5px] text-slate-500 font-medium truncate max-w-[120px] inline-block"
-                                title={rec.checkInDevice || rec.checkOutDevice}
-                              >
-                                📱 {rec.checkInDevice || rec.checkOutDevice}
-                              </span>
-                            )}
-                          </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-mono">--</span>
+                          )}
                         </td>
 
                         {/* Actions */}
@@ -1112,7 +1118,7 @@ export default function AttendanceView({
                             <button
                               onClick={() => setSelectedRecord(rec)}
                               className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition cursor-pointer"
-                              title="មើលព័ត៌មានលម្អិត"
+                              title="មើលព័ត៌មានលម្អិត & Session"
                             >
                               <Eye size={13} />
                             </button>
