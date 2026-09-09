@@ -89,9 +89,13 @@ import AuditLogsView from './components/AuditLogsView';
 import { encryptLiveUrl, decryptLiveUrl } from './utils/urlSecurity';
 
 const getTabFromUrl = (): ActiveTab => {
-  if (typeof window === 'undefined') return 'dashboard';
+  if (typeof window === 'undefined') return 'staff';
   const path = window.location.pathname + window.location.hash;
-  return decryptLiveUrl(path);
+  const tab = decryptLiveUrl(path);
+  if (tab === 'staff' || tab === 'shifts' || tab === 'attendance' || tab === 'salary') {
+    return tab;
+  }
+  return 'staff';
 };
 
 export default function App() {
@@ -1046,19 +1050,19 @@ export default function App() {
           // Manager -> Branch Dashboard (specific assigned branch workspace)
           // Staff -> Staff Dashboard (assigned branch operational console)
           if (user.role === 'Owner') {
-            setActiveTab('dashboard');
+            setActiveTab('staff');
             setActiveBranchId('all');
           } else if (user.role === 'Admin') {
-            setActiveTab('dashboard');
+            setActiveTab('staff');
             setActiveBranchId(user.assignedBranchIds && user.assignedBranchIds.length > 0 ? user.assignedBranchIds[0] : 'b1');
           } else if (user.role === 'Manager') {
-            setActiveTab('dashboard');
+            setActiveTab('staff');
             setActiveBranchId(user.assignedBranchIds && user.assignedBranchIds.length > 0 ? user.assignedBranchIds[0] : 'b1');
           } else if (user.role === 'Staff') {
-            setActiveTab('dashboard');
+            setActiveTab('staff');
             setActiveBranchId(user.assignedBranchIds && user.assignedBranchIds.length > 0 ? user.assignedBranchIds[0] : 'b1');
           } else {
-            setActiveTab('dashboard');
+            setActiveTab('staff');
             setActiveBranchId('all');
           }
 
@@ -1136,11 +1140,15 @@ export default function App() {
             </button>
             
             <div className="flex flex-col text-left min-w-0">
-              <h1 className="text-sm sm:text-2xl font-black text-[#111827] tracking-tight leading-tight truncate max-w-[120px] xs:max-w-[180px] sm:max-w-none">
-                {activeTab === 'dashboard' ? 'Dashboard' : getActiveBranchLabel()}
+              <h1 className="text-sm sm:text-2xl font-black text-[#111827] tracking-tight leading-tight truncate max-w-[140px] xs:max-w-[200px] sm:max-w-none">
+                {activeTab === 'staff' ? (lang === 'en' ? 'Staff & Barista' : 'បុគ្គលិក & Barista') :
+                 activeTab === 'shifts' ? (lang === 'en' ? 'Shift Calendar' : 'ប្រតិទិនវេនការងារ') :
+                 activeTab === 'attendance' ? (lang === 'en' ? 'Staff Attendance' : 'វត្តមានបុគ្គលិក') :
+                 activeTab === 'salary' ? (lang === 'en' ? 'Salary Management' : 'ការបើកប្រាក់បៀវត្សរ៍') :
+                 getActiveBranchLabel()}
               </h1>
               <p className="text-[11px] text-[#4B5563] font-medium leading-none mt-0.5 hidden sm:block">
-                Overview of your laundry business
+                TC Staff Management System
               </p>
             </div>
           </div>

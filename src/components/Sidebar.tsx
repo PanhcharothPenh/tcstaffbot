@@ -114,56 +114,19 @@ export default function Sidebar({
   
   const t = translations[lang];
 
-  // Navigation Items Definitions - Cafe Management System
+  // Navigation Items Definitions - Staff Management System
   const navItems = [
-    { id: 'dashboard', label: t.dashboard, icon: BarChart3, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
-    { id: 'reports', label: t.reports, icon: FileText, roles: ['Owner', 'Admin', 'Manager'] },
-    { id: 'auditlogs', label: lang === 'en' ? 'Operational Audit Logs' : 'កំណត់ហេតុសវនកម្ម', icon: History, roles: ['Owner', 'Admin'] },
-    
-    { id: 'income', label: lang === 'en' ? 'Daily Sales & Orders' : 'ចំណូលលក់ប្រចាំថ្ងៃ (កាហ្វេ)', icon: Coffee, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
-    { id: 'expense', label: t.expense, icon: CreditCard, roles: ['Owner', 'Admin', 'Manager'] },
-    { id: 'monthclosing', label: lang === 'en' ? 'Month Financial Closing' : 'ការបិទបញ្ជីហិរញ្ញវត្ថុប្រចាំខែ', icon: FileCheck, roles: ['Owner', 'Admin'] },
-    
-    { id: 'staff', label: lang === 'en' ? 'Barista & Staff' : 'បុគ្គលិក & Barista', icon: Users, roles: ['Owner', 'Admin'] },
+    { id: 'staff', label: lang === 'en' ? 'Barista & Staff' : 'បុគ្គលិក & Barista', icon: Users, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
     { id: 'shifts', label: lang === 'en' ? 'Shift Roster Calendar' : 'ប្រតិទិនវេនការងារ', icon: CalendarDays, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
-    { id: 'attendance', label: t.attendance, icon: Calendar, roles: ['Owner', 'Admin', 'Manager'] },
-    { id: 'salary', label: t.salary, icon: DollarSign, roles: ['Owner', 'Admin', 'Manager'] },
-    
-    { id: 'inventory', label: lang === 'en' ? 'Cafe Raw Materials' : 'ស្តុកគ្រាប់កាហ្វេ & វត្ថុធាតុដើម', icon: Package, roles: ['Owner', 'Admin', 'Manager'] },
-    { id: 'suppliers', label: lang === 'en' ? 'Suppliers Registry' : 'បញ្ជីអ្នកផ្គត់ផ្គង់', icon: Truck, roles: ['Owner', 'Admin', 'Manager'] },
-    { id: 'debts', label: lang === 'en' ? 'Supplier Debts Ledger' : 'សៀវភៅបំណុលអ្នកផ្គត់ផ្គង់', icon: Wallet, roles: ['Owner', 'Admin', 'Manager'] },
-    
-    { id: 'branches', label: lang === 'en' ? 'Cafe Branches (toto / Corner)' : 'សាខាហាង (toto & Corner)', icon: Layers, roles: ['Owner', 'Admin'] },
-    { id: 'settings', label: t.settings, icon: Settings, roles: ['Owner', 'Admin'] },
-    { id: 'users', label: lang === 'en' ? 'User Accounts' : 'ការគ្រប់គ្រងគណនី', icon: UserCheck, roles: ['Owner', 'Admin'] },
-    { id: 'telegram_config', label: lang === 'en' ? 'Config Telegram' : 'កំណត់រចនាសម្ព័ន្ធ Telegram', icon: Bot, roles: ['Owner', 'Admin', 'Manager'] }
+    { id: 'attendance', label: t.attendance, icon: Calendar, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
+    { id: 'salary', label: t.salary, icon: DollarSign, roles: ['Owner', 'Admin', 'Manager', 'Staff'] }
   ];
 
   const navGroups = [
     {
-      title: lang === 'en' ? 'Overview' : 'ទិដ្ឋភាពទូទៅ',
-      icon: BarChart3,
-      items: ['dashboard', 'reports', 'auditlogs']
-    },
-    {
-      title: lang === 'en' ? 'Daily Operations' : 'ប្រតិបត្តិការប្រចាំថ្ងៃ',
-      icon: Coffee,
-      items: ['income', 'expense', 'monthclosing']
-    },
-    {
       title: lang === 'en' ? 'Staff & Payroll' : 'បុគ្គលិក និងប្រាក់ខែ',
       icon: Users,
       items: ['staff', 'shifts', 'attendance', 'salary']
-    },
-    {
-      title: lang === 'en' ? 'Inventory & Supplies' : 'ស្តុក និងការផ្គត់ផ្គង់',
-      icon: Package,
-      items: ['inventory', 'suppliers', 'debts']
-    },
-    {
-      title: lang === 'en' ? 'Administration' : 'ការគ្រប់គ្រងប្រព័ន្ធ',
-      icon: Settings,
-      items: ['branches', 'settings', 'users', 'telegram_config']
     }
   ];
 
