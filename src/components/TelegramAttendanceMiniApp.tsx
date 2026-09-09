@@ -112,8 +112,10 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     }
   }, []);
 
-  const validateSession = async (dataStr: string) => {
-    setIsLoadingUser(true);
+  const validateSession = async (dataStr: string, isSilent: boolean = false) => {
+    if (!isSilent) {
+      setIsLoadingUser(true);
+    }
     setAuthError(null);
     try {
       const res = await fetch('/api/telegram/validate-init-data', {
@@ -135,16 +137,21 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
           setCurrentAction('checkout');
         }
 
-        setTimeout(() => {
-          startCamera();
-        }, 150);
+        // Only auto-start camera on initial load, never during background/silent refresh after verification
+        if (!isSilent) {
+          setTimeout(() => {
+            startCamera();
+          }, 150);
+        }
       } else {
         setAuthError(data.error || 'គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិក TC Staff ណាម្នាក់ឡើយ។');
       }
     } catch (err: any) {
       setAuthError(err.message || 'Error communicating with TC Staff server');
     } finally {
-      setIsLoadingUser(false);
+      if (!isSilent) {
+        setIsLoadingUser(false);
+      }
     }
   };
 
@@ -308,8 +315,8 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       const data = await res.json();
       if (data.success) {
         setResultData(data);
-        // Refresh status
-        validateSession(initData);
+        // Refresh status silently in background without resetting UI to loading screen
+        validateSession(initData, true);
       } else {
         setErrorMessage(data.error || 'ការចុះវត្តមានបរាជ័យ!');
       }
@@ -522,11 +529,28 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
             {/* SUCCESS RESULT VIEW */}
             {resultData ? (
               <div className="bg-white rounded-3xl p-6 border border-emerald-200 shadow-md text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
-                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
-                  <CheckCircle2 size={36} />
+                {/* Verified Photo or Success Icon */}
+                <div className="relative mx-auto w-24 h-24">
+                  {capturedImage ? (
+                    <img
+                      src={capturedImage}
+                      alt="Verified Face"
+                      className="w-24 h-24 rounded-full object-cover border-4 border-emerald-500 shadow-md"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center shadow-inner">
+                      <CheckCircle2 size={48} />
+                    </div>
+                  )}
+                  <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white rounded-full p-1.5 shadow-md border-2 border-white">
+                    <CheckCircle2 size={16} />
+                  </div>
                 </div>
 
                 <div>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold mb-2">
+                    <span>✓ COMPLETE / ជោគជ័យ</span>
+                  </div>
                   <h2 className="text-lg font-black text-slate-900">{resultData.message}</h2>
                   <p className="text-sm font-bold text-slate-700 mt-0.5">{staffInfo?.fullName}</p>
                 </div>
