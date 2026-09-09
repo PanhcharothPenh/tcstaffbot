@@ -68,7 +68,6 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
   // Camera & Capture State
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [isCameraStarting, setIsCameraStarting] = useState(actionParam !== 'history');
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [capturedVector, setCapturedVector] = useState<number[] | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -88,7 +87,6 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   // DOM Video & Canvas Refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const nativeCameraInputRef = useRef<HTMLInputElement | null>(null);
 
   // 1. Initialize Telegram WebApp SDK & Validate Session
   useEffect(() => {
@@ -123,26 +121,15 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     }
   }, []);
 
-  // Auto-start camera automatically when activeView is action
+  // Auto-start camera as soon as UI is fully rendered and activeView is action
   useEffect(() => {
-    if (activeView === 'action' && !resultData && !capturedImage) {
-      if (!isCameraActive && !isCameraStarting) {
-        startCamera({ silent: true });
-      }
-    } else if (activeView === 'history') {
-      stopCamera();
+    if (!isLoadingUser && !authError && activeView === 'action' && !resultData && !capturedImage && !isCameraActive) {
+      const timer = setTimeout(() => {
+        startCamera();
+      }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [activeView, resultData, capturedImage, isCameraActive, isCameraStarting]);
-
-  // Initial mount auto-start (silent so user gesture policy does not trigger error alert)
-  useEffect(() => {
-    if (actionParam !== 'history') {
-      startCamera({ silent: true });
-    }
-    return () => {
-      stopCamera();
-    };
-  }, []);
+  }, [isLoadingUser, authError, activeView, resultData, capturedImage, isCameraActive]);
 
   const validateSession = async (dataStr: string, isSilent: boolean = false) => {
     if (!isSilent) {
@@ -196,17 +183,11 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   };
 
   // 2. Camera Functions
-  const startCamera = async (options?: { silent?: boolean }) => {
-    setIsCameraStarting(true);
-    if (!options?.silent) {
-      setErrorMessage(null);
-    }
+  const startCamera = async () => {
+    setErrorMessage(null);
     try {
-      const hasMediaDevices = typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function';
-      const legacyGetUserMedia = typeof navigator !== 'undefined' ? ((navigator as any).webkitGetUserMedia || (navigator as any).getUserMedia) : null;
-
-      if (!hasMediaDevices && !legacyGetUserMedia) {
-        throw new Error('WebRTC not supported in this browser');
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('WebRTC getUserMedia not supported');
       }
 
       // Stop any prior tracks before requesting a new stream
@@ -219,39 +200,27 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
       let stream: MediaStream | null = null;
       // Multi-tier fallback for maximum mobile device compatibility
-      if (hasMediaDevices) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'user',
+            width: { ideal: 640 },
+            height: { ideal: 640 }
+          },
+          audio: false
+        });
+      } catch (err1) {
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'user' },
             audio: false
           });
-        } catch (err1) {
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: { facingMode: { ideal: 'user' } },
-              audio: false
-            });
-          } catch (err2) {
-            try {
-              stream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: false
-              });
-            } catch (err3) {
-              if (legacyGetUserMedia) {
-                stream = await new Promise<MediaStream>((res, rej) => {
-                  legacyGetUserMedia.call(navigator, { video: true }, res, rej);
-                });
-              } else {
-                throw err3 || err2 || err1;
-              }
-            }
-          }
+        } catch (err2) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false
+          });
         }
-      } else if (legacyGetUserMedia) {
-        stream = await new Promise<MediaStream>((res, rej) => {
-          legacyGetUserMedia.call(navigator, { video: true }, res, rej);
-        });
       }
 
       if (!stream) {
@@ -260,18 +229,13 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
       streamRef.current = stream;
       setIsCameraActive(true);
-      setIsCameraStarting(false);
-      setErrorMessage(null);
 
       const attachStream = () => {
         if (videoRef.current && streamRef.current) {
           try {
             (videoRef.current as any).setAttribute('playsinline', 'true');
             (videoRef.current as any).setAttribute('webkit-playsinline', 'true');
-            videoRef.current.muted = true;
-            if (videoRef.current.srcObject !== streamRef.current) {
-              videoRef.current.srcObject = streamRef.current;
-            }
+            videoRef.current.srcObject = streamRef.current;
             videoRef.current.play().catch(e => console.warn('Video play error:', e));
           } catch (e) {
             console.warn('Video attach error:', e);
@@ -280,20 +244,12 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       };
 
       attachStream();
-      setTimeout(attachStream, 50);
-      setTimeout(attachStream, 150);
-      setTimeout(attachStream, 300);
-      return true;
+      setTimeout(attachStream, 80);
+      setTimeout(attachStream, 250);
     } catch (err: any) {
       console.warn('Camera access error:', err);
       setIsCameraActive(false);
-      setIsCameraStarting(false);
-      if (!options?.silent) {
-        const errName = err?.name || 'Error';
-        const errDetail = err?.message || String(err);
-        setErrorMessage(`មិនអាចបើក Camera ផ្ទាល់បានទេ (${errName}: ${errDetail})។ សូមចុចប៊ូតុងខាងក្រោមដើម្បីថតរូបផ្ទាល់ពីទូរស័ព្ទ។`);
-      }
-      return false;
+      setErrorMessage('មិនអាចបើក Camera បានទេ! សូមពិនិត្យមើលការអនុញ្ញាត Camera (Permission) លើទូរស័ព្ទ។');
     }
   };
 
@@ -303,48 +259,6 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       streamRef.current = null;
     }
     setIsCameraActive(false);
-    setIsCameraStarting(false);
-  };
-
-  // Direct native selfie camera capture fallback (Works 100% on any mobile device)
-  const handleNativeCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) {
-        setCapturedImage(dataUrl);
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = 64;
-          canvas.height = 64;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, 64, 64);
-            const vector = generateFaceDescriptorFromCanvas(canvas);
-            setCapturedVector(vector);
-            submitAttendance(dataUrl, vector);
-          }
-        };
-        img.src = dataUrl;
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Unified action click: captures if camera active, else attempts start with user gesture or triggers native camera
-  const handleActionClick = async () => {
-    if (isVerifying) return;
-    if (isCameraActive) {
-      capturePhoto();
-      return;
-    }
-    const success = await startCamera({ silent: false });
-    if (!success) {
-      nativeCameraInputRef.current?.click();
-    }
   };
 
   // Detect detailed phone model, OS, and hardware environment
@@ -779,31 +693,11 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                   <p className="text-xs text-slate-500">សូមថតរូបមុខរបស់អ្នកដើម្បីផ្ទៀងផ្ទាត់វត្តមាន</p>
                 </div>
 
-                {/* Hidden Native Camera Input (Direct front-facing selfie camera fallback) */}
-                <input 
-                  type="file" 
-                  ref={nativeCameraInputRef} 
-                  accept="image/*" 
-                  capture="user" 
-                  className="hidden" 
-                  onChange={handleNativeCameraCapture} 
-                />
-
-                {/* Error Banner with Direct Native Camera fallback */}
+                {/* Error Banner */}
                 {errorMessage && (
-                  <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs p-3.5 rounded-2xl space-y-2 text-left animate-in fade-in duration-200">
-                    <div className="flex items-start gap-2">
-                      <AlertCircle size={16} className="shrink-0 text-rose-500 mt-0.5" />
-                      <span className="font-medium leading-relaxed">{errorMessage}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => nativeCameraInputRef.current?.click()}
-                      className="w-full py-2.5 bg-[#003D9B] hover:bg-blue-800 text-white rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-xs transition"
-                    >
-                      <Camera size={14} />
-                      <span>📸 បើក Camera ថតរូបផ្ទាល់ពីទូរស័ព្ទ</span>
-                    </button>
+                  <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs p-3 rounded-2xl flex items-start gap-2 text-left">
+                    <AlertCircle size={16} className="shrink-0 text-rose-500 mt-0.5" />
+                    <span className="font-medium leading-relaxed">{errorMessage}</span>
                   </div>
                 )}
 
@@ -843,15 +737,12 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     />
                   ) : (
                     <div 
-                      onClick={handleActionClick}
-                      className="text-slate-400 space-y-2.5 p-4 cursor-pointer hover:text-white transition flex flex-col items-center justify-center select-none"
+                      onClick={startCamera}
+                      className="text-slate-400 space-y-2 p-4 cursor-pointer hover:text-white transition flex flex-col items-center justify-center select-none"
                     >
-                      <div className="relative">
-                        <Camera size={44} className="mx-auto text-blue-400 animate-pulse" />
-                        <div className="absolute -inset-2 rounded-full border border-blue-400/40 animate-ping pointer-events-none" />
-                      </div>
+                      <Camera size={48} className="mx-auto text-blue-400 animate-pulse" />
                       <p className="text-xs font-bold text-slate-300">
-                        {isCameraStarting ? 'កំពុងបើក Camera...' : 'ចុចទីនេះដើម្បីថតរូប'}
+                        {currentAction === 'checkin' ? 'ចុចទីនេះដើម្បីថតរូបចូល' : 'ចុចទីនេះដើម្បីថតរូបចេញ'}
                       </p>
                     </div>
                   )}
@@ -890,25 +781,16 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                 {!isCameraActive ? (
                   <button
                     type="button"
-                    onClick={handleActionClick}
+                    onClick={startCamera}
                     disabled={isVerifying}
                     className={`w-full py-3.5 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-md ${
                       currentAction === 'checkin'
-                        ? 'bg-[#003D9B] hover:bg-blue-800 shadow-blue-900/15'
-                        : 'bg-rose-600 hover:bg-rose-700 shadow-rose-900/15'
+                        ? 'bg-[#003D9B] hover:bg-blue-800 shadow-blue-900/10'
+                        : 'bg-rose-600 hover:bg-rose-700 shadow-rose-900/10'
                     }`}
                   >
-                    {isCameraStarting ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin" />
-                        <span>កំពុងបើក Camera...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Camera size={16} />
-                        <span>{currentAction === 'checkin' ? '📸 ថតរូបចុះឈ្មោះចូល' : '🚪 ថតរូបចុះឈ្មោះចេញ'}</span>
-                      </>
-                    )}
+                    <Camera size={16} />
+                    <span>{currentAction === 'checkin' ? '📸 ថតរូបចុះឈ្មោះចូល' : '🚪 ថតរូបចុះឈ្មោះចេញ'}</span>
                   </button>
                 ) : (
                   <div className="flex gap-2">
