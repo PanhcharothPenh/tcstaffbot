@@ -70,7 +70,7 @@ import UserManagementView from './components/UserManagementView';
 import SettingsView from './components/SettingsView';
 import TelegramLogin from './components/TelegramLogin';
 import TelegramAttendanceMiniApp from './components/TelegramAttendanceMiniApp';
-import { authApi, getSavedSessionUser, saveSession, clearSession } from './utils/api';
+import { authApi, getSavedSessionUser, saveSession, clearSession, getSavedAccessToken, getSavedRefreshToken } from './utils/api';
 
 // 6 New Submodules Imported Here
 import CoinTransactionsView from './components/CoinTransactionsView';
@@ -115,12 +115,17 @@ export default function App() {
     } catch {}
   };
 
-  const [currentRole, setCurrentRole] = useState<Role>('Owner');
-  const [activeBranchId, setActiveBranchId] = useState<string>('all');
+  const cachedInitialUser = getSavedSessionUser();
+  const [authenticatedUser, setAuthenticatedUser] = useState<any | null>(() => cachedInitialUser);
+  const [authChecking, setAuthChecking] = useState<boolean>(() => !cachedInitialUser);
+  const [currentRole, setCurrentRole] = useState<Role>(() => cachedInitialUser?.role || 'Owner');
+  const [activeBranchId, setActiveBranchId] = useState<string>(() => {
+    return (cachedInitialUser?.assignedBranchIds && cachedInitialUser.assignedBranchIds.length > 0)
+      ? cachedInitialUser.assignedBranchIds[0]
+      : 'all';
+  });
   const [activeTab, setActiveTab] = useState<ActiveTab>(getTabFromUrl);
   const [exchangeRate, setExchangeRate] = useState<number>(4000);
-  const [authenticatedUser, setAuthenticatedUser] = useState<any | null>(null);
-  const [authChecking, setAuthChecking] = useState<boolean>(true);
 
   // Sync live clean URL pathname when activeTab or authentication state changes
   useEffect(() => {
@@ -260,21 +265,15 @@ export default function App() {
 
     const checkSession = async () => {
       try {
-        const fetchPromise = authApi.getMe();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session check timeout')), 1200)
-        );
-
-        const user = await Promise.race([fetchPromise, timeoutPromise]) as any;
-
+        const user = await authApi.getMe();
         if (active && user) {
           setAuthenticatedUser(user);
           setCurrentRole(user.role);
           setActiveBranchId(user.assignedBranchIds && user.assignedBranchIds.length > 0 ? user.assignedBranchIds[0] : 'all');
-          saveSession(localStorage.getItem('clean24_access_token') || '', localStorage.getItem('clean24_refresh_token') || '', user);
+          saveSession(getSavedAccessToken(), getSavedRefreshToken(), user);
         }
       } catch (err) {
-        // If network failed/timed out, but no cached user exists, clear loading state
+        console.warn('[Session notice]:', err);
       } finally {
         if (active) setAuthChecking(false);
       }
@@ -288,7 +287,7 @@ export default function App() {
     // Clear legacy demo storage if present from past versions
     try {
       Object.keys(localStorage).forEach(k => {
-        if (k.startsWith('CLEAN24_LAUNDRY_') || (k.startsWith('clean24_') && k !== 'clean24_access_token' && k !== 'clean24_refresh_token' && k !== 'clean24_auth_user')) {
+        if (k.startsWith('CLEAN24_LAUNDRY_')) {
           localStorage.removeItem(k);
         }
       });
@@ -505,6 +504,67 @@ export default function App() {
   useEffect(() => {
     db.saveMonthClosings(monthClosings);
   }, [monthClosings]);
+
+  // Immediate auto-save flush on page refresh or tab close
+  useEffect(() => {
+    const handleBeforeUnloadFlush = () => {
+      try {
+        const payload = {
+          branches,
+          staff,
+          salaries,
+          salarySchedules,
+          salaryAdvances,
+          attendance,
+          incomes,
+          expenses,
+          inventory,
+          machines,
+          coinTransactions,
+          revenueRecords,
+          gasRecords,
+          detergentRecords,
+          softenerRecords,
+          stockTransactions,
+          suppliers,
+          debts,
+          debtPayments,
+          cashDrawers,
+          cashDrawerTransactions,
+          monthClosings,
+          settings: { shopName: "TC Staff Management" }
+        };
+        const serialized = JSON.stringify(payload);
+        if (serialized !== lastPushedJsonRef.current) {
+          lastPushedJsonRef.current = serialized;
+          const blob = new Blob([serialized], { type: 'application/json' });
+          if (navigator.sendBeacon) {
+            navigator.sendBeacon('/api/sync-data', blob);
+          } else {
+            fetch('/api/sync-data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: serialized,
+              keepalive: true
+            }).catch(() => {});
+          }
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnloadFlush);
+    window.addEventListener('pagehide', handleBeforeUnloadFlush);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnloadFlush);
+      window.removeEventListener('pagehide', handleBeforeUnloadFlush);
+    };
+  }, [
+    branches, staff, salaries, salarySchedules, salaryAdvances,
+    attendance, incomes, expenses, inventory, machines,
+    coinTransactions, revenueRecords, gasRecords, detergentRecords,
+    softenerRecords, stockTransactions, suppliers, debts, debtPayments,
+    cashDrawers, cashDrawerTransactions, monthClosings
+  ]);
 
   // Synchronize database state to backend Express context for multi-device live sync
   useEffect(() => {

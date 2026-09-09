@@ -45,7 +45,11 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { usernameOrEmail, password } = req.body || {};
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch (e) {}
+    }
+    const { usernameOrEmail, password } = body || {};
     const identifier = String(usernameOrEmail || '').trim().toLowerCase();
     const inputPass = String(password || '').trim();
 

@@ -68,7 +68,11 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { mfaToken, code } = req.body || {};
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch (e) {}
+    }
+    const { mfaToken, code } = body || {};
     const inputCode = String(code || '').trim();
 
     if (!inputCode) {

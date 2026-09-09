@@ -14,12 +14,30 @@ const STORAGE_KEYS = {
   REMEMBERED_USER: 'coffee_remembered_user'
 };
 
+export function getSavedAccessToken(): string {
+  return (
+    localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN) ||
+    localStorage.getItem('tc_access_token') ||
+    localStorage.getItem('clean24_access_token') ||
+    ''
+  ).trim();
+}
+
+export function getSavedRefreshToken(): string {
+  return (
+    localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN) ||
+    localStorage.getItem('tc_refresh_token') ||
+    localStorage.getItem('clean24_refresh_token') ||
+    ''
+  ).trim();
+}
+
 // Simple fetch wrapper with token injection and automatic token refresh
 async function apiRequest<T>(url: string, options: RequestInit = {}): Promise<T> {
-  const accessToken = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+  const accessToken = getSavedAccessToken();
   const headers = new Headers(options.headers || {});
 
-  if (accessToken) {
+  if (accessToken && accessToken !== 'null' && accessToken !== 'undefined') {
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
   if (!headers.has('Content-Type')) {
@@ -41,7 +59,7 @@ async function apiRequest<T>(url: string, options: RequestInit = {}): Promise<T>
       }
       return retryResponse.json() as Promise<T>;
     } else {
-      clearSession();
+      // Do NOT arbitrarily wipe user session on temporary 401
       throw new Error('Unauthorized request');
     }
   }
@@ -55,8 +73,8 @@ async function apiRequest<T>(url: string, options: RequestInit = {}): Promise<T>
 }
 
 async function attemptTokenRefresh(): Promise<string | null> {
-  const refreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
-  if (!refreshToken) return null;
+  const refreshToken = getSavedRefreshToken();
+  if (!refreshToken || refreshToken === 'null' || refreshToken === 'undefined') return null;
 
   try {
     const res = await fetch('/api/auth-refresh-token', {
@@ -70,9 +88,11 @@ async function attemptTokenRefresh(): Promise<string | null> {
     }
 
     const data = await res.json();
-    localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.accessToken);
-    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, data.refreshToken);
-    return data.accessToken;
+    if (data && data.accessToken) {
+      saveSession(data.accessToken, data.refreshToken || refreshToken, null);
+      return data.accessToken;
+    }
+    return null;
   } catch (e) {
     return null;
   }
@@ -82,24 +102,46 @@ export function clearSession() {
   localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
   localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
   localStorage.removeItem(STORAGE_KEYS.USER_SESSION);
+  localStorage.removeItem('tc_access_token');
+  localStorage.removeItem('tc_refresh_token');
+  localStorage.removeItem('tc_user_session');
+  localStorage.removeItem('clean24_access_token');
+  localStorage.removeItem('clean24_refresh_token');
+  localStorage.removeItem('clean24_user_session');
+  localStorage.removeItem('clean24_auth_user');
 }
 
-export function saveSession(accessToken: string, refreshToken: string, user: any) {
-  localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
-  localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
-  localStorage.setItem(STORAGE_KEYS.USER_SESSION, JSON.stringify(user));
+export function saveSession(accessToken?: string | null, refreshToken?: string | null, user?: any) {
+  const cleanAccess = (accessToken || '').trim();
+  const cleanRefresh = (refreshToken || '').trim();
+  if (cleanAccess && cleanAccess !== 'null' && cleanAccess !== 'undefined') {
+    localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, cleanAccess);
+    localStorage.setItem('tc_access_token', cleanAccess);
+    localStorage.setItem('clean24_access_token', cleanAccess);
+  }
+  if (cleanRefresh && cleanRefresh !== 'null' && cleanRefresh !== 'undefined') {
+    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, cleanRefresh);
+    localStorage.setItem('tc_refresh_token', cleanRefresh);
+    localStorage.setItem('clean24_refresh_token', cleanRefresh);
+  }
+  if (user && typeof user === 'object') {
+    const serialized = JSON.stringify(user);
+    localStorage.setItem(STORAGE_KEYS.USER_SESSION, serialized);
+    localStorage.setItem('tc_user_session', serialized);
+    localStorage.setItem('clean24_user_session', serialized);
+    localStorage.setItem('clean24_auth_user', serialized);
+  }
 }
 
 export function getSavedSessionUser() {
   try {
-    const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-    if (!token || token === 'null' || token === 'undefined') {
-      return null;
-    }
-    const data = localStorage.getItem(STORAGE_KEYS.USER_SESSION);
-    if (data) {
-      const user = JSON.parse(data);
-      if (user && user.username) {
+    const raw = localStorage.getItem(STORAGE_KEYS.USER_SESSION) ||
+                localStorage.getItem('tc_user_session') ||
+                localStorage.getItem('clean24_user_session') ||
+                localStorage.getItem('clean24_auth_user');
+    if (raw) {
+      const user = JSON.parse(raw);
+      if (user && (user.username || user.fullName || user.id || user.role)) {
         return user;
       }
     }
