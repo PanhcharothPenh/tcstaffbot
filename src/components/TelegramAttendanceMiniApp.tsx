@@ -68,6 +68,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
   // Camera & Capture State
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isCameraStarting, setIsCameraStarting] = useState(actionParam !== 'history');
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [capturedVector, setCapturedVector] = useState<number[] | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -121,15 +122,26 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     }
   }, []);
 
-  // Auto-start camera as soon as UI is fully rendered and activeView is action
+  // Auto-start camera automatically when activeView is action
   useEffect(() => {
-    if (!isLoadingUser && !authError && activeView === 'action' && !resultData && !capturedImage && !isCameraActive) {
-      const timer = setTimeout(() => {
+    if (activeView === 'action' && !resultData && !capturedImage) {
+      if (!isCameraActive && !isCameraStarting) {
         startCamera();
-      }, 100);
-      return () => clearTimeout(timer);
+      }
+    } else if (activeView === 'history') {
+      stopCamera();
     }
-  }, [isLoadingUser, authError, activeView, resultData, capturedImage, isCameraActive]);
+  }, [activeView, resultData, capturedImage, isCameraActive, isCameraStarting]);
+
+  // Initial mount auto-start
+  useEffect(() => {
+    if (actionParam !== 'history') {
+      startCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, []);
 
   const validateSession = async (dataStr: string, isSilent: boolean = false) => {
     if (!isSilent) {
@@ -184,6 +196,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
   // 2. Camera Functions
   const startCamera = async () => {
+    setIsCameraStarting(true);
     setErrorMessage(null);
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -203,7 +216,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: 'user',
+            facingMode: { ideal: 'user' },
             width: { ideal: 640 },
             height: { ideal: 640 }
           },
@@ -212,7 +225,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       } catch (err1) {
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'user' },
+            video: { facingMode: { ideal: 'user' } },
             audio: false
           });
         } catch (err2) {
@@ -229,13 +242,17 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
       streamRef.current = stream;
       setIsCameraActive(true);
+      setIsCameraStarting(false);
 
       const attachStream = () => {
         if (videoRef.current && streamRef.current) {
           try {
             (videoRef.current as any).setAttribute('playsinline', 'true');
             (videoRef.current as any).setAttribute('webkit-playsinline', 'true');
-            videoRef.current.srcObject = streamRef.current;
+            videoRef.current.muted = true;
+            if (videoRef.current.srcObject !== streamRef.current) {
+              videoRef.current.srcObject = streamRef.current;
+            }
             videoRef.current.play().catch(e => console.warn('Video play error:', e));
           } catch (e) {
             console.warn('Video attach error:', e);
@@ -244,12 +261,14 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       };
 
       attachStream();
-      setTimeout(attachStream, 80);
-      setTimeout(attachStream, 250);
+      setTimeout(attachStream, 50);
+      setTimeout(attachStream, 150);
+      setTimeout(attachStream, 300);
     } catch (err: any) {
       console.warn('Camera access error:', err);
       setIsCameraActive(false);
-      setErrorMessage('មិនអាចបើក Camera បានទេ! សូមចុចប៊ូតុង "បើក Camera" និងអនុញ្ញាតសិទ្ធិ (Camera Permission)។');
+      setIsCameraStarting(false);
+      setErrorMessage('មិនអាចបើក Camera បានទេ! សូមពិនិត្យមើលការអនុញ្ញាតសិទ្ធិ (Camera Permission) លើទូរស័ព្ទ។');
     }
   };
 
@@ -259,6 +278,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       streamRef.current = null;
     }
     setIsCameraActive(false);
+    setIsCameraStarting(false);
   };
 
   // Detect detailed phone model, OS, and hardware environment
@@ -737,11 +757,16 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     />
                   ) : (
                     <div 
-                      onClick={startCamera}
-                      className="text-slate-400 space-y-2 p-4 cursor-pointer hover:text-white transition flex flex-col items-center justify-center"
+                      onClick={() => !isCameraStarting && startCamera()}
+                      className="text-slate-400 space-y-2.5 p-4 cursor-pointer hover:text-white transition flex flex-col items-center justify-center select-none"
                     >
-                      <Camera size={48} className="mx-auto text-blue-400 animate-pulse" />
-                      <p className="text-xs font-bold text-slate-300">ចុចទីនេះដើម្បីបើក Camera</p>
+                      <div className="relative">
+                        <Camera size={44} className="mx-auto text-blue-400 animate-pulse" />
+                        <div className="absolute -inset-2 rounded-full border border-blue-400/40 animate-ping pointer-events-none" />
+                      </div>
+                      <p className="text-xs font-bold text-slate-300">
+                        {isCameraStarting ? 'កំពុងបើក Camera ដោយស្វ័យប្រវត្តិ...' : 'កំពុងរៀបចំ Camera...'}
+                      </p>
                     </div>
                   )}
 
@@ -777,15 +802,22 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
                 {/* Camera Buttons */}
                 {!isCameraActive ? (
-                  <button
-                    type="button"
-                    onClick={startCamera}
-                    disabled={isVerifying}
-                    className="w-full py-3 bg-[#003D9B] hover:bg-blue-800 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-blue-900/10"
-                  >
-                    <Camera size={16} />
-                    <span>📸 បើក Camera</span>
-                  </button>
+                  isCameraStarting ? (
+                    <div className="w-full py-3.5 bg-blue-50 border border-blue-200 text-[#003D9B] rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs">
+                      <Loader2 size={16} className="animate-spin text-[#003D9B]" />
+                      <span>កំពុងបើក Camera ដោយស្វ័យប្រវត្តិ...</span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={startCamera}
+                      disabled={isVerifying}
+                      className="w-full py-3.5 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-amber-900/10"
+                    >
+                      <RefreshCw size={16} />
+                      <span>🔄 សាកល្បងបើក Camera ម្តងទៀត</span>
+                    </button>
+                  )
                 ) : (
                   <div className="flex gap-2">
                     <button
