@@ -21,7 +21,8 @@ import {
   Loader2,
   ShieldCheck,
   Smartphone,
-  Coffee
+  Coffee,
+  FlipHorizontal
 } from 'lucide-react';
 
 interface TelegramAttendanceMiniAppProps {
@@ -35,6 +36,17 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   
   const [activeView, setActiveView] = useState<'action' | 'history'>(actionParam === 'history' ? 'history' : 'action');
   const [currentAction, setCurrentAction] = useState<'checkin' | 'checkout'>(actionParam === 'checkout' ? 'checkout' : 'checkin');
+
+  // Camera Mirror & Orientation Settings (Defaults to NOT mirrored)
+  const [isMirrored, setIsMirrored] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('tc_camera_mirrored');
+      return saved === 'true'; // Default is false (Don't mirror camera!)
+    } catch {
+      return false;
+    }
+  });
+  const [cameraFacingMode, setCameraFacingMode] = useState<'user' | 'environment'>('user');
 
   // Telegram WebApp & Auth State
   const [initData, setInitData] = useState<string>('');
@@ -140,15 +152,16 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   };
 
   // 2. Camera Controls
-  const startCamera = async () => {
+  const startCamera = async (facingOverride?: 'user' | 'environment') => {
     setErrorMessage(null);
+    const targetFacing = facingOverride || cameraFacingMode;
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('WebRTC getUserMedia not supported');
       }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'user',
+          facingMode: targetFacing,
           width: { ideal: 640 },
           height: { ideal: 640 }
         },
@@ -170,6 +183,18 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
         setErrorMessage('មិនអាចបើក Camera ផ្ទាល់បានទេ! សូមអនុញ្ញាត Camera Permissions លើទូរស័ព្ទរបស់អ្នក។');
       }
     }
+  };
+
+  const toggleCameraFacing = () => {
+    const nextMode = cameraFacingMode === 'user' ? 'environment' : 'user';
+    setCameraFacingMode(nextMode);
+    if (nextMode === 'environment') {
+      setIsMirrored(false);
+    }
+    stopCamera();
+    setTimeout(() => {
+      startCamera(nextMode);
+    }, 150);
   };
 
   const handleNativeFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -249,7 +274,11 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Draw frame
+    // Draw frame (respecting user mirror selection)
+    if (isMirrored) {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const photoDataUrl = canvas.toDataURL('image/jpeg', 0.85);
     const vector = generateFaceDescriptorFromCanvas(canvas);
@@ -576,7 +605,8 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                         autoPlay
                         playsInline 
                         muted 
-                        className="w-full h-full object-cover" 
+                        className="w-full h-full object-cover transition-transform duration-200" 
+                        style={{ transform: isMirrored ? 'scaleX(-1)' : 'none' }}
                       />
                       {/* Face positioning oval overlay */}
                       <div className="absolute inset-4 border-2 border-dashed border-white/60 rounded-full pointer-events-none" />
@@ -585,7 +615,8 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     <img 
                       src={capturedImage} 
                       alt="Selfie" 
-                      className="w-full h-full object-cover" 
+                      className="w-full h-full object-cover transition-transform duration-200" 
+                      style={{ transform: isMirrored ? 'scaleX(-1)' : 'none' }}
                     />
                   ) : (
                     <div 
@@ -604,6 +635,37 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     </div>
                   )}
                 </div>
+
+                {/* Camera controls: Flip Camera & Mirror Toggle */}
+                {isCameraActive && (
+                  <div className="flex items-center justify-center gap-2 pt-1 pb-1">
+                    <button
+                      type="button"
+                      onClick={toggleCameraFacing}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                      title="ប្តូរកាមេរ៉ា (Front / Back)"
+                    >
+                      <FlipHorizontal size={13} />
+                      <span>{cameraFacingMode === 'user' ? '🔄 កាមេរ៉ាក្រោយ (Back)' : '🔄 កាមេរ៉ាមុខ (Front)'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !isMirrored;
+                        setIsMirrored(next);
+                        try { localStorage.setItem('tc_camera_mirrored', String(next)); } catch (_) {}
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer border shadow-xs ${
+                        isMirrored 
+                          ? 'bg-blue-50 border-blue-200 text-blue-700' 
+                          : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                      }`}
+                      title="បើក/បិទ Mirror"
+                    >
+                      <span>{isMirrored ? '🪞 Mirror: បើក' : '📷 មិន Mirror (Normal)'}</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Camera Buttons */}
                 {!isCameraActive ? (
