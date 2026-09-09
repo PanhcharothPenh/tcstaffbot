@@ -447,7 +447,7 @@ export const initialMachines: Machine[] = [];
 
 // App Settings
 export const initialSettings: AppSettings = {
-  shopName: "toto by Chichi & Coffee corner",
+  shopName: "TC Staff Management",
   openingHours: "6:30 AM – 9:30 PM",
   mainCurrency: "USD",
   khmerExchangeRate: 4000,

@@ -92,7 +92,7 @@ const getTabFromUrl = (): ActiveTab => {
   if (typeof window === 'undefined') return 'staff';
   const path = window.location.pathname + window.location.hash;
   const tab = decryptLiveUrl(path);
-  if (tab === 'staff' || tab === 'shifts' || tab === 'attendance' || tab === 'salary') {
+  if (['staff', 'shifts', 'attendance', 'salary', 'branches', 'users'].includes(tab)) {
     return tab;
   }
   return 'staff';
@@ -1143,7 +1143,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-screen max-w-full bg-[#FAF8F5] flex overflow-hidden select-none" id="main_saas_root">
+    <div className="h-screen w-screen max-w-full bg-slate-50/70 flex overflow-hidden select-none" id="main_saas_root">
       
       {/* 1. Left Sidebar Navigation Segment (Desktop Collapsible) */}
       <div className={`hidden lg:flex flex-col h-screen shrink-0 sticky top-0 transition-all duration-300 ease-in-out z-20 ${sidebarCollapsed ? 'w-20' : 'w-72'}`}>
@@ -1197,7 +1197,7 @@ export default function App() {
       <div className="flex-1 min-w-0 h-screen flex flex-col overflow-y-auto overflow-x-hidden">
         
         {/* Top Header Segment bar */}
-        <header className="bg-white/85 backdrop-blur-md border-b border-[#EFE8DF] px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between sticky top-0 z-30 shadow-xs" id="header_saas_bar">
+        <header className="bg-white/85 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between sticky top-0 z-30 shadow-xs" id="header_saas_bar">
           
           {/* Menu Trigger and Title details */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -1217,8 +1217,9 @@ export default function App() {
                  activeTab === 'salary' ? (lang === 'en' ? 'Salary Management' : 'ការបើកប្រាក់បៀវត្សរ៍') :
                  getActiveBranchLabel()}
               </h1>
-              <p className="text-[11px] text-[#4B5563] font-medium leading-none mt-0.5 hidden sm:block">
-                TC Staff Management System
+              <p className="text-[11px] text-slate-500 font-bold leading-none mt-1 hidden sm:flex items-center gap-1.5">
+                <span>👥 TC Staff Management Suite</span>
+                <span className="text-[9px] bg-blue-100 text-blue-800 font-extrabold px-1.5 py-0.5 rounded-full">TC Staff</span>
               </p>
             </div>
           </div>
