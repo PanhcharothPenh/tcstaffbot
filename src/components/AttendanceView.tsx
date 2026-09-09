@@ -616,13 +616,12 @@ export default function AttendanceView({
           `❌ <b>អវត្តមាន:</b> ${staffStats ? staffStats.absentCount : printableTotals.absentCount} ថ្ងៃ\n` +
           `━━━━━━━━━━━━━━━━━━\n` +
           `✨ <i>សូមពិនិត្យមើលទិន្នន័យវត្តមាន និងតារាងលម្អិតភ្ជាប់ជាមួយនេះ។ អរគុណសម្រាប់ការបំពេញការងារ!</i>`;
-      } else {
-        msg = `📊 <b>[TC Staff Management - របាយការណ៍សង្ខេបវត្តមានរួម / Master Attendance Report]</b>\n\n` +
+        msg = `📊 <b>របាយការណ៍វត្តមានសរុប</b>\n\n` +
           `🏢 <b>សាខា:</b> ${targetBranch ? targetBranch.branchName : 'គ្រប់សាខាទាំងអស់'}\n` +
-          `📅 <b>រយៈពេល:</b> ${periodStr}\n` +
-          `👥 <b>ចំនួនបុគ្គលិក:</b> ${staffMonthlyStats.length} នាក់\n` +
-          `⏱️ <b>ម៉ោងសរុបរួម:</b> ${formatWorkDuration(printableTotals.totalWorkHours, 'kh')}\n` +
-          `⚡ <b>ម៉ោងបន្ថែម OT សរុប:</b> ${printableTotals.totalOtHours} ម៉ោង`;
+          `📅 <b>ប្រចាំខែ:</b> ${selectedMonth}/${selectedYear}\n\n` +
+          `👥 <b>បុគ្គលិកសរុប:</b> ${staffMonthlyStats.length} នាក់\n` +
+          `⏱️ <b>ម៉ោងធ្វើការសរុប:</b> ${formatWorkDuration(printableTotals.totalWorkHours, 'kh')}\n` +
+          `⚡ <b>ម៉ោងបន្ថែម (OT):</b> ${printableTotals.totalOtHours} ម៉ោង`;
       }
 
       const controller = new AbortController();
