@@ -26,7 +26,7 @@ function getSupabase() {
 function createSignedMfaToken(userId: string, code: string, username: string): string {
   const payload = { userId, username, code, expiresAt: Date.now() + 15 * 60 * 1000 };
   const payloadStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const secret = process.env.JWT_SECRET || 'p2b_laundry_sec_2026';
+  const secret = process.env.JWT_SECRET || 'tc_staff_management_jwt_sec_2026';
   const sig = crypto.createHmac('sha256', secret).update(payloadStr).digest('base64url');
   return 'mfa_' + payloadStr + '.' + sig;
 }
@@ -95,34 +95,59 @@ export default async function handler(req: any, res: any) {
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const mfaToken = createSignedMfaToken(userId, otpCode, cleanUsername);
 
-    // Dispatch 2FA PIN to specific User's Telegram
-    const botToken = 
-      process.env.TELEGRAM_BOT_TOKEN_CODE || 
-      process.env.TELEGRAM_BOT_TOKEN || 
+    // Unified Bot Token resolution - strictly matches telegram-webhook.ts
+    const botToken = (
+      process.env.TELEGRAM_BOT_TOKEN_COFFEE ||
+      process.env.TELEGRAM_BOT_TOKEN ||
+      process.env.TELEGRAM_BOT_TOKEN_CODE ||
+      process.env.BOT_TOKEN ||
+      process.env.TELEGRAM_BOT_TOKEN_ATTENDANCE ||
       process.env.TELEGRAM_BOT_TOKEN_VENG_SRENG ||
       process.env.TELEGRAM_BOT_TOKEN_CHOMKA_DOUNG ||
-      process.env.TELEGRAM_BOT_TOKEN_ATTENDANCE ||
-      process.env.BOT_TOKEN || 
-      '';
+      ''
+    ).trim();
+
     const isOwnerAccount = cleanUsername === 'roth' || cleanUsername === 'owner' || matchedUser?.role === 'Owner' || matchedUser?.roleId === 'owner';
     
-    // Check if the user has a configured numeric Chat ID or Telegram handle
+    // Check if user has numeric Telegram Chat ID or handle
     const userTgChat = String(matchedUser?.telegramChatId || (matchedUser as any)?.telegramId || '').trim();
     const userTgHandle = String(matchedUser?.telegramUsername || '').replace(/^@/, '').trim().toLowerCase();
 
     let resolvedChatId: string | null = null;
     let dispatchSuccess = false;
+    let tgErrorDetail: string | null = null;
 
-    // 1. If user already has a numeric Telegram chat ID, use it directly!
+    // 1. Check user direct Chat ID
     if (/^-?\d+$/.test(userTgChat)) {
       resolvedChatId = userTgChat;
     }
 
-    // 2. Also check staff collection if user has linked Telegram on staff roster
-    if (!resolvedChatId && supabase && (userTgHandle || cleanUsername)) {
+    // 2. Query Supabase users table
+    if (!resolvedChatId && supabase) {
       try {
-        let { data: staffColl, error } = await supabase.from('tc_collections').select('data').eq('id', 'staff').maybeSingle();
-        if (error || !staffColl) {
+        let { data: uRow } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
+        if (!uRow || !uRow.data) {
+          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
+          if (alt.data) uRow = alt;
+        }
+        if (uRow && Array.isArray(uRow.data)) {
+          const found = uRow.data.find((u: any) => 
+            u.id === userId || 
+            (u.username && u.username.toLowerCase() === cleanUsername) ||
+            (userTgHandle && u.telegramUsername && u.telegramUsername.replace(/^@/, '').toLowerCase() === userTgHandle)
+          );
+          if (found && /^-?\d+$/.test(String(found.telegramChatId || ''))) {
+            resolvedChatId = String(found.telegramChatId);
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 3. Query Supabase staff table
+    if (!resolvedChatId && supabase) {
+      try {
+        let { data: staffColl } = await supabase.from('tc_collections').select('data').eq('id', 'staff').maybeSingle();
+        if (!staffColl || !staffColl.data) {
           const alt = await supabase.from('clean24_collections').select('data').eq('id', 'staff').maybeSingle();
           if (alt.data) staffColl = alt;
         }
@@ -130,7 +155,11 @@ export default async function handler(req: any, res: any) {
           const matchedSt = staffColl.data.find((s: any) => {
             const sUser = (s.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
             const sId = String(s.telegramId || '').trim();
-            return /^-?\d+$/.test(sId) && ((userTgHandle && sUser === userTgHandle) || s.fullName?.toLowerCase() === cleanUsername);
+            return /^-?\d+$/.test(sId) && (
+              (userTgHandle && sUser === userTgHandle) || 
+              (s.fullName && s.fullName.toLowerCase() === cleanUsername) ||
+              (cleanUsername === 'roth' && (sUser === 'millerppc' || sUser === 'roth'))
+            );
           });
           if (matchedSt && matchedSt.telegramId) {
             resolvedChatId = String(matchedSt.telegramId);
@@ -139,38 +168,106 @@ export default async function handler(req: any, res: any) {
       } catch (e) {}
     }
 
-    // 3. Fall back to process.env.TELEGRAM_CHAT_ID ONLY for the Owner account, NEVER for other users!
+    // 4. Query telegramConfig for owner chat ID
+    if (!resolvedChatId && supabase && isOwnerAccount) {
+      try {
+        let { data: cfgRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
+        if (!cfgRow || !cfgRow.data) {
+          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
+          if (alt.data) cfgRow = alt;
+        }
+        if (cfgRow && cfgRow.data) {
+          const cfg = cfgRow.data;
+          const ownerCid = cfg.chatIds?.owner || cfg.adminChatId || cfg.lastPrivateChatId || cfg.lastChatId;
+          if (ownerCid && /^-?\d+$/.test(String(ownerCid))) {
+            resolvedChatId = String(ownerCid);
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 5. Query telegram_chat_registry for latest active user/owner chat
+    if (!resolvedChatId && supabase && isOwnerAccount) {
+      try {
+        let { data: regRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
+        if (!regRow || !regRow.data) {
+          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
+          if (alt.data) regRow = alt;
+        }
+        if (regRow && Array.isArray(regRow.data) && regRow.data.length > 0) {
+          const matchEntry = regRow.data.find((r: any) => 
+            r.isOwner || 
+            r.username === 'roth' || 
+            r.username === 'millerppc'
+          ) || regRow.data[regRow.data.length - 1];
+          if (matchEntry && /^-?\d+$/.test(String(matchEntry.chatId))) {
+            resolvedChatId = String(matchEntry.chatId);
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 6. Fall back to process.env.TELEGRAM_CHAT_ID ONLY for Owner account
     if (!resolvedChatId && isOwnerAccount && process.env.TELEGRAM_CHAT_ID && /^-?\d+$/.test(process.env.TELEGRAM_CHAT_ID)) {
       resolvedChatId = process.env.TELEGRAM_CHAT_ID;
     }
 
-    // 4. Send message if a valid chat ID was resolved for THIS user
+    // 7. Dispatch 2FA PIN via Telegram Bot
     if (botToken && resolvedChatId) {
-      const text = `Your 2FA login verification code is: ${otpCode}`;
+      const text = `🔐 <b>[TC Staff Management - លេខកូដ 2FA]</b>\n\n` +
+        `លេខកូដផ្ទៀងផ្ទាត់សុវត្ថិភាពរបស់អ្នកគឺ៖ <code>${otpCode}</code>\n\n` +
+        `👤 គណនី៖ <b>${cleanUsername}</b>\n` +
+        `⏱️ មានសុពលភាព៖ <b>15 នាទី</b>\n\n` +
+        `⚠️ <i>សូមកុំចែករំលែកលេខកូដនេះជាមួយនរណាម្នាក់ឡើយ។</i>`;
+
       try {
         const sendRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: resolvedChatId, text })
+          body: JSON.stringify({ 
+            chat_id: resolvedChatId, 
+            text, 
+            parse_mode: 'HTML' 
+          })
         });
         const sendData = await sendRes.json() as any;
         if (sendData.ok) {
           dispatchSuccess = true;
+        } else {
+          console.error('[2FA] Telegram API error:', sendData);
+          tgErrorDetail = sendData.description || 'Telegram API Error';
         }
-      } catch (tgErr) {}
+      } catch (tgErr: any) {
+        console.error('[2FA] Telegram fetch exception:', tgErr);
+        tgErrorDetail = tgErr.message || 'Network exception';
+      }
     }
 
+    // Production Response: NEVER expose simulatedOtp!
     return res.status(200).json({
       require2fa: true,
       mfaToken,
       method: 'telegram',
-      simulatedOtp: otpCode,
       username: cleanUsername,
-      user: matchedUser,
+      user: {
+        id: matchedUser?.id || userId,
+        username: cleanUsername,
+        email: matchedUser?.email || `${cleanUsername}@p2bkh.tech`,
+        fullName: matchedUser?.fullName || cleanUsername,
+        role: matchedUser?.role || 'Staff',
+        roleId: matchedUser?.roleId || 'staff',
+        status: 'Active',
+        assignedBranchIds: matchedUser?.assignedBranchIds || [],
+        telegramUsername: matchedUser?.telegramUsername || userTgHandle || '',
+        telegramChatId: resolvedChatId || '',
+        twoFactorMethod: 'telegram'
+      },
       dispatched: dispatchSuccess,
       telegramNotice: dispatchSuccess 
-        ? `លេខកូដ PIN ត្រូវបានផ្ញើទៅកាន់ Telegram របស់លោកអ្នក (@${userTgHandle || cleanUsername}) រួចរាល់ហើយ។`
-        : `សូមបើក Telegram រួចចុច Start លើ Bot @p2bkh_bot ដើម្បីឱ្យ Bot អាចផ្ញើលេខកូដមកកាន់គណនីរបស់អ្នកបាន។`
+        ? `លេខកូដសុវត្ថិភាព 2FA ត្រូវបានផ្ញើទៅកាន់ Telegram របស់អ្នករួចរាល់ហើយ។`
+        : (resolvedChatId 
+            ? `មិនអាចផ្ញើលេខកូដទៅ Telegram បានទេ (${tgErrorDetail || 'Unknown Error'})។ សូមចុច /start លើ Bot ក្នុង Telegram។`
+            : `រកមិនឃើញគណនី Telegram របស់អ្នកឡើយ។ សូមបើក Telegram រួចចុច /start លើ Bot ជាមុនសិន។`)
     });
   } catch (err: any) {
     return res.status(400).json({ error: err?.message || 'Login failed' });

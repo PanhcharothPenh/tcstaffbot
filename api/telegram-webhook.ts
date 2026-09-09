@@ -6,6 +6,35 @@ function getSupabase() {
   return (url && key) ? createClient(url, key) : null;
 }
 
+async function loadDbCollection(supabase: any, id: string): Promise<any> {
+  if (!supabase) return null;
+  try {
+    let { data, error } = await supabase.from('tc_collections').select('data').eq('id', id).maybeSingle();
+    if (error || !data) {
+      const alt = await supabase.from('clean24_collections').select('data').eq('id', id).maybeSingle();
+      if (alt.data) data = alt;
+    }
+    return data?.data ?? null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function saveDbCollection(supabase: any, id: string, payload: any): Promise<void> {
+  if (!supabase) return;
+  const item = { id, data: payload, updated_at: new Date().toISOString() };
+  try {
+    const res = await supabase.from('tc_collections').upsert(item);
+    if (res.error) {
+      await supabase.from('clean24_collections').upsert(item);
+    }
+  } catch (e) {
+    try {
+      await supabase.from('clean24_collections').upsert(item);
+    } catch (_) {}
+  }
+}
+
 function formatWorkDuration(hours: number): string {
   if (!hours || isNaN(hours) || hours <= 0) return '0 ម៉ោង';
   const totalMinutes = Math.round(hours * 60);
@@ -121,9 +150,15 @@ export default async function handler(req: any, res: any) {
     // Default info
     const infos: any[] = [];
     for (const bot of allTargetBots) {
-      const infoRes = await fetch(`https://api.telegram.org/bot${bot.token}/getWebhookInfo`);
-      const infoData = await infoRes.json();
-      infos.push({ bot: bot.name, branchId: bot.branchId, info: infoData.result });
+      try {
+        const infoRes = await fetch(`https://api.telegram.org/bot${bot.token}/getWebhookInfo`);
+        const infoData = await infoRes.json();
+        const meRes = await fetch(`https://api.telegram.org/bot${bot.token}/getMe`);
+        const meData = await meRes.json();
+        infos.push({ bot: bot.name, branchId: bot.branchId, me: meData.result, info: infoData.result });
+      } catch (e: any) {
+        infos.push({ bot: bot.name, branchId: bot.branchId, error: e.message });
+      }
     }
     return res.status(200).json({ success: true, count: allTargetBots.length, bots: infos });
   }
@@ -185,26 +220,108 @@ export default async function handler(req: any, res: any) {
       let storedConfig: any = null;
       let storedRecipients: any[] = [];
       let allAtt: any[] = [];
+      let allUsers: any[] = [];
+      let chatRegistry: any[] = [];
+
+      const isPrivateChat = msg.chat?.type === 'private' || !msg.chat?.type;
 
       if (supabase) {
         try {
           // 1. Fetch Telegram Config
-          const { data: cfgRow } = await supabase.from('clean24_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
-          if (cfgRow && cfgRow.data) storedConfig = cfgRow.data;
+          storedConfig = await loadDbCollection(supabase, 'telegramConfig') || { chatIds: { branches: {} } };
 
           // 2. Fetch Recipients
-          const { data: recRow } = await supabase.from('clean24_collections').select('data').eq('id', 'telegramRecipients').maybeSingle();
-          if (recRow && Array.isArray(recRow.data)) storedRecipients = recRow.data;
+          storedRecipients = await loadDbCollection(supabase, 'telegramRecipients') || [];
 
           // 3. Fetch staff
-          const { data: staffColl } = await supabase.from('clean24_collections').select('data').eq('id', 'staff').maybeSingle();
-          allStaff = (staffColl && Array.isArray(staffColl.data)) ? staffColl.data : [];
+          allStaff = await loadDbCollection(supabase, 'staff') || [];
 
           // 4. Fetch branches
-          const { data: bColl } = await supabase.from('clean24_collections').select('data').eq('id', 'branches').maybeSingle();
-          allBranches = (bColl && Array.isArray(bColl.data)) ? bColl.data : [];
+          allBranches = await loadDbCollection(supabase, 'branches') || [];
 
-          // 5. Find matching staff by Telegram ID or Username
+          // 5. Fetch attendance records
+          allAtt = await loadDbCollection(supabase, 'attendance') || [];
+
+          // 6. Fetch users
+          allUsers = await loadDbCollection(supabase, 'users') || [];
+          if (!Array.isArray(allUsers) || allUsers.length === 0) {
+            allUsers = [
+              {
+                id: 'usr_owner',
+                username: 'roth',
+                email: 'roth@p2bkh.tech',
+                fullName: 'Roth (Executive Owner)',
+                role: 'Owner',
+                roleId: 'owner',
+                status: 'Active',
+                assignedBranchIds: [],
+                telegramUsername: '',
+                telegramChatId: '',
+                twoFactorMethod: 'telegram'
+              }
+            ];
+          }
+
+          // 7. Fetch Telegram Chat Registry
+          chatRegistry = await loadDbCollection(supabase, 'telegram_chat_registry') || [];
+          if (!Array.isArray(chatRegistry)) chatRegistry = [];
+
+          // If this is a private chat, auto-register this user and link to Owner/Staff!
+          if (isPrivateChat) {
+            const isOwnerSender = cleanTgHandle === 'roth' || cleanTgHandle === 'millerppc' || userText.toLowerCase().includes('roth');
+            
+            // 7a. Update Chat Registry
+            const regIdx = chatRegistry.findIndex((c: any) => String(c.chatId) === chatId);
+            const regEntry = {
+              chatId,
+              telegramId,
+              username: cleanTgHandle,
+              firstName,
+              lastSeen: new Date().toISOString(),
+              isOwner: isOwnerSender || chatRegistry.length === 0
+            };
+            if (regIdx >= 0) {
+              chatRegistry[regIdx] = { ...chatRegistry[regIdx], ...regEntry };
+            } else {
+              chatRegistry.push(regEntry);
+            }
+            await saveDbCollection(supabase, 'telegram_chat_registry', chatRegistry);
+
+            // 7b. Update telegramConfig
+            storedConfig.chatIds = storedConfig.chatIds || {};
+            storedConfig.lastPrivateChatId = chatId;
+            storedConfig.lastChatId = chatId;
+            if (!storedConfig.chatIds.owner || isOwnerSender) {
+              storedConfig.chatIds.owner = chatId;
+              storedConfig.chatIds.admin = chatId;
+            }
+            await saveDbCollection(supabase, 'telegramConfig', storedConfig);
+
+            // 7c. Auto-bind Chat ID in users table
+            let userModified = false;
+            for (const u of allUsers) {
+              const uName = String(u.username || '').toLowerCase().trim();
+              const uTg = String(u.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
+              const isTargetOwner = u.id === 'usr_owner' || uName === 'roth' || u.role === 'Owner' || u.roleId === 'owner';
+
+              if (
+                (cleanTgHandle && (uTg === cleanTgHandle || uName === cleanTgHandle)) ||
+                (cleanTgHandle === 'millerppc' && isTargetOwner) ||
+                (cleanTgHandle === 'roth' && isTargetOwner) ||
+                (userText.startsWith('/link') && userText.toLowerCase().includes(uName)) ||
+                (isTargetOwner && !u.telegramChatId) // Auto-bind owner if empty!
+              ) {
+                u.telegramChatId = chatId;
+                if (cleanTgHandle) u.telegramUsername = cleanTgHandle;
+                userModified = true;
+              }
+            }
+            if (userModified) {
+              await saveDbCollection(supabase, 'users', allUsers);
+            }
+          }
+
+          // 8. Find matching staff by Telegram ID or Username
           matchedStaff = allStaff.find((s: any) => {
             const sId = String(s.telegramId || '').trim();
             const sUser = (s.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
@@ -215,16 +332,8 @@ export default async function handler(req: any, res: any) {
           if (matchedStaff && !matchedStaff.telegramId) {
             matchedStaff.telegramId = telegramId;
             matchedStaff.telegramLinked = true;
-            await supabase.from('clean24_collections').upsert({
-              id: 'staff',
-              data: allStaff,
-              updated_at: new Date().toISOString()
-            });
+            await saveDbCollection(supabase, 'staff', allStaff);
           }
-
-          // 6. Fetch attendance records
-          const { data: attColl } = await supabase.from('clean24_collections').select('data').eq('id', 'attendance').maybeSingle();
-          allAtt = (attColl && Array.isArray(attColl.data)) ? attColl.data : [];
 
           if (matchedStaff) {
             todayAttendance = allAtt.find((a: any) => a.staffId === matchedStaff.id && a.date === phnomPenhDateStr);
@@ -771,12 +880,14 @@ export default async function handler(req: any, res: any) {
       const checkOutTime = todayAttendance?.checkOut || '--';
 
       const welcomeText = `☕ <b>សួស្តី ${greetingName}!</b>\n` +
-        `សូមស្វាគមន៍មកកាន់ <b>toto by Chichi & Coffee corner Management Bot</b> 🤖\n\n` +
+        `សូមស្វាគមន៍មកកាន់ <b>TC Staff Management Bot</b> 🤖\n\n` +
+        `🏢 <b>ប្រព័ន្ធ:</b> TC Staff Management\n` +
         `☕ <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
         `🆔 <b>Chat ID:</b> <code>${chatId}</code> (បានភ្ជាប់ជោគជ័យ ✅)\n` +
+        `🔐 <b>សុវត្ថិភាព 2FA:</b> បានភ្ជាប់រួចរាល់ ✅\n` +
         `📅 <b>ថ្ងៃនេះ:</b> <code>${phnomPenhDateStr}</code>\n` +
         `📥 <b>ម៉ោងចូល:</b> <code>${checkInTime}</code> | 📤 <b>ម៉ោងចេញ:</b> <code>${checkOutTime}</code>\n\n` +
-        `🔔 <i>រាល់ការកត់ត្រាការលក់កាហ្វេ ស្តុកគ្រាប់កាហ្វេ វត្តមាន Barista និងថ្ងៃបើកប្រាក់ខែនៃសាខានេះ នឹងត្រូវផ្ញើមកកាន់ទីនេះដោយស្វ័យប្រវត្តិ។</i>\n\n` +
+        `🔔 <i>រាល់លេខកូដសុវត្ថិភាព 2FA សម្រាប់ Login ចូលប្រព័ន្ធ នឹងត្រូវបានផ្ញើមកកាន់ទីនេះដោយស្វ័យប្រវត្តិ។</i>\n\n` +
         `👇 <b>សូមជ្រើសរើសមុខងារដែលលោកអ្នកចង់ប្រើប្រាស់នៅខាងក្រោម៖</b>`;
 
       const interactiveMenuButtons = {

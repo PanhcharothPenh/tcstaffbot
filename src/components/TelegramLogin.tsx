@@ -106,7 +106,13 @@ export default function TelegramLogin({ onLoginSuccess, lang: propLang, setLang:
       const mfaTok = result?.mfaToken || ('mfa_token_' + Date.now());
       setMfaRequired(true);
       setMfaToken(mfaTok);
-      setSuccess(null);
+      if (result?.dispatched) {
+        setSuccess(result.telegramNotice || (lang === 'en' ? '2FA PIN sent to your Telegram!' : 'លេខកូដ 2FA ត្រូវបានផ្ញើទៅកាន់ Telegram របស់អ្នករួចរាល់ហើយ!'));
+        setError(null);
+      } else {
+        setError(result?.telegramNotice || (lang === 'en' ? 'Could not reach Telegram. Please press /start on the bot.' : 'រកមិនឃើញគណនី Telegram របស់អ្នកឡើយ។ សូមបើក Telegram រួចចុច /start លើ Bot ជាមុនសិន។'));
+        setSuccess(null);
+      }
     } catch (err: any) {
       // STRICT ERROR HANDLING: Show error directly and NEVER enter 2FA or send Telegram OTP!
       setError(err?.message || (lang === 'en' ? 'Invalid username or password' : 'ឈ្មោះគណនី ឬលេខសម្ងាត់មិនត្រឹមត្រូវឡើយ'));
@@ -203,7 +209,13 @@ export default function TelegramLogin({ onLoginSuccess, lang: propLang, setLang:
       if (loginData && loginData.mfaToken) {
         setMfaToken(loginData.mfaToken);
       }
-      setSuccess(lang === 'en' ? 'New 2FA PIN dispatched to Telegram (@p2bkh_bot)!' : 'លេខកូដសុវត្ថិភាព 2FA ថ្មីត្រូវបានផ្ញើទៅកាន់ Telegram (@p2bkh_bot) រួចរាល់!');
+      if (loginData?.dispatched) {
+        setSuccess(loginData.telegramNotice || (lang === 'en' ? 'New 2FA PIN dispatched to your Telegram!' : 'លេខកូដសុវត្ថិភាព 2FA ថ្មីត្រូវបានផ្ញើទៅកាន់ Telegram រួចរាល់!'));
+        setError(null);
+      } else {
+        setError(loginData?.telegramNotice || (lang === 'en' ? 'Could not dispatch 2FA to Telegram. Please press /start on the bot first.' : 'មិនអាចផ្ញើលេខកូដទៅ Telegram បានទេ។ សូមចុច /start លើ Bot ជាមុនសិន។'));
+        setSuccess(null);
+      }
     } catch (err: any) {
       setError(err?.message || 'Failed to resend PIN');
     } finally {

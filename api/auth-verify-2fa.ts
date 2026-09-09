@@ -30,7 +30,7 @@ function verifySignedMfaToken(mfaToken: string): any {
   if (dotIdx === -1) return null;
   const payloadStr = raw.substring(0, dotIdx);
   const sig = raw.substring(dotIdx + 1);
-  const secret = process.env.JWT_SECRET || 'p2b_laundry_sec_2026';
+  const secret = process.env.JWT_SECRET || 'tc_staff_management_jwt_sec_2026';
   const expectedSig = crypto.createHmac('sha256', secret).update(payloadStr).digest('base64url');
   if (sig !== expectedSig) return null;
   try {
@@ -38,6 +38,20 @@ function verifySignedMfaToken(mfaToken: string): any {
   } catch (e) {
     return null;
   }
+}
+
+function createSessionToken(user: any): string {
+  const payload = {
+    userId: user.id || 'usr_owner',
+    username: user.username || 'roth',
+    role: user.role || 'Staff',
+    roleId: user.roleId || 'staff',
+    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
+  };
+  const payloadStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const secret = process.env.JWT_SECRET || 'tc_staff_management_jwt_sec_2026';
+  const sig = crypto.createHmac('sha256', secret).update(payloadStr).digest('base64url');
+  return `tc_${payloadStr}.${sig}`;
 }
 
 export default async function handler(req: any, res: any) {
@@ -61,30 +75,26 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'សូមបញ្ចូលលេខកូដ 2FA PIN (2FA passcode is required)' });
     }
 
-    let isValid = false;
-    let targetUsername = 'roth';
-    let targetUserId = 'usr_owner';
-
-    if (mfaToken) {
-      const record = verifySignedMfaToken(mfaToken);
-      if (record) {
-        targetUsername = record.username || 'roth';
-        targetUserId = record.userId || 'usr_owner';
-        if (record.code === inputCode || inputCode === '123456') {
-          if (Date.now() <= (record.expiresAt || Infinity)) {
-            isValid = true;
-          }
-        }
-      }
+    if (!mfaToken) {
+      return res.status(400).json({ error: 'មិនមាន Token ផ្ទៀងផ្ទាត់ 2FA ឡើយ (MFA session token missing)' });
     }
 
-    if (!isValid && /^\d{6}$/.test(inputCode)) {
-      isValid = true;
+    // Strict Production Verification: Cryptographically signed MFA Token + Exact 6-digit match + Expiration check
+    const record = verifySignedMfaToken(mfaToken);
+    if (!record) {
+      return res.status(400).json({ error: 'Token ផ្ទៀងផ្ទាត់ 2FA មិនត្រឹមត្រូវ ឬខូចខាត (Invalid or corrupted MFA token)' });
     }
 
-    if (!isValid) {
-      return res.status(400).json({ error: 'លេខកូដសុវត្ថិភាព 2FA មិនត្រឹមត្រូវឡើយ (Incorrect 2FA code)' });
+    if (Date.now() > (record.expiresAt || 0)) {
+      return res.status(400).json({ error: 'លេខកូដ 2FA បានផុតកំណត់ហើយ សូមស្នើសុំលេខកូដថ្មី (2FA passcode expired)' });
     }
+
+    if (record.code !== inputCode) {
+      return res.status(400).json({ error: 'លេខកូដសុវត្ថិភាព 2FA មិនត្រឹមត្រូវឡើយ (Incorrect 2FA passcode)' });
+    }
+
+    const targetUsername = record.username || 'roth';
+    const targetUserId = record.userId || 'usr_owner';
 
     // Load registered users from Supabase Cloud Database
     const supabase = getSupabase();
@@ -120,20 +130,6 @@ export default async function handler(req: any, res: any) {
         twoFactorMethod: 'telegram'
       };
     }
-
-function createSessionToken(user: any): string {
-  const payload = {
-    userId: user.id || 'usr_owner',
-    username: user.username || 'roth',
-    role: user.role || 'Staff',
-    roleId: user.roleId || 'staff',
-    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
-  };
-  const payloadStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const secret = process.env.JWT_SECRET || 'p2b_laundry_sec_2026';
-  const sig = crypto.createHmac('sha256', secret).update(payloadStr).digest('base64url');
-  return `p2b_${payloadStr}.${sig}`;
-}
 
     const accessToken = createSessionToken(resolvedUser);
     const refreshToken = createSessionToken(resolvedUser);

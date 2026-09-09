@@ -18,23 +18,21 @@ export default async function handler(req: any, res: any) {
 
   const { pinCode, username, clientChatId, targetChatId: bodyChatId, chatId } = req.body || req.query || {};
 
-  const botToken = 
-    process.env.TELEGRAM_BOT_TOKEN_CODE || 
-    process.env.TELEGRAM_BOT_TOKEN || 
+  const botToken = (
+    process.env.TELEGRAM_BOT_TOKEN_COFFEE ||
+    process.env.TELEGRAM_BOT_TOKEN ||
+    process.env.TELEGRAM_BOT_TOKEN_CODE ||
+    process.env.BOT_TOKEN ||
+    process.env.TELEGRAM_BOT_TOKEN_ATTENDANCE ||
     process.env.TELEGRAM_BOT_TOKEN_VENG_SRENG ||
     process.env.TELEGRAM_BOT_TOKEN_CHOMKA_DOUNG ||
-    process.env.TELEGRAM_BOT_TOKEN_ATTENDANCE ||
-    process.env.TELEGRAM_BOT_TOKEN_ATTENDENT ||
-    process.env.TELEGRAM_ATTENDANCE_BOT_TOKEN ||
-    process.env.BOT_TOKEN ||
-    '';
+    ''
+  ).trim();
 
   const pin = String(pinCode || Math.floor(100000 + Math.random() * 900000)).trim();
   const cleanUsername = String(username || '').replace(/^@/, '').toLowerCase().trim();
   let explicitChatId = clientChatId || bodyChatId || chatId || '';
   const cleanTarget = String(explicitChatId || '').replace(/^@/, '').toLowerCase().trim();
-
-  console.log(`[2FA Telegram Dispatch] PIN: ${pin} for User: ${cleanUsername || 'N/A'}`);
 
   const chatIdsToSend = new Set<string>();
 
@@ -43,11 +41,16 @@ export default async function handler(req: any, res: any) {
     chatIdsToSend.add(String(explicitChatId).trim());
   }
 
-  // 2. Query Supabase users and staff
+  // 2. Query Supabase users, staff, config, and registry
   const supabase = getSupabase();
   if (supabase && (cleanUsername || cleanTarget)) {
     try {
-      const { data: uData } = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
+      // 2a. Check users
+      let { data: uData } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
+      if (!uData || !uData.data) {
+        const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
+        if (alt.data) uData = alt;
+      }
       if (uData && Array.isArray(uData.data)) {
         for (const u of uData.data) {
           const uId = String(u.telegramChatId || u.telegramId || '').trim();
@@ -57,7 +60,6 @@ export default async function handler(req: any, res: any) {
           if (
             (cleanUsername && (uAcc === cleanUsername || uUser === cleanUsername || uEmail.startsWith(cleanUsername))) ||
             (cleanTarget && (uUser === cleanTarget || uAcc === cleanTarget)) ||
-            (cleanUsername === 'psc' && (uAcc === 'psc' || uUser === 'mrknowitall56')) ||
             (cleanUsername === 'roth' && (uAcc === 'roth' || uUser === 'millerppc'))
           ) {
             if (/^-?\d+$/.test(uId)) chatIdsToSend.add(uId);
@@ -65,7 +67,12 @@ export default async function handler(req: any, res: any) {
         }
       }
 
-      const { data: sData } = await supabase.from('clean24_collections').select('data').eq('id', 'staff').maybeSingle();
+      // 2b. Check staff
+      let { data: sData } = await supabase.from('tc_collections').select('data').eq('id', 'staff').maybeSingle();
+      if (!sData || !sData.data) {
+        const alt = await supabase.from('clean24_collections').select('data').eq('id', 'staff').maybeSingle();
+        if (alt.data) sData = alt;
+      }
       if (sData && Array.isArray(sData.data)) {
         for (const s of sData.data) {
           const sId = String(s.telegramId || s.telegramChatId || '').trim();
@@ -73,9 +80,38 @@ export default async function handler(req: any, res: any) {
           const sName = String(s.fullName || '').toLowerCase().trim();
           if (
             (cleanUsername && (sUser === cleanUsername || sName === cleanUsername || sName.includes(cleanUsername))) ||
-            (cleanTarget && sUser === cleanTarget)
+            (cleanTarget && sUser === cleanTarget) ||
+            (cleanUsername === 'roth' && (sUser === 'millerppc' || sUser === 'roth'))
           ) {
             if (/^-?\d+$/.test(sId)) chatIdsToSend.add(sId);
+          }
+        }
+      }
+
+      // 2c. Check telegramConfig
+      if (chatIdsToSend.size === 0 && (cleanUsername === 'roth' || cleanUsername === 'owner')) {
+        let { data: cfgRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
+        if (!cfgRow || !cfgRow.data) {
+          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
+          if (alt.data) cfgRow = alt;
+        }
+        if (cfgRow && cfgRow.data) {
+          const cid = cfgRow.data.chatIds?.owner || cfgRow.data.adminChatId || cfgRow.data.lastPrivateChatId || cfgRow.data.lastChatId;
+          if (cid && /^-?\d+$/.test(String(cid))) chatIdsToSend.add(String(cid));
+        }
+      }
+
+      // 2d. Check telegram_chat_registry
+      if (chatIdsToSend.size === 0 && (cleanUsername === 'roth' || cleanUsername === 'owner')) {
+        let { data: regRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
+        if (!regRow || !regRow.data) {
+          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
+          if (alt.data) regRow = alt;
+        }
+        if (regRow && Array.isArray(regRow.data) && regRow.data.length > 0) {
+          const matchEntry = regRow.data.find((r: any) => r.isOwner || r.username === 'roth' || r.username === 'millerppc') || regRow.data[regRow.data.length - 1];
+          if (matchEntry && /^-?\d+$/.test(String(matchEntry.chatId))) {
+            chatIdsToSend.add(String(matchEntry.chatId));
           }
         }
       }
@@ -96,12 +132,16 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({
       success: true,
       dispatched: false,
-      pinCode: pin,
-      error: 'Please open your Telegram Bot and press START to link your Telegram account!'
+      error: 'រកមិនឃើញគណនី Telegram របស់អ្នកឡើយ។ សូមបើក Telegram ហើយចុច /start លើ Bot ជាមុនសិន។'
     });
   }
 
-  const message = `Your 2FA login verification code is: ${pin}`;
+  const message = `🔐 <b>[TC Staff Management - លេខកូដ 2FA]</b>\n\n` +
+    `លេខកូដផ្ទៀងផ្ទាត់សុវត្ថិភាពរបស់អ្នកគឺ៖ <code>${pin}</code>\n\n` +
+    `👤 គណនី៖ <b>${cleanUsername || 'Staff'}</b>\n` +
+    `⏱️ មានសុពលភាព៖ <b>15 នាទី</b>\n\n` +
+    `⚠️ <i>សូមកុំចែករំលែកលេខកូដនេះជាមួយនរណាម្នាក់ឡើយ។</i>`;
+
   let anySuccess = false;
   const dispatchResults: any[] = [];
 
@@ -112,7 +152,8 @@ export default async function handler(req: any, res: any) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: cid,
-          text: message
+          text: message,
+          parse_mode: 'HTML'
         })
       });
       const tgData = await tgRes.json() as any;
@@ -130,10 +171,9 @@ export default async function handler(req: any, res: any) {
   return res.status(200).json({
     success: true,
     dispatched: anySuccess,
-    pinCode: pin,
     results: dispatchResults,
     message: anySuccess 
-      ? '2FA PIN code sent successfully to Telegram!' 
-      : 'Failed to send to Telegram chat. Please make sure you have started @p2bkh_bot'
+      ? 'លេខកូដសុវត្ថិភាព 2FA ត្រូវបានផ្ញើទៅកាន់ Telegram របស់អ្នករួចរាល់ហើយ!' 
+      : 'មិនអាចផ្ញើទៅ Telegram បានទេ។ សូមប្រាកដថាអ្នកបានចុច /start លើ Bot ក្នុង Telegram។'
   });
 }
