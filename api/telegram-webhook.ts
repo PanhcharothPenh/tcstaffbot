@@ -744,13 +744,13 @@ export default async function handler(req: any, res: any) {
         const staffTgId = matchedStaff?.telegramId || telegramId;
         const linkStatus = matchedStaff ? 'ភ្ជាប់រួចរាល់ ✅' : 'មិនទាន់ភ្ជាប់ (Unlinked) ⚠️';
 
-        const profileMsg = `👤 <b>[TC Staff - ព័ត៌មានគណនីបុគ្គលិក]</b>\n\n` +
-          `👤 <b>ឈ្មោះពេញ:</b> <b>${staffName}</b>\n` +
-          `💼 <b>តួនាទី:</b> <code>${staffPosition}</code>\n` +
-          `🏢 <b>សាខា:</b> <b>${staffBranchName}</b>\n` +
-          `📞 <b>លេខទូរស័ព្ទ:</b> <code>${staffPhone}</code>\n` +
-          `🆔 <b>Telegram ID:</b> <code>${staffTgId}</code>\n` +
-          `🔗 <b>ស្ថានភាព:</b> ${linkStatus}`;
+        const profileMsg = `👤 <b>TC Staff | ព័ត៌មានបុគ្គលិក</b>\n\n` +
+          `<b>ឈ្មោះ:</b> ${staffName}\n` +
+          `<b>តួនាទី:</b> ${staffPosition}\n` +
+          `<b>សាខា:</b> ${staffBranchName}\n` +
+          `<b>លេខទូរស័ព្ទ:</b> <code>${staffPhone}</code>\n` +
+          `<b>Telegram ID:</b> <code>${staffTgId}</code>\n` +
+          `<b>ស្ថានភាពគណនី:</b> ${linkStatus}`;
 
         const profileButtons = {
           inline_keyboard: [
