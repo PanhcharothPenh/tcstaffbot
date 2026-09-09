@@ -21,7 +21,8 @@ import {
   Loader2,
   ShieldCheck,
   Smartphone,
-  Coffee
+  Coffee,
+  Upload
 } from 'lucide-react';
 
 interface TelegramAttendanceMiniAppProps {
@@ -104,11 +105,6 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     // Validate in background if cached, or with spinner if cold start
     validateSession(rawInitData, Boolean(cachedData));
 
-    // Warm up camera in parallel immediately if action is checkin/checkout
-    if (actionParam !== 'history') {
-      startCamera();
-    }
-
     // Get device GPS location with fast cache allowance (maximumAge: 60s)
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -126,6 +122,16 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       );
     }
   }, []);
+
+  // Auto-start camera as soon as UI is fully rendered and activeView is action
+  useEffect(() => {
+    if (!isLoadingUser && !authError && activeView === 'action' && !resultData && !capturedImage && !isCameraActive) {
+      const timer = setTimeout(() => {
+        startCamera();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoadingUser, authError, activeView, resultData, capturedImage, isCameraActive]);
 
   const validateSession = async (dataStr: string, isSilent: boolean = false) => {
     if (!isSilent) {
@@ -160,11 +166,6 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
         if (data.todayAttendance?.checkIn && !data.todayAttendance?.checkOut && actionParam !== 'history') {
           setCurrentAction('checkout');
         }
-
-        // If camera wasn't running, start it
-        if (!isCameraActive && actionParam !== 'history') {
-          startCamera();
-        }
       } else {
         try {
           localStorage.removeItem('tc_staff_mini_cache');
@@ -190,29 +191,67 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('WebRTC getUserMedia not supported');
       }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 640 },
-          height: { ideal: 640 }
-        },
-        audio: false
-      });
+
+      // Stop any prior tracks before requesting a new stream
+      if (streamRef.current) {
+        try {
+          streamRef.current.getTracks().forEach(t => t.stop());
+        } catch {}
+        streamRef.current = null;
+      }
+
+      let stream: MediaStream | null = null;
+      // Multi-tier fallback for maximum mobile device compatibility
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'user',
+            width: { ideal: 640 },
+            height: { ideal: 640 }
+          },
+          audio: false
+        });
+      } catch (err1) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user' },
+            audio: false
+          });
+        } catch (err2) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false
+          });
+        }
+      }
+
+      if (!stream) {
+        throw new Error('Could not acquire video stream');
+      }
+
       streamRef.current = stream;
       setIsCameraActive(true);
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(e => console.warn('Video play error:', e));
+
+      const attachStream = () => {
+        if (videoRef.current && streamRef.current) {
+          try {
+            (videoRef.current as any).setAttribute('playsinline', 'true');
+            (videoRef.current as any).setAttribute('webkit-playsinline', 'true');
+            videoRef.current.srcObject = streamRef.current;
+            videoRef.current.play().catch(e => console.warn('Video play error:', e));
+          } catch (e) {
+            console.warn('Video attach error:', e);
+          }
         }
-      }, 50);
+      };
+
+      attachStream();
+      setTimeout(attachStream, 80);
+      setTimeout(attachStream, 250);
     } catch (err: any) {
       console.warn('Camera access error:', err);
-      if (fileInputRef.current) {
-        fileInputRef.current.click();
-      } else {
-        setErrorMessage('មិនអាចបើក Camera ផ្ទាល់បានទេ! សូមអនុញ្ញាត Camera Permissions លើទូរស័ព្ទរបស់អ្នក។');
-      }
+      setIsCameraActive(false);
+      setErrorMessage('មិនអាចបើក Camera ដោយស្វ័យប្រវត្តិបានទេ! សូមចុចប៊ូតុង "បើក Camera" ឬ "ជ្រើសរើសរូបថត"។');
     }
   };
 
@@ -707,9 +746,15 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                       <video 
                         ref={(el) => {
                           videoRef.current = el;
-                          if (el && streamRef.current && el.srcObject !== streamRef.current) {
-                            el.srcObject = streamRef.current;
-                            el.play().catch(() => {});
+                          if (el && streamRef.current) {
+                            try {
+                              (el as any).setAttribute('playsinline', 'true');
+                              (el as any).setAttribute('webkit-playsinline', 'true');
+                              if (el.srcObject !== streamRef.current) {
+                                el.srcObject = streamRef.current;
+                                el.play().catch(() => {});
+                              }
+                            } catch {}
                           }
                         }}
                         autoPlay
@@ -730,10 +775,10 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                   ) : (
                     <div 
                       onClick={startCamera}
-                      className="text-slate-400 space-y-2 p-4 cursor-pointer hover:text-white transition"
+                      className="text-slate-400 space-y-2 p-4 cursor-pointer hover:text-white transition flex flex-col items-center justify-center"
                     >
-                      <Camera size={48} className="mx-auto text-slate-500" />
-                      <p className="text-[11px]">ចុចទីនេះដើម្បីបើក Camera</p>
+                      <Camera size={48} className="mx-auto text-blue-400 animate-pulse" />
+                      <p className="text-xs font-bold text-slate-300">ចុចទីនេះដើម្បីបើក Camera</p>
                     </div>
                   )}
 
@@ -769,14 +814,25 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
                 {/* Camera Buttons */}
                 {!isCameraActive ? (
-                  <button
-                    onClick={startCamera}
-                    disabled={isVerifying}
-                    className="w-full py-3 bg-[#003D9B] hover:bg-blue-800 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-blue-900/10"
-                  >
-                    <Camera size={16} />
-                    <span>បើក Camera</span>
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={startCamera}
+                      disabled={isVerifying}
+                      className="w-full py-3 bg-[#003D9B] hover:bg-blue-800 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-blue-900/10"
+                    >
+                      <Camera size={16} />
+                      <span>📸 បើក Camera</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 border border-slate-200"
+                    >
+                      <Upload size={14} />
+                      <span>📁 ថតរូប ឬជ្រើសរើសរូបភាពពីទូរស័ព្ទ</span>
+                    </button>
+                  </div>
                 ) : (
                   <div className="flex gap-2">
                     <button
