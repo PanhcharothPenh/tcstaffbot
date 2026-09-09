@@ -1,20 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import dns from 'dns/promises';
-
-let lastSupabaseErrorTime = 0;
-
-const DEFAULT_USERS = [
-  {
-    id: 'usr_owner',
-    username: 'roth',
-    email: 'roth@p2bkh.tech',
-    fullName: 'Roth (Executive Owner)',
-    role: 'Owner',
-    roleId: 'owner',
-    status: 'Active',
-    assignedBranchIds: [],
-import { createClient } from '@supabase/supabase-js';
-import dns from 'dns/promises';
 
 let lastSupabaseErrorTime = 0;
 
@@ -127,14 +111,17 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'GET') {
     try {
       if (supabase) {
-        // Query both tc_collections and clean24_collections concurrently
-        const [tcRes, c24Res] = await Promise.allSettled([
-          supabase.from('tc_collections').select('*'),
-          supabase.from('clean24_collections').select('*')
-        ]);
+        let tcRows: any[] = [];
+        try {
+          const { data, error } = await supabase.from('tc_collections').select('*');
+          if (!error && Array.isArray(data)) tcRows = data;
+        } catch (e) {}
 
-        const tcRows: any[] = (tcRes.status === 'fulfilled' && !tcRes.value.error && Array.isArray(tcRes.value.data)) ? tcRes.value.data : [];
-        const c24Rows: any[] = (c24Res.status === 'fulfilled' && !c24Res.value.error && Array.isArray(c24Res.value.data)) ? c24Res.value.data : [];
+        let c24Rows: any[] = [];
+        try {
+          const { data, error } = await supabase.from('clean24_collections').select('*');
+          if (!error && Array.isArray(data)) c24Rows = data;
+        } catch (e) {}
 
         // Build reconciled map: for each collection id, pick whichever has later updated_at
         const collectionMap: Record<string, any> = {};
@@ -149,7 +136,9 @@ export default async function handler(req: any, res: any) {
             if (!existing) {
               collectionMap[r.id] = r;
             } else if (r.updated_at && existing.updated_at) {
-              if (new Date(r.updated_at) > new Date(existing.updated_at)) {
+              const rTime = new Date(r.updated_at).getTime();
+              const existTime = new Date(existing.updated_at).getTime();
+              if (rTime > existTime) {
                 collectionMap[r.id] = r;
               }
             } else if (!existing.updated_at && r.updated_at) {
@@ -197,10 +186,8 @@ export default async function handler(req: any, res: any) {
         }));
         if (rows.length > 0) {
           // Upsert to both collections to guarantee no stale cache or desync
-          await Promise.allSettled([
-            supabase.from('tc_collections').upsert(rows),
-            supabase.from('clean24_collections').upsert(rows)
-          ]);
+          try { await supabase.from('tc_collections').upsert(rows); } catch (e) {}
+          try { await supabase.from('clean24_collections').upsert(rows); } catch (e) {}
         }
         return res.status(200).json({
           success: true,
