@@ -1013,10 +1013,16 @@ export default function App() {
     }
   };
 
-  // Check if requested via Telegram Mini App route
+  // Check if requested via Telegram Mini App route or environment
   const isMiniAppRoute = typeof window !== 'undefined' && (
     window.location.pathname.startsWith('/attendance-app') ||
     window.location.pathname === '/attendance-app' ||
+    window.location.pathname.startsWith('/mini') ||
+    window.location.pathname.startsWith('/app') ||
+    Boolean((window as any).Telegram?.WebApp?.initData) ||
+    window.location.hash.includes('tgWebAppData') ||
+    window.location.search.includes('tgWebAppData') ||
+    window.location.search.includes('tgWebAppPlatform') ||
     (window.location.search.includes('action=') && (window.location.search.includes('checkin') || window.location.search.includes('checkout') || window.location.search.includes('history')))
   );
 
@@ -1029,7 +1035,7 @@ export default function App() {
       <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center font-sans">
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-emerald-500 mx-auto mb-4"></div>
-          <p className="text-slate-400 text-sm font-semibold tracking-wide">Initializing secure Coffee MGM environment...</p>
+          <p className="text-slate-400 text-sm font-semibold tracking-wide">Initializing secure TC Staff environment...</p>
         </div>
       </div>
     );

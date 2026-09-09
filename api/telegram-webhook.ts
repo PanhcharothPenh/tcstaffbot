@@ -90,16 +90,13 @@ export default async function handler(req: any, res: any) {
     }
 
     const commandList = [
-      { command: 'start', description: 'ផ្ដើមដំណើរការ & Menu បញ្ជា' },
-      { command: 'menu', description: 'បង្ហាញផ្ទាំង Menu ទាំងអស់' },
-      { command: 'bind', description: '☕ កំណត់ភ្ជាប់ Group នេះជាមួយសាខាកាហ្វេ' },
-      { command: 'id', description: '🆔 ពិនិត្យ Chat ID & សាខាកាហ្វេដែលបានភ្ជាប់' },
-      { command: 'sales', description: '☕ បញ្ចូលការលក់កាហ្វេប្រចាំថ្ងៃ' },
-      { command: 'stock', description: '📦 គ្រាប់កាហ្វេ & វត្ថុធាតុដើម' },
-      { command: 'salary', description: '💵 ពិនិត្យថ្ងៃបើកប្រាក់ខែ Barista & បុគ្គលិក' },
+      { command: 'start', description: '📱 បើកកម្មវិធី TC Staff Mini App' },
       { command: 'checkin', description: '📸 ចុះឈ្មោះចូល (Check In)' },
-      { command: 'checkout', description: '📸 ចុះឈ្មោះចេញ (Check Out)' },
-      { command: 'report', description: '📊 របាយការណ៍វត្តមានប្រចាំខែ' },
+      { command: 'checkout', description: '🚪 ចុះឈ្មោះចេញ (Check Out)' },
+      { command: 'attendance', description: '📊 មើលប្រវត្តិវត្តមានរបស់ខ្ញុំ' },
+      { command: 'profile', description: '👤 ព័ត៌មានគណនីបុគ្គលិក' },
+      { command: 'bind', description: '🏢 កំណត់ភ្ជាប់ Group សាខា' },
+      { command: 'id', description: '🆔 ពិនិត្យ Chat ID & Telegram ID' },
       { command: 'help', description: '❓ ការណែនាំអំពីការប្រើប្រាស់' }
     ];
 
@@ -118,15 +115,15 @@ export default async function handler(req: any, res: any) {
           body: JSON.stringify({ commands: commandList })
         });
 
-        // Set WebApp Chat Menu Button
+        // Set WebApp Chat Menu Button directly to Mini App
         await fetch(`https://api.telegram.org/bot${bot.token}/setChatMenuButton`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             menu_button: {
               type: 'web_app',
-              text: '🏢 TC Staff App',
-              web_app: { url: `${baseUrl}` }
+              text: '📱 TC Staff App',
+              web_app: { url: `${baseUrl}/attendance-app` }
             }
           })
         });
@@ -550,171 +547,26 @@ export default async function handler(req: any, res: any) {
       }
 
       // ---------------------------------------------------------------------------------
-      // PERSISTENT BOTTOM REPLY KEYBOARD (ម៉ឺនុយប៊ូតុងកាហ្វេ ងាយស្រួលប្រើប្រាស់បំផុត)
+      // PERSISTENT BOTTOM REPLY KEYBOARD FOR TC STAFF MINI APP
       // ---------------------------------------------------------------------------------
       const persistentReplyKeyboard = {
         keyboard: [
           [
-            { text: '☕ កត់ត្រាការលក់កាហ្វេ' },
-            { text: '📦 ស្តុកគ្រាប់កាហ្វេ & វត្ថុធាតុដើម' }
+            { text: '📱 បើក TC Staff Mini App', web_app: { url: `${baseUrl}/attendance-app` } }
           ],
           [
-            { text: '💵 ថ្ងៃបើកប្រាក់ខែ Barista' },
-            { text: '📸 ចុះវត្តមាន (Check In/Out)', web_app: { url: `${baseUrl}/attendance-app` } },
-            { text: '📊 របាយការណ៍' }
+            { text: '📸 ចុះឈ្មោះចូល (Check In)', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
+            { text: '🚪 ចុះឈ្មោះចេញ (Check Out)', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
           ],
           [
-            { text: '☕ បើក Cafe App', web_app: { url: `${baseUrl}` } },
-            { text: '❓ ការណែនាំ (Help)' }
+            { text: '📊 វត្តមានរបស់ខ្ញុំ', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+            { text: '👤 គណនីបុគ្គលិក' },
+            { text: '❓ របៀបប្រើប្រាស់' }
           ]
         ],
         resize_keyboard: true,
         is_persistent: true
       };
-
-      // =================================================================================
-      // ACTION: ☕ បញ្ចូលការលក់កាហ្វេ (SALES)
-      // =================================================================================
-      if (userText === '/sales' || userText === '/revenue' || userText.includes('លក់') || userText.includes('ចំណូល') || userText === 'cmd_sales') {
-        const salesMsg = `☕ <b>[កត់ត្រាការលក់កាហ្វេប្រចាំថ្ងៃ / Cafe Daily Sales]</b>\n\n` +
-          `☕ <b>ហាង/សាខា:</b> <b>${branchDisplay}</b>\n` +
-          `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
-          `📝 <b>មុខទំនិញ & ភេសជ្ជៈ៖</b>\n` +
-          `• កាហ្វេក្តៅ / ទឹកកក (Espresso, Latte, Americano, Cappuccino)\n` +
-          `• តែ និង តែទឹកដោះគោ (Green Tea, Milk Tea, Lemon Tea)\n` +
-          `• ហ្វ្រេបប៉េ & ភេសជ្ជៈក្រឡុក (Frappes & Smoothies)\n` +
-          `• នំខេក និង នំប៉័ង (Croissant, Brownie, Pastries)\n\n` +
-          `👇 <b>សូមចុចប៊ូតុងខាងក្រោមដើម្បីបញ្ចូលការលក់ភ្លាមៗ៖</b>`;
-
-        const salesButtons = {
-          inline_keyboard: [
-            [
-              { text: '☕ បើកតារាងលក់កាហ្វេ (Sales Entry)', web_app: { url: `${baseUrl}?tab=daily-sales&branch=${effectiveBranchId}` } }
-            ],
-            [
-              { text: '🌐 បើកតាម Browser Link', url: `${baseUrl}?tab=daily-sales&branch=${effectiveBranchId}` }
-            ]
-          ]
-        };
-
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: salesMsg,
-            parse_mode: 'HTML',
-            reply_markup: salesButtons
-          })
-        });
-
-        return res.status(200).json({ ok: true });
-      }
-
-      // =================================================================================
-      // ACTION: 📦 ស្តុកគ្រាប់កាហ្វេ & វត្ថុធាតុដើម (STOCK / RAW MATERIALS)
-      // =================================================================================
-      if (userText === '/stock' || userText === '/inventory' || userText.includes('ស្តុក') || userText.includes('គ្រាប់កាហ្វេ') || userText === 'cmd_stock') {
-        const stockMsg = `📦 <b>[ស្តុកគ្រាប់កាហ្វេ & វត្ថុធាតុដើម / Cafe Inventory]</b>\n\n` +
-          `☕ <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
-          `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
-          `📥 <b>តាមដានស្តុកសំខាន់ៗ៖</b>\n` +
-          `• គ្រាប់កាហ្វេ Arabica & Robusta Blend (គិតជា គីឡូ/កញ្ចប់)\n` +
-          `• ទឹកដោះគោស្រស់ & ទឹកដោះគោខាប់ (កំប៉ុង/ដប)\n` +
-          `• ស៊ីរ៉ូរសជាតិ (Syrups) & ម្សៅតែ\n` +
-          `• កែវកាហ្វេ, គម្រប, និង បំពង់បឺត\n\n` +
-          `👇 <b>សូមចុចប៊ូតុងខាងក្រោមដើម្បីគ្រប់គ្រងស្តុក៖</b>`;
-
-        const stockButtons = {
-          inline_keyboard: [
-            [
-              { text: '📦 បើកតារាងស្តុកកាហ្វេ (Inventory)', web_app: { url: `${baseUrl}?tab=inventory&branch=${effectiveBranchId}` } }
-            ],
-            [
-              { text: '🌐 បើកតាម Browser Link', url: `${baseUrl}?tab=inventory&branch=${effectiveBranchId}` }
-            ]
-          ]
-        };
-
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: stockMsg,
-            parse_mode: 'HTML',
-            reply_markup: stockButtons
-          })
-        });
-
-        return res.status(200).json({ ok: true });
-      }
-
-      // =================================================================================
-      // ACTION: 💵 ថ្ងៃបើកប្រាក់ខែ (SALARY / PAYDAY DUE) - STRICT BRANCH ISOLATION
-      // =================================================================================
-      if (userText === '/salary' || userText.includes('ប្រាក់ខែ') || userText.includes('payday') || userText === 'cmd_salary') {
-        const targetBId = String(effectiveBranchId || '').toLowerCase().trim();
-        const branchStaff = allStaff.filter((s: any) => {
-          const sB = String(s.branchId || '').toLowerCase().trim();
-          return sB === targetBId && s.status === 'Active';
-        });
-
-        const todayDay = now.getDate();
-        const isPeriod1 = todayDay <= 18;
-        const periodNameKh = isPeriod1 ? 'លើកទី១ (ពាក់កណ្តាលខែ)' : 'លើកទី២ (ដាច់ខែ)';
-
-        let totalBranchDueUsd = 0;
-        let staffListDetails = '';
-
-        if (branchStaff.length > 0) {
-          staffListDetails = branchStaff.map((emp: any, idx: number) => {
-            const base = Number(emp.baseSalary || 0);
-            const dueHalf = Math.round((base / 2) * 100) / 100;
-            const dueAmt = isPeriod1 ? dueHalf : base;
-            totalBranchDueUsd += dueAmt;
-
-            return `${idx + 1}. <b>${emp.fullName}</b> (${emp.position || 'Barista'})\n` +
-              `   • ប្រាក់ខែគោល: $${base.toFixed(2)} | ត្រូវបើក ${periodNameKh}: <b>$${dueAmt.toFixed(2)}</b>`;
-          }).join('\n');
-        } else {
-          staffListDetails = `<i>មិនទាន់មានទិន្នន័យបុគ្គលិកសកម្មនៅក្នុងសាខានេះនៅឡើយ។</i>`;
-        }
-
-        const totalKhr = Math.round(totalBranchDueUsd * 4000);
-
-        const salaryMsg = `💵 <b>[កាលវិភាគបើកប្រាក់ខែ Barista & បុគ្គលិក / Cafe Payroll]</b>\n\n` +
-          `☕ <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
-          `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n` +
-          `📋 <b>វគ្គបើកប្រាក់ខែ:</b> <b>${periodNameKh}</b> (ខែ ${curMonth}/${curYear})\n` +
-          `━━━━━━━━━━━━━━━━━━\n` +
-          `👥 <b>បញ្ជី Barista/បុគ្គលិកសាខានេះ (${branchStaff.length} នាក់):</b>\n` +
-          `${staffListDetails}\n` +
-          `━━━━━━━━━━━━━━━━━━\n` +
-          `💰 <b>សរុបទឹកប្រាក់ត្រូវបើកសាខានេះ:</b> <b>$${totalBranchDueUsd.toFixed(2)}</b> (~${totalKhr.toLocaleString('en-US')} ៛)\n\n` +
-          `🔒 <i>(ទិន្នន័យត្រូវបានបែងចែកដាច់ដោយឡែករវាង toto by Chichi និង Coffee corner)</i>`;
-
-        const salaryButtons = {
-          inline_keyboard: [
-            [
-              { text: '💵 បើកតារាងគ្រប់គ្រងប្រាក់ខែ (Payroll)', web_app: { url: `${baseUrl}?tab=salary&branch=${effectiveBranchId}` } }
-            ]
-          ]
-        };
-
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: salaryMsg,
-            parse_mode: 'HTML',
-            reply_markup: salaryButtons
-          })
-        });
-
-        return res.status(200).json({ ok: true });
-      }
 
       // =================================================================================
       // ACTION: 📸 ចុះឈ្មោះចូល (CHECK IN)
@@ -723,19 +575,19 @@ export default async function handler(req: any, res: any) {
         userText === '/checkin' || 
         userText.toLowerCase() === 'checkin' || 
         userText.toLowerCase() === 'check in' || 
-        (userText.includes('ចូល') && !userText.includes('ចំណូល') && !userText.includes('ចេញ') && !userText.includes('លក់'));
+        (userText.includes('ចូល') && !userText.includes('ចេញ'));
 
       if (isCheckInCmd) {
-        const checkinMsg = `📸 <b>[ចុះឈ្មោះចូលបំពេញការងារ / Barista Check In]</b>\n\n` +
-          `👤 <b>បុគ្គលិក:</b> ${matchedStaff ? matchedStaff.fullName : firstName}\n` +
-          `☕ <b>សាខា:</b> ${branchDisplay}\n` +
-          `📅 <b>ថ្ងៃនេះ:</b> ${phnomPenhDateStr}\n\n` +
-          `👇 <b>សូមចុចប៊ូតុងខាងក្រោមដើម្បីស្កេនផ្ទៃមុខ (Face ID) និងផ្ទៀងផ្ទាត់ទីតាំង GPS៖</b>`;
+        const checkinMsg = `📸 <b>[TC Staff - ចុះឈ្មោះចូលបំពេញការងារ / Check In]</b>\n\n` +
+          `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff ? matchedStaff.fullName : firstName}</b>\n` +
+          `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
+          `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
+          `👇 <b>សូមចុចប៊ូតុងខាងក្រោមដើម្បីបើក Mini App ស្កេន Face ID និងផ្ទៀងផ្ទាត់ទីតាំង GPS៖</b>`;
 
         const checkinInlineButtons = {
           inline_keyboard: [
             [
-              { text: '📸 ចុះឈ្មោះចូលឥឡូវនេះ (Face ID)', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } }
+              { text: '📸 ចុះឈ្មោះចូលឥឡូវនេះ (Open Check-In)', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } }
             ]
           ]
         };
@@ -755,7 +607,7 @@ export default async function handler(req: any, res: any) {
       }
 
       // =================================================================================
-      // ACTION: 📸 ចុះឈ្មោះចេញ (CHECK OUT)
+      // ACTION: 🚪 ចុះឈ្មោះចេញ (CHECK OUT)
       // =================================================================================
       const isCheckOutCmd = 
         userText === '/checkout' || 
@@ -764,16 +616,16 @@ export default async function handler(req: any, res: any) {
         userText.includes('ចេញ');
 
       if (isCheckOutCmd) {
-        const checkoutMsg = `📸 <b>[ចុះឈ្មោះចេញពីការងារ / Barista Check Out]</b>\n\n` +
-          `👤 <b>បុគ្គលិក:</b> ${matchedStaff ? matchedStaff.fullName : firstName}\n` +
-          `☕ <b>សាខា:</b> ${branchDisplay}\n` +
-          `📅 <b>ថ្ងៃនេះ:</b> ${phnomPenhDateStr}\n\n` +
-          `👇 <b>សូមចុចប៊ូតុងខាងក្រោមដើម្បីបញ្ជាក់ការចេញពីការងារ៖</b>`;
+        const checkoutMsg = `🚪 <b>[TC Staff - ចុះឈ្មោះចេញពីការងារ / Check Out]</b>\n\n` +
+          `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff ? matchedStaff.fullName : firstName}</b>\n` +
+          `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
+          `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
+          `👇 <b>សូមចុចប៊ូតុងខាងក្រោមដើម្បីបើក Mini App បញ្ជាក់ការចេញ៖</b>`;
 
         const checkoutInlineButtons = {
           inline_keyboard: [
             [
-              { text: '📸 ចុះឈ្មោះចេញ (Confirm Out)', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+              { text: '🚪 ចុះឈ្មោះចេញ (Open Check-Out)', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
             ]
           ]
         };
@@ -793,9 +645,16 @@ export default async function handler(req: any, res: any) {
       }
 
       // =================================================================================
-      // ACTION: 📊 របាយការណ៍ប្រចាំខែ (MONTHLY REPORT)
+      // ACTION: 📊 របាយការណ៍វត្តមានរបស់ខ្ញុំ (MY ATTENDANCE)
       // =================================================================================
-      if (userText.includes('របាយការណ៍') || userText === '/report' || userText.toLowerCase() === 'report') {
+      if (
+        userText === '/attendance' || 
+        userText === '/history' || 
+        userText === '/report' || 
+        userText.includes('វត្តមាន') || 
+        userText.toLowerCase().includes('attendance') ||
+        userText.toLowerCase().includes('report')
+      ) {
         const monthRecords = allAtt.filter((a: any) => {
           if (!a.date) return false;
           const [y, m] = a.date.split('-').map(Number);
@@ -803,23 +662,23 @@ export default async function handler(req: any, res: any) {
         });
 
         const daysWorked = monthRecords.filter((r: any) => r.checkIn).length;
-        const totalWorkHours = monthRecords.reduce((acc: number, r: any) => acc + (Number(r.totalHours) || 0), 0);
+        const totalWorkHours = monthRecords.reduce((acc: number, r: any) => acc + (Number(r.workHours || r.totalHours) || 0), 0);
         const totalOtHours = monthRecords.reduce((acc: number, r: any) => acc + (Number(r.otHours) || 0), 0);
 
-        const reportMsg = `📊 <b>[របាយការណ៍សង្ខេបវត្តមាន Barista ខែ ${curMonth}/${curYear}]</b>\n\n` +
-          `☕ <b>សាខា:</b> ${branchDisplay}\n` +
-          `👤 <b>បុគ្គលិក:</b> ${matchedStaff ? matchedStaff.fullName : firstName}\n\n` +
+        const reportMsg = `📊 <b>[TC Staff - វត្តមានការងារប្រចាំខែ ${curMonth}/${curYear}]</b>\n\n` +
+          `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff ? matchedStaff.fullName : firstName}</b>\n` +
+          `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
           `━━━━━━━━━━━━━━━━━━\n` +
-          `✅ <b>ថ្ងៃបំពេញការងារ:</b> <b>${daysWorked} ថ្ងៃ</b>\n` +
-          `⏱️ <b>ម៉ោងសរុប:</b> <b>${formatWorkDuration(totalWorkHours)}</b>\n` +
-          `⚡ <b>ម៉ោងបន្ថែម OT:</b> <b>${totalOtHours} ម៉ោង</b>\n` +
+          `✅ <b>ថ្ងៃបំពេញការងារសរុប:</b> <b>${daysWorked} ថ្ងៃ</b>\n` +
+          `⏱️ <b>ម៉ោងបំពេញការងារសរុប:</b> <b>${formatWorkDuration(totalWorkHours)}</b>\n` +
+          `⚡ <b>ម៉ោងបន្ថែម OT សរុប:</b> <b>${totalOtHours} ម៉ោង</b>\n` +
           `━━━━━━━━━━━━━━━━━━\n` +
-          `✨ <i>លោកអ្នកអាចមើលតារាងវត្តមានលម្អិតតាមរយៈ App ខាងក្រោម។</i>`;
+          `✨ <i>ចុចប៊ូតុងខាងក្រោមដើម្បីពិនិត្យតារាងវត្តមានលម្អិតក្នុង Mini App៖</i>`;
 
         const reportButtons = {
           inline_keyboard: [
             [
-              { text: '📊 មើលតារាងវត្តមាន (A4 Ledger)', web_app: { url: `${baseUrl}/attendance-app?action=history` } }
+              { text: '📊 មើលប្រវត្តិវត្តមានក្នុង Mini App', web_app: { url: `${baseUrl}/attendance-app?action=history` } }
             ]
           ]
         };
@@ -839,23 +698,75 @@ export default async function handler(req: any, res: any) {
       }
 
       // =================================================================================
+      // ACTION: 👤 ព័ត៌មានគណនីបុគ្គលិក (STAFF PROFILE)
+      // =================================================================================
+      if (
+        userText === '/profile' || 
+        userText === '/me' || 
+        userText.includes('បុគ្គលិក') || 
+        userText.toLowerCase().includes('profile') ||
+        userText === 'profile'
+      ) {
+        const staffName = matchedStaff?.fullName || firstName;
+        const staffPosition = matchedStaff?.position || 'Staff';
+        const staffPhone = matchedStaff?.phone || 'មិនទាន់មាន';
+        const staffBranchName = staffBranch?.branchName || branchDisplay;
+        const staffTgId = matchedStaff?.telegramId || telegramId;
+        const linkStatus = matchedStaff ? 'ភ្ជាប់រួចរាល់ ✅' : 'មិនទាន់ភ្ជាប់ (Unlinked) ⚠️';
+
+        const profileMsg = `👤 <b>[TC Staff - ព័ត៌មានគណនីបុគ្គលិក]</b>\n\n` +
+          `👤 <b>ឈ្មោះពេញ:</b> <b>${staffName}</b>\n` +
+          `💼 <b>តួនាទី:</b> <code>${staffPosition}</code>\n` +
+          `🏢 <b>សាខា:</b> <b>${staffBranchName}</b>\n` +
+          `📞 <b>លេខទូរស័ព្ទ:</b> <code>${staffPhone}</code>\n` +
+          `🆔 <b>Telegram ID:</b> <code>${staffTgId}</code>\n` +
+          `🔗 <b>ស្ថានភាព:</b> ${linkStatus}\n\n` +
+          `📱 <i>ចុចប៊ូតុងខាងក្រោមដើម្បីបើកកម្មវិធី TC Staff Mini App៖</i>`;
+
+        const profileButtons = {
+          inline_keyboard: [
+            [
+              { text: '📱 បើក TC Staff Mini App', web_app: { url: `${baseUrl}/attendance-app` } }
+            ]
+          ]
+        };
+
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: profileMsg,
+            parse_mode: 'HTML',
+            reply_markup: profileButtons
+          })
+        });
+
+        return res.status(200).json({ ok: true });
+      }
+
+      // =================================================================================
       // ACTION: ❓ ការណែនាំប្រើប្រាស់ & ជំនួយ (USER GUIDE & HELP)
       // =================================================================================
       if (
+        userText === '/help' ||
         userText.includes('ណែនាំ') || 
         userText.includes('ការណែនាំ') || 
         userText.includes('guide') || 
         userText.includes('ជំនួយ') || 
-        userText.includes('help') || 
-        userText === '/help'
+        userText.includes('របៀបប្រើ') ||
+        userText.toLowerCase().includes('help')
       ) {
-        const helpMsg = `❓ <b>[ការណែនាំអំពីការប្រើប្រាស់ Cafe Telegram Bot]</b>\n\n` +
-          `🔹 <b>១. កត់ត្រាការលក់កាហ្វេ៖</b> ចុច <code>☕ កត់ត្រាការលក់កាហ្វេ</code> ដើម្បីបញ្ចូលការលក់ភេសជ្ជៈ & នំប្រចាំថ្ងៃ។\n\n` +
-          `🔹 <b>២. តាមដានគ្រាប់កាហ្វេ & ស្តុក៖</b> ចុច <code>📦 ស្តុកគ្រាប់កាហ្វេ & វត្ថុធាតុដើម</code> ដើម្បីកត់ត្រាស្តុកចូល និងប្រើប្រាស់។\n\n` +
-          `🔹 <b>៣. ពិនិត្យថ្ងៃបើកប្រាក់ខែ៖</b> ចុច <code>💵 ថ្ងៃបើកប្រាក់ខែ Barista</code> ដើម្បីមើលកាលវិភាគបើកប្រាក់ខែបុគ្គលិកសាខានេះ។\n\n` +
-          `🔹 <b>៤. ចុះវត្តមាន៖</b> ចុច <code>📸 ចុះវត្តមាន</code> ដើម្បីស្កេន Face ID និងទីតាំង GPS នៅសាខា។\n\n` +
-          `🔹 <b>៥. បើក Cafe App ពេញលេញ៖</b> ចុច <code>☕ បើក Cafe App</code> ដើម្បីចូលទៅកាន់ផ្ទាំងគ្រប់គ្រងធំ។\n\n` +
-          `☕ <b>សាខាបច្ចុប្បន្ន:</b> <b>${branchDisplay}</b>\n` +
+        const helpMsg = `❓ <b>[ការណែនាំអំពីការប្រើប្រាស់ TC Staff Mini App]</b>\n\n` +
+          `🔹 <b>១. ចុះឈ្មោះចូល (Check In)៖</b>\n` +
+          `   ចុចប៊ូតុង <code>📸 ចុះឈ្មោះចូល</code> ដើម្បីបើក Mini App រួចស្កេន Face ID និងផ្ទៀងផ្ទាត់ទីតាំង GPS នៅសាខា។\n\n` +
+          `🔹 <b>២. ចុះឈ្មោះចេញ (Check Out)៖</b>\n` +
+          `   ចុចប៊ូតុង <code>🚪 ចុះឈ្មោះចេញ</code> នៅពេលបញ្ចប់ម៉ោងការងារ។\n\n` +
+          `🔹 <b>៣. ពិនិត្យវត្តមាន (Attendance History)៖</b>\n` +
+          `   ចុចប៊ូតុង <code>📊 វត្តមានរបស់ខ្ញុំ</code> ដើម្បីមើលចំនួនថ្ងៃ និងម៉ោងការងារប្រចាំខែ។\n\n` +
+          `🔹 <b>៤. បើកកម្មវិធីពេញលេញ (Mini App)៖</b>\n` +
+          `   ចុចប៊ូតុង <code>📱 បើក TC Staff Mini App</code> ឬចុចប៊ូតុង Menu ជ្រុងខាងឆ្វេងក្រោមអេក្រង់ Telegram។\n\n` +
+          `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
           `🆔 <b>Telegram ID របស់អ្នក:</b> <code>${telegramId}</code>`;
 
         await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -878,34 +789,30 @@ export default async function handler(req: any, res: any) {
       const greetingName = matchedStaff ? matchedStaff.fullName : firstName;
       const checkInTime = todayAttendance?.checkIn || '--';
       const checkOutTime = todayAttendance?.checkOut || '--';
+      const staffPos = matchedStaff?.position || 'Staff';
 
-      const welcomeText = `☕ <b>សួស្តី ${greetingName}!</b>\n` +
-        `សូមស្វាគមន៍មកកាន់ <b>TC Staff Management Bot</b> 🤖\n\n` +
-        `🏢 <b>ប្រព័ន្ធ:</b> TC Staff Management\n` +
-        `☕ <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
-        `🆔 <b>Chat ID:</b> <code>${chatId}</code> (បានភ្ជាប់ជោគជ័យ ✅)\n` +
-        `🔐 <b>សុវត្ថិភាព 2FA:</b> បានភ្ជាប់រួចរាល់ ✅\n` +
+      const welcomeText = `👋 <b>សួស្តី ${greetingName}!</b>\n\n` +
+        `សូមស្វាគមន៍មកកាន់ <b>TC Staff Mini App</b> 📱\n` +
+        `ប្រព័ន្ធគ្រប់គ្រងវត្តមានបុគ្គលិក TC Staff Management\n\n` +
+        `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
+        `💼 <b>តួនាទី:</b> <code>${staffPos}</code>\n` +
         `📅 <b>ថ្ងៃនេះ:</b> <code>${phnomPenhDateStr}</code>\n` +
-        `📥 <b>ម៉ោងចូល:</b> <code>${checkInTime}</code> | 📤 <b>ម៉ោងចេញ:</b> <code>${checkOutTime}</code>\n\n` +
-        `🔔 <i>រាល់លេខកូដសុវត្ថិភាព 2FA សម្រាប់ Login ចូលប្រព័ន្ធ នឹងត្រូវបានផ្ញើមកកាន់ទីនេះដោយស្វ័យប្រវត្តិ។</i>\n\n` +
-        `👇 <b>សូមជ្រើសរើសមុខងារដែលលោកអ្នកចង់ប្រើប្រាស់នៅខាងក្រោម៖</b>`;
+        `⏰ <b>វត្តមាន:</b> ចូល: <code>${checkInTime}</code> | ចេញ: <code>${checkOutTime}</code>\n` +
+        `🆔 <b>Chat ID:</b> <code>${chatId}</code>\n\n` +
+        `👇 <b>សូមចុចប៊ូតុងខាងក្រោមដើម្បីបើក Mini App ចុះវត្តមានភ្លាមៗ៖</b>`;
 
       const interactiveMenuButtons = {
         inline_keyboard: [
           [
-            { text: '☕ បញ្ចូលការលក់ (Daily Sales)', web_app: { url: `${baseUrl}?tab=daily-sales&branch=${effectiveBranchId}` } },
-            { text: '📦 ស្តុកគ្រាប់កាហ្វេ (Inventory)', web_app: { url: `${baseUrl}?tab=inventory&branch=${effectiveBranchId}` } }
-          ],
-          [
-            { text: '💵 ថ្ងៃបើកប្រាក់ខែ (Payday)', callback_data: 'cmd_salary' },
-            { text: '📊 របាយការណ៍វត្តមាន', callback_data: 'report' }
+            { text: '🚀 បើក TC Staff Mini App', web_app: { url: `${baseUrl}/attendance-app` } }
           ],
           [
             { text: '📸 ចុះឈ្មោះចូល (Check In)', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
-            { text: '📸 ចុះឈ្មោះចេញ (Check Out)', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+            { text: '🚪 ចុះឈ្មោះចេញ (Check Out)', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
           ],
           [
-            { text: '☕ បើក Cafe App ពេញលេញ', web_app: { url: `${baseUrl}` } }
+            { text: '📊 មើលប្រវត្តិវត្តមាន (Attendance)', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+            { text: '👤 ព័ត៌មានបុគ្គលិក', callback_data: 'profile' }
           ]
         ]
       };
@@ -928,7 +835,7 @@ export default async function handler(req: any, res: any) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chatId,
-          text: '⚡ <b>ផ្ទាំងម៉ឺនុយរហ័ស (Interactive Cafe Actions):</b>',
+          text: '⚡ <b>ផ្ទាំងបញ្ជារហ័ស (TC Staff Mini App Quick Actions):</b>',
           parse_mode: 'HTML',
           reply_markup: interactiveMenuButtons
         })

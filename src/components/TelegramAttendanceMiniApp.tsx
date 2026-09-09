@@ -129,10 +129,10 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
           startCamera();
         }, 150);
       } else {
-        setAuthError(data.error || 'គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិក Clean24 ណាម្នាក់ឡើយ។');
+        setAuthError(data.error || 'គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិក TC Staff ណាម្នាក់ឡើយ។');
       }
     } catch (err: any) {
-      setAuthError(err.message || 'Error communicating with Clean24 server');
+      setAuthError(err.message || 'Error communicating with TC Staff server');
     } finally {
       setIsLoadingUser(false);
     }
@@ -355,7 +355,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     return (
       <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center">
         <Loader2 className="animate-spin text-[#003D9B] mb-4" size={42} />
-        <h2 className="text-base font-bold text-slate-200">Clean24 Staff Attendance</h2>
+        <h2 className="text-base font-bold text-slate-200">TC Staff Management</h2>
         <p className="text-xs text-slate-400 mt-1">កំពុងផ្ទៀងផ្ទាត់គណនី Telegram...</p>
       </div>
     );
@@ -384,7 +384,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       {/* Top Mobile App Header */}
       <header className="bg-white border-b border-slate-200 px-4 py-3.5 sticky top-0 z-30 flex items-center justify-between shadow-2xs">
         <div className="flex items-center gap-2.5">
-          <img src="/logo.png" alt="Clean24" className="h-8 w-auto object-contain" />
+          <img src="/logo.png" alt="TC Staff" className="h-8 w-auto object-contain" />
           <div>
             <div className="text-[11px] font-black text-[#003D9B] uppercase leading-none">TC STAFF MANAGEMENT</div>
             <div className="text-xs font-bold text-slate-800 leading-tight mt-0.5">{staffInfo?.fullName || 'Staff Member'}</div>
