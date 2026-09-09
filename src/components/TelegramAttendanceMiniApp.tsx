@@ -223,6 +223,51 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     setIsCameraActive(false);
   };
 
+  // Detect detailed phone model, OS, and hardware environment
+  const detectDeviceInfo = (): { device: string; platform: string } => {
+    const ua = navigator.userAgent || '';
+    const tg = (window as any).Telegram?.WebApp;
+    const tgPlatform = tg?.platform || '';
+
+    let deviceModel = 'Unknown Device';
+    let osPlatform = 'Web Browser';
+
+    // 1. Detect iOS devices
+    if (/iPhone/i.test(ua)) {
+      const match = ua.match(/OS (\d+[_.]\d+)/);
+      const osVer = match ? match[1].replace('_', '.') : '';
+      deviceModel = osVer ? `iPhone (iOS ${osVer})` : 'Apple iPhone';
+      osPlatform = tgPlatform ? `Telegram (${tgPlatform})` : 'iOS Safari';
+    } else if (/iPad/i.test(ua)) {
+      deviceModel = 'Apple iPad';
+      osPlatform = tgPlatform ? `Telegram (${tgPlatform})` : 'iPadOS';
+    } else if (/Android/i.test(ua)) {
+      // 2. Detect Android phone models (e.g. SM-S918B, Pixel 8, Redmi Note, etc.)
+      const modelMatch = ua.match(/;\s*([^;]+?)\s*Build\//i);
+      const androidVer = ua.match(/Android\s*([0-9.]+)/i);
+      const verStr = androidVer ? `Android ${androidVer[1]}` : 'Android';
+      if (modelMatch && modelMatch[1]) {
+        deviceModel = `${modelMatch[1].trim()} (${verStr})`;
+      } else {
+        deviceModel = `Android Device (${verStr})`;
+      }
+      osPlatform = tgPlatform ? `Telegram (${tgPlatform})` : 'Android Web';
+    } else if (/Macintosh|Mac OS X/i.test(ua)) {
+      deviceModel = 'Apple Mac';
+      osPlatform = tgPlatform ? `Telegram Desktop (${tgPlatform})` : 'macOS';
+    } else if (/Windows/i.test(ua)) {
+      deviceModel = 'Windows PC';
+      osPlatform = tgPlatform ? `Telegram Desktop (${tgPlatform})` : 'Windows';
+    }
+
+    // Additional check for Telegram WebApp platform metadata
+    if (tgPlatform && !osPlatform.includes('Telegram')) {
+      osPlatform = `Telegram (${tgPlatform})`;
+    }
+
+    return { device: deviceModel, platform: osPlatform };
+  };
+
   // Generate lightweight facial descriptor vector from canvas
   const generateFaceDescriptorFromCanvas = (canvas: HTMLCanvasElement): number[] => {
     const ctx = canvas.getContext('2d');
@@ -298,6 +343,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     setResultData(null);
 
     const endpoint = currentAction === 'checkin' ? '/api/attendance/check-in' : '/api/attendance/check-out';
+    const deviceInfo = detectDeviceInfo();
 
     try {
       const res = await fetch(endpoint, {
@@ -308,7 +354,9 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
           faceDescriptor: vector,
           photo,
           latitude: locationCoords?.lat,
-          longitude: locationCoords?.lng
+          longitude: locationCoords?.lng,
+          device: deviceInfo.device,
+          platform: deviceInfo.platform
         })
       });
 

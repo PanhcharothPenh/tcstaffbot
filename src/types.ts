@@ -247,6 +247,12 @@ export interface Attendance {
   checkOutLongitude?: number;
   checkInDistance?: number;
   checkOutDistance?: number;
+  checkInDevice?: string; // e.g., "iPhone 15 Pro (iOS 17.5)" or "Samsung Galaxy (Android 14)"
+  checkOutDevice?: string;
+  checkInPlatform?: string; // e.g., "Telegram iOS", "Telegram Android", "Web Browser"
+  checkOutPlatform?: string;
+  checkInIp?: string;
+  checkOutIp?: string;
   auditHistory?: AttendanceAuditLog[];
   createdAt?: string;
   updatedAt?: string;

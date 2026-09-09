@@ -4979,7 +4979,24 @@ app.post('/api/telegram/unlink', (req, res) => {
 // 5. Attendance Check-In Endpoint
 app.post('/api/attendance/check-in', async (req, res) => {
   try {
-    const { initData, faceDescriptor, photo, latitude, longitude, simulationStaffId } = req.body;
+    const { initData, faceDescriptor, photo, latitude, longitude, simulationStaffId, device, platform } = req.body;
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '';
+    const userAgent = req.headers['user-agent'] || '';
+
+    // Fallback device detection if not explicitly passed by client
+    let resolvedDevice = device;
+    if (!resolvedDevice) {
+      if (/iPhone/i.test(userAgent)) resolvedDevice = 'Apple iPhone';
+      else if (/iPad/i.test(userAgent)) resolvedDevice = 'Apple iPad';
+      else if (/Android/i.test(userAgent)) {
+        const match = userAgent.match(/;\s*([^;]+?)\s*Build\//i);
+        resolvedDevice = match ? match[1].trim() : 'Android Device';
+      } else if (/Windows/i.test(userAgent)) resolvedDevice = 'Windows PC';
+      else if (/Macintosh/i.test(userAgent)) resolvedDevice = 'Apple Mac';
+      else resolvedDevice = 'Unknown Device';
+    }
+
+    const resolvedPlatform = platform || (userAgent.includes('Telegram') ? 'Telegram' : 'Web');
 
     let staff: any = null;
 
@@ -5084,6 +5101,9 @@ app.post('/api/attendance/check-in', async (req, res) => {
       checkInLatitude: latitude,
       checkInLongitude: longitude,
       checkInDistance: distance,
+      checkInDevice: resolvedDevice,
+      checkInPlatform: resolvedPlatform,
+      checkInIp: clientIp,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString()
     };
@@ -5113,7 +5133,23 @@ app.post('/api/attendance/check-in', async (req, res) => {
 // 6. Attendance Check-Out Endpoint
 app.post('/api/attendance/check-out', async (req, res) => {
   try {
-    const { initData, faceDescriptor, photo, latitude, longitude, simulationStaffId } = req.body;
+    const { initData, faceDescriptor, photo, latitude, longitude, simulationStaffId, device, platform } = req.body;
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '';
+    const userAgent = req.headers['user-agent'] || '';
+
+    let resolvedDevice = device;
+    if (!resolvedDevice) {
+      if (/iPhone/i.test(userAgent)) resolvedDevice = 'Apple iPhone';
+      else if (/iPad/i.test(userAgent)) resolvedDevice = 'Apple iPad';
+      else if (/Android/i.test(userAgent)) {
+        const match = userAgent.match(/;\s*([^;]+?)\s*Build\//i);
+        resolvedDevice = match ? match[1].trim() : 'Android Device';
+      } else if (/Windows/i.test(userAgent)) resolvedDevice = 'Windows PC';
+      else if (/Macintosh/i.test(userAgent)) resolvedDevice = 'Apple Mac';
+      else resolvedDevice = 'Unknown Device';
+    }
+
+    const resolvedPlatform = platform || (userAgent.includes('Telegram') ? 'Telegram' : 'Web');
 
     let staff: any = null;
 
@@ -5219,6 +5255,9 @@ app.post('/api/attendance/check-out', async (req, res) => {
     attRecord.checkOutLatitude = latitude;
     attRecord.checkOutLongitude = longitude;
     attRecord.checkOutDistance = distance;
+    attRecord.checkOutDevice = resolvedDevice;
+    attRecord.checkOutPlatform = resolvedPlatform;
+    attRecord.checkOutIp = clientIp;
     attRecord.updatedAt = now.toISOString();
 
     saveLocalDb();

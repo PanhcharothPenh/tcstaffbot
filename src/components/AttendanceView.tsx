@@ -1084,16 +1084,26 @@ export default function AttendanceView({
                           </span>
                         </td>
 
-                        {/* Source Badge */}
+                        {/* Source & Device Badge */}
                         <td className="py-3 px-3 text-center">
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold inline-flex items-center gap-1 ${
-                            rec.source === 'telegram' 
-                              ? 'bg-sky-50 text-sky-700 border border-sky-200' 
-                              : 'bg-slate-50 text-slate-600 border border-slate-200'
-                          }`}>
-                            {rec.source === 'telegram' ? <Smartphone size={11} /> : <FileText size={11} />}
-                            <span>{rec.source === 'telegram' ? 'Telegram' : 'Manual'}</span>
-                          </span>
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold inline-flex items-center gap-1 ${
+                              rec.source === 'telegram' 
+                                ? 'bg-sky-50 text-sky-700 border border-sky-200' 
+                                : 'bg-slate-50 text-slate-600 border border-slate-200'
+                            }`}>
+                              {rec.source === 'telegram' ? <Smartphone size={11} /> : <FileText size={11} />}
+                              <span>{rec.source === 'telegram' ? 'Telegram' : 'Manual'}</span>
+                            </span>
+                            {(rec.checkInDevice || rec.checkOutDevice) && (
+                              <span 
+                                className="text-[9.5px] text-slate-500 font-medium truncate max-w-[120px] inline-block"
+                                title={rec.checkInDevice || rec.checkOutDevice}
+                              >
+                                📱 {rec.checkInDevice || rec.checkOutDevice}
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Actions */}
@@ -1497,6 +1507,19 @@ export default function AttendanceView({
                   {selectedRecord.checkInDistance !== undefined && (
                     <div>ចម្ងាយ GPS: <strong>{selectedRecord.checkInDistance} ម៉ែត្រ</strong></div>
                   )}
+                  {selectedRecord.checkInDevice && (
+                    <div className="pt-1 border-t border-emerald-100 flex items-center gap-1 text-[10px] text-slate-700">
+                      <Smartphone size={12} className="text-emerald-600 shrink-0" />
+                      <span className="truncate font-semibold" title={selectedRecord.checkInDevice}>
+                        {selectedRecord.checkInDevice}
+                      </span>
+                    </div>
+                  )}
+                  {selectedRecord.checkInPlatform && (
+                    <div className="text-[9.5px] text-slate-500">
+                      Platform: <span className="font-medium text-slate-700">{selectedRecord.checkInPlatform}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1517,6 +1540,19 @@ export default function AttendanceView({
                   <div>Face Match: <strong>{selectedRecord.checkOutFaceScore ? `${(selectedRecord.checkOutFaceScore * 100).toFixed(1)}%` : 'Passed ✓'}</strong></div>
                   {selectedRecord.checkOutDistance !== undefined && (
                     <div>ចម្ងាយ GPS: <strong>{selectedRecord.checkOutDistance} ម៉ែត្រ</strong></div>
+                  )}
+                  {selectedRecord.checkOutDevice && (
+                    <div className="pt-1 border-t border-rose-100 flex items-center gap-1 text-[10px] text-slate-700">
+                      <Smartphone size={12} className="text-rose-600 shrink-0" />
+                      <span className="truncate font-semibold" title={selectedRecord.checkOutDevice}>
+                        {selectedRecord.checkOutDevice}
+                      </span>
+                    </div>
+                  )}
+                  {selectedRecord.checkOutPlatform && (
+                    <div className="text-[9.5px] text-slate-500">
+                      Platform: <span className="font-medium text-slate-700">{selectedRecord.checkOutPlatform}</span>
+                    </div>
                   )}
                 </div>
               </div>
