@@ -25,5 +25,8 @@ dist-ssr
 
 # Environment
 .env
+.env*
 .env.local
 .env.*.local
+*.env
+*.env.*
