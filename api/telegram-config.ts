@@ -103,8 +103,8 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'GET') {
     const effectiveToken = storedConfig.botToken || envBotToken;
     const branches = {
-      b1: storedConfig.chatIds?.branches?.b1 || envChatB1 || '',
-      b2: storedConfig.chatIds?.branches?.b2 || envChatB2 || '',
+      b1: (storedConfig.chatIds?.branches as any)?.b1 || envChatB1 || '',
+      b2: (storedConfig.chatIds?.branches as any)?.b2 || envChatB2 || '',
       ...(storedConfig.chatIds?.branches || {})
     };
 

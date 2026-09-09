@@ -742,6 +742,75 @@ export default async function handler(req: any, res: any) {
     }
   }
 
+  // 7b. ADMIN ATTENDANCE CORRECTION (PATCH /api/admin/attendance/:id)
+  if (path.startsWith('/api/admin/attendance') && req.method === 'PATCH') {
+    try {
+      const parts = path.split('/').filter(Boolean);
+      const id = parts[parts.length - 1];
+      const { checkIn, checkOut, status, reason, changedBy } = req.body || {};
+
+      if (!reason || !reason.trim()) {
+        return res.status(400).json({ success: false, error: 'សូមបញ្ជាក់មូលហេតុនៃការកែប្រែ (Reason is required)!' });
+      }
+
+      const allAtt = await getCollection('attendance');
+      const record = allAtt.find((a: any) => a.id === id);
+      if (!record) {
+        return res.status(404).json({ success: false, error: 'Attendance record not found' });
+      }
+
+      if (!record.auditHistory) record.auditHistory = [];
+      const nowIso = new Date().toISOString();
+      const adminName = changedBy || 'Admin';
+
+      if (checkIn !== undefined && checkIn !== record.checkIn) {
+        record.auditHistory.push({
+          field: 'checkIn',
+          oldValue: record.checkIn,
+          newValue: checkIn,
+          changedBy: adminName,
+          changedAt: nowIso,
+          reason: reason.trim()
+        });
+        record.checkIn = checkIn;
+      }
+
+      if (checkOut !== undefined && checkOut !== record.checkOut) {
+        record.auditHistory.push({
+          field: 'checkOut',
+          oldValue: record.checkOut,
+          newValue: checkOut,
+          changedBy: adminName,
+          changedAt: nowIso,
+          reason: reason.trim()
+        });
+        record.checkOut = checkOut;
+      }
+
+      if (status !== undefined && status !== record.status) {
+        record.auditHistory.push({
+          field: 'status',
+          oldValue: record.status,
+          newValue: status,
+          changedBy: adminName,
+          changedAt: nowIso,
+          reason: reason.trim()
+        });
+        record.status = status;
+      }
+
+      await saveCollection('attendance', allAtt);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Attendance record corrected successfully',
+        record
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
   // 8. RESOLVE GOOGLE MAPS URL / LINK (POST /api/resolve-maps-url)
   if (path === '/api/resolve-maps-url' && req.method === 'POST') {
     try {
