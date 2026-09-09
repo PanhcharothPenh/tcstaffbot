@@ -62,6 +62,62 @@ function saveDbCollectionAsync(supabase: any, id: string, payload: any): void {
   saveDbCollection(supabase, id, payload).catch(() => {});
 }
 
+async function loadMultipleCollections(supabase: any, ids: string[], ttlMs = 45000): Promise<Record<string, any>> {
+  const result: Record<string, any> = {};
+  if (!supabase || ids.length === 0) return result;
+  const now = Date.now();
+  const missingIds: string[] = [];
+
+  for (const id of ids) {
+    if (MEM_CACHE[id] && MEM_CACHE[id].expires > now) {
+      result[id] = MEM_CACHE[id].data;
+    } else {
+      missingIds.push(id);
+    }
+  }
+
+  if (missingIds.length === 0) return result;
+
+  try {
+    const { data: rows } = await supabase
+      .from('tc_collections')
+      .select('id, data')
+      .in('id', missingIds);
+
+    const foundSet = new Set<string>();
+    if (Array.isArray(rows)) {
+      for (const r of rows) {
+        if (r && r.id) {
+          result[r.id] = r.data;
+          MEM_CACHE[r.id] = { data: r.data, expires: now + ttlMs };
+          foundSet.add(r.id);
+        }
+      }
+    }
+
+    const stillMissing = missingIds.filter(id => !foundSet.has(id));
+    if (stillMissing.length > 0) {
+      const { data: altRows } = await supabase
+        .from('clean24_collections')
+        .select('id, data')
+        .in('id', stillMissing);
+
+      if (Array.isArray(altRows)) {
+        for (const r of altRows) {
+          if (r && r.id && !result[r.id]) {
+            result[r.id] = r.data;
+            MEM_CACHE[r.id] = { data: r.data, expires: now + ttlMs };
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Batch load error:', e);
+  }
+
+  return result;
+}
+
 function formatWorkDuration(hours: number): string {
   if (!hours || isNaN(hours) || hours <= 0) return '0 ម៉ោង';
   const totalMinutes = Math.round(hours * 60);
@@ -261,31 +317,18 @@ export default async function handler(req: any, res: any) {
             userText === '/start' ||
             userText === '/menu';
 
-          // Ultra-Fast Parallel Cache Loading (0-200ms vs 8000ms serial)
-          const [
-            cfgData,
-            recsData,
-            staffData,
-            branchesData,
-            attData,
-            usersData,
-            registryData
-          ] = await Promise.all([
-            loadDbCollectionCached(supabase, 'telegramConfig'),
-            loadDbCollectionCached(supabase, 'telegramRecipients'),
-            loadDbCollectionCached(supabase, 'staff'),
-            loadDbCollectionCached(supabase, 'branches'),
-            isAttRelated ? loadDbCollectionCached(supabase, 'attendance', 15000) : Promise.resolve([]),
-            loadDbCollectionCached(supabase, 'users'),
-            loadDbCollectionCached(supabase, 'telegram_chat_registry', 15000)
-          ]);
+          // Single Batch SQL Query (0ms cached, ~300ms uncached)
+          const neededIds = ['telegramConfig', 'telegramRecipients', 'staff', 'branches', 'users', 'telegram_chat_registry'];
+          if (isAttRelated) neededIds.push('attendance');
 
-          storedConfig = cfgData || { chatIds: { branches: {} } };
-          storedRecipients = Array.isArray(recsData) ? recsData : [];
-          allStaff = Array.isArray(staffData) ? staffData : [];
-          allBranches = Array.isArray(branchesData) ? branchesData : [];
-          allAtt = Array.isArray(attData) ? attData : [];
-          allUsers = Array.isArray(usersData) && usersData.length > 0 ? usersData : [
+          const batch = await loadMultipleCollections(supabase, neededIds, 45000);
+
+          storedConfig = batch['telegramConfig'] || { chatIds: { branches: {} } };
+          storedRecipients = Array.isArray(batch['telegramRecipients']) ? batch['telegramRecipients'] : [];
+          allStaff = Array.isArray(batch['staff']) ? batch['staff'] : [];
+          allBranches = Array.isArray(batch['branches']) ? batch['branches'] : [];
+          allAtt = Array.isArray(batch['attendance']) ? batch['attendance'] : [];
+          allUsers = Array.isArray(batch['users']) && batch['users'].length > 0 ? batch['users'] : [
             {
               id: 'usr_owner',
               username: 'roth',
@@ -300,7 +343,7 @@ export default async function handler(req: any, res: any) {
               twoFactorMethod: 'telegram'
             }
           ];
-          chatRegistry = Array.isArray(registryData) ? registryData : [];
+          chatRegistry = Array.isArray(batch['telegram_chat_registry']) ? batch['telegram_chat_registry'] : [];
           if (!Array.isArray(chatRegistry)) chatRegistry = [];
 
           // If this is a private chat, auto-register this user and link to Owner/Staff!
