@@ -39,7 +39,8 @@ import {
   CalendarDays,
   Coffee,
   MapPin,
-  Building2
+  Building2,
+  LayoutDashboard
 } from 'lucide-react';
 import { Role, User, Branch } from '../types';
 import { translations } from '../mockData';
@@ -116,8 +117,9 @@ export default function Sidebar({
   
   const t = translations[lang];
 
-  // Navigation Items Definitions - Staff Management System
+  // Navigation Items Definitions - Coffee Management & Staff Suite
   const navItems = [
+    { id: 'dashboard', label: lang === 'en' ? 'Cafe Dashboard' : 'ផ្ទាំងគ្រប់គ្រងកាហ្វេ', icon: LayoutDashboard, roles: ['Owner', 'Admin', 'Manager'] },
     { id: 'staff', label: lang === 'en' ? 'Barista & Staff' : 'បុគ្គលិក & Barista', icon: Users, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
     { id: 'shifts', label: lang === 'en' ? 'Shift Roster Calendar' : 'ប្រតិទិនវេនការងារ', icon: CalendarDays, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
     { id: 'attendance', label: t.attendance, icon: Calendar, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
@@ -128,9 +130,9 @@ export default function Sidebar({
 
   const navGroups = [
     {
-      title: lang === 'en' ? 'Staff & Payroll' : 'បុគ្គលិក និងប្រាក់ខែ',
+      title: lang === 'en' ? 'Cafe Operations & Staff' : 'ប្រតិបត្តិការហាង & បុគ្គលិក',
       icon: Users,
-      items: ['staff', 'shifts', 'attendance', 'salary', 'branches', 'users']
+      items: ['dashboard', 'staff', 'shifts', 'attendance', 'salary', 'branches', 'users']
     }
   ];
 
@@ -214,17 +216,16 @@ export default function Sidebar({
   const favoritesExpanded = isGroupExpanded('clean24_favorites_group');
 
   return (
-    <aside className={`h-full bg-[#E7EEFF] text-[#111827] border-r border-blue-200/70 flex flex-col justify-between overflow-hidden shadow-xs transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-72'}`}>
+    <aside className={`h-full bg-[#18110D] text-[#FAF6F0] border-r border-[#38261D] flex flex-col justify-between overflow-hidden shadow-2xl transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-72'}`}>
       
-      {/* 1. TOP HEADER BRANDING BLOCK (With Hide & Show button on the bar) */}
-      <div className="p-3 border-b border-blue-200/60 bg-[#E7EEFF] shrink-0">
+      {/* 1. TOP HEADER BRANDING BLOCK */}
+      <div className="p-3.5 border-b border-[#38261D] bg-[#1F140F] shrink-0">
         
         {!isCollapsed ? (
           <>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
-                <Clean24Logo className="h-10 sm:h-12 cursor-pointer text-[#003D9B] shrink-0" lightMode={true} />
-                
+                <Clean24Logo className="h-10 sm:h-12 cursor-pointer text-amber-100 shrink-0" lightMode={false} />
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
@@ -232,7 +233,7 @@ export default function Sidebar({
                 {onCloseMobile && (
                   <button 
                     onClick={onCloseMobile}
-                    className="lg:hidden p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 cursor-pointer transition-colors shrink-0"
+                    className="lg:hidden p-2 bg-[#2D1B13] hover:bg-[#3D251A] rounded-xl text-amber-200 cursor-pointer transition-colors shrink-0"
                     aria-label="Close Navigation"
                   >
                     <X size={20} />
@@ -242,17 +243,21 @@ export default function Sidebar({
             </div>
 
             {/* Active Branch Select Form */}
-            <div className="mt-3 bg-white/90 p-2.5 rounded-xl border border-blue-200/80 shadow-2xs">
-              <label className="text-[9px] text-[#4B5563] uppercase tracking-widest block mb-1 font-bold">
-                {t.activeBranch}
-              </label>
+            <div className="mt-3 bg-[#281812] p-2.5 rounded-2xl border border-[#452B20] shadow-inner">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[9px] text-amber-200/70 uppercase tracking-widest block font-extrabold flex items-center gap-1">
+                  <Building2 size={11} className="text-amber-500" />
+                  {t.activeBranch}
+                </label>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              </div>
               <select
                 value={activeBranchId}
                 onChange={(e) => setActiveBranchId(e.target.value)}
-                className="w-full bg-white border border-slate-200 text-xs text-[#111827] rounded-lg p-1.5 focus:outline-none focus:border-[#003D9B] font-sans cursor-pointer transition-colors font-semibold"
+                className="w-full bg-[#1A0E09] border border-[#452B20] text-xs text-amber-100 rounded-xl p-2 focus:outline-none focus:border-amber-500 font-sans cursor-pointer transition-colors font-bold"
               >
                 {(currentRole === 'Owner' || currentRole === 'Admin') && (!currentUser?.assignedBranchIds || currentUser.assignedBranchIds.length === 0) && (
-                  <option value="all">🌐 {t.allBranches}</option>
+                  <option value="all">☕ {t.allBranches}</option>
                 )}
                 {accessibleBranches.map(b => (
                   <option key={b.id} value={b.id}>
@@ -263,18 +268,14 @@ export default function Sidebar({
             </div>
           </>
         ) : (
-          /* COLLAPSED HEADER: Centered White Toggle Button */
+          /* COLLAPSED HEADER: Centered Coffee Icon / Toggle Button */
           <div className="flex flex-col items-center justify-center gap-2">
             <button
               onClick={() => setIsCollapsed && setIsCollapsed(!isCollapsed)}
-              className="w-10 h-10 bg-white hover:bg-slate-50 text-[#346687] rounded-xl shadow-xs border border-slate-200/80 flex items-center justify-center cursor-pointer transition-all active:scale-95"
+              className="w-11 h-11 bg-[#281812] hover:bg-[#3D251A] text-amber-300 rounded-2xl shadow-md border border-[#452B20] flex items-center justify-center cursor-pointer transition-all active:scale-95 group"
               title="Expand Sidebar"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <line x1="4" y1="6" x2="20" y2="6" />
-                <line x1="4" y1="12" x2="14" y2="12" />
-                <line x1="4" y1="18" x2="20" y2="18" />
-              </svg>
+              <Coffee size={20} className="stroke-[2.2] group-hover:scale-110 transition-transform" />
             </button>
           </div>
         )}
@@ -283,20 +284,20 @@ export default function Sidebar({
 
       {/* 2. SEARCH MENU FILTER BAR (When expanded) */}
       {!isCollapsed && (
-        <div className="px-4 py-2 bg-[#E7EEFF] border-b border-blue-200/60 shrink-0">
+        <div className="px-3.5 py-2.5 bg-[#1B100B] border-b border-[#38261D] shrink-0">
           <div className="relative">
-            <Search size={13} className="absolute left-2.5 top-2.5 text-[#4B5563]" />
+            <Search size={13} className="absolute left-3 top-2.5 text-amber-200/50" />
             <input
               type="text"
-              placeholder={lang === 'en' ? "Search menus..." : "ស្វែងរកមុខងារ..."}
+              placeholder={lang === 'en' ? "Search coffee modules..." : "ស្វែងរកមុខងារកាហ្វេ..."}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-blue-200/80 text-xs text-[#111827] placeholder-slate-400 rounded-lg pl-8 pr-3 py-1.5 focus:outline-none focus:border-[#003D9B] font-sans transition-all"
+              className="w-full bg-[#25150E] border border-[#3E2419] text-xs text-amber-100 placeholder-amber-200/40 rounded-xl pl-8.5 pr-3 py-1.5 focus:outline-none focus:border-amber-500 font-sans transition-all"
             />
             {searchQuery && (
               <button 
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-2 text-[10px] text-[#4B5563] hover:text-[#111827] cursor-pointer"
+                className="absolute right-2.5 top-2 text-[10px] text-amber-200/60 hover:text-amber-100 cursor-pointer"
               >
                 Clear
               </button>
@@ -306,7 +307,7 @@ export default function Sidebar({
       )}
 
       {/* 3. DYNAMIC NAVIGATION TABS LIST */}
-      <div className="flex-1 overflow-y-auto px-2 pt-2 pb-8 space-y-3 custom-scrollbar bg-[#E7EEFF]">
+      <div className="flex-1 overflow-y-auto px-2.5 pt-2 pb-8 space-y-3 custom-scrollbar bg-[#18110D]">
         
         {/* COLLAPSED MODE: Clean Icons with Tooltip Popup */}
         {isCollapsed ? (
@@ -320,17 +321,17 @@ export default function Sidebar({
                     setActiveTab(item.id);
                     if (onCloseMobile) onCloseMobile();
                   }}
-                  className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
+                  className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer relative group ${
                     active 
-                      ? 'bg-[#0052CC] text-white shadow-md' 
-                      : 'text-[#346687] hover:bg-white hover:text-[#0052CC] hover:shadow-xs'
+                      ? 'bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-lg shadow-amber-950/40 ring-1 ring-amber-400/30' 
+                      : 'text-amber-200/60 hover:bg-[#25150E] hover:text-amber-200'
                   }`}
                   title={item.label}
                 >
-                  <item.icon size={19} />
+                  <item.icon size={19} className="stroke-[2.2]" />
                   
                   {/* Tooltip on hover */}
-                  <div className="absolute left-14 bg-slate-900 text-white text-xs font-bold px-2.5 py-1 rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap shadow-lg">
+                  <div className="absolute left-14 bg-[#2A170F] text-amber-100 border border-amber-500/20 text-xs font-bold px-3 py-1.5 rounded-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap shadow-xl">
                     {item.label}
                   </div>
                 </button>
@@ -342,23 +343,23 @@ export default function Sidebar({
           <>
             {/* Favorites Collapsible Group */}
             {favorites.length > 0 && (
-              <div className="space-y-1 border-b border-blue-200/60 pb-3">
+              <div className="space-y-1 border-b border-[#38261D] pb-3">
                 <button
                   onClick={() => toggleGroup('clean24_favorites_group')}
-                  className="w-full flex items-center justify-between px-2 py-1 text-xs font-black text-[#92400E] uppercase tracking-widest hover:text-amber-800 transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-between px-2 py-1 text-xs font-black text-amber-400 uppercase tracking-widest hover:text-amber-300 transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-1.5">
-                    <Star size={11} className="fill-[#92400E] text-[#92400E] shrink-0" />
+                    <Star size={11} className="fill-amber-400 text-amber-400 shrink-0" />
                     <span>{lang === 'en' ? 'Favorites' : 'សំណព្វចិត្ត'}</span>
-                    <span className="text-[8px] text-[#92400E] font-medium lowercase tracking-normal">
+                    <span className="text-[8px] text-amber-200/60 font-medium lowercase tracking-normal">
                       ({favoriteItems.length})
                     </span>
                   </div>
-                  {favoritesExpanded ? <ChevronDown size={10} className="text-[#92400E]" /> : <ChevronRight size={10} className="text-[#92400E]" />}
+                  {favoritesExpanded ? <ChevronDown size={10} className="text-amber-400" /> : <ChevronRight size={10} className="text-amber-400" />}
                 </button>
 
                 {favoritesExpanded && (
-                  <div className="space-y-0.5 pl-1.5 fade-in-slide">
+                  <div className="space-y-1 pl-1 fade-in-slide">
                     {favoriteItems.map((item) => {
                       const active = activeTab === item.id;
                       return (
@@ -368,24 +369,24 @@ export default function Sidebar({
                             setActiveTab(item.id as any);
                             if (onCloseMobile) onCloseMobile();
                           }}
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150 focus:outline-none cursor-pointer group/item
+                          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-2xl text-xs font-bold transition-all duration-150 focus:outline-none cursor-pointer group/item
                             ${active 
-                              ? 'bg-[#0052CC] text-white font-bold shadow-md' 
-                              : 'text-[#4B5563] hover:bg-blue-100/70 hover:text-[#111827]'
+                              ? 'bg-gradient-to-r from-[#78350F] to-[#92400E] text-white font-bold shadow-md shadow-amber-950/40 border border-amber-500/30' 
+                              : 'text-amber-100/75 hover:bg-[#25150E] hover:text-amber-100'
                             }
                           `}
                           id={`fav_tab_${item.id}`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <item.icon size={18} className={active ? 'text-white' : 'text-[#003D9B] shrink-0'} />
+                            <item.icon size={17} className={active ? 'text-amber-200' : 'text-amber-500/70 shrink-0'} />
                             <span className="truncate text-xs font-bold flex-1 text-left">{item.label}</span>
                           </div>
                           <span 
                             onClick={(e) => toggleFavorite(item.id, e)}
-                            className="p-1 rounded-md hover:bg-blue-200/50 cursor-pointer transition-colors shrink-0"
+                            className="p-1 rounded-md hover:bg-amber-950/50 cursor-pointer transition-colors shrink-0"
                           >
                             <Star 
-                              size={16} 
+                              size={15} 
                               className="fill-amber-400 text-amber-400" 
                             />
                           </span>
@@ -404,21 +405,21 @@ export default function Sidebar({
                   {/* Group Header */}
                   <button
                     onClick={() => toggleGroup(group.title)}
-                    className="w-full flex items-center justify-between px-2 py-1 text-xs font-black text-[#4B5563] uppercase tracking-widest hover:text-[#111827] transition-colors cursor-pointer"
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-black text-amber-200/50 uppercase tracking-widest hover:text-amber-200 transition-colors cursor-pointer"
                   >
                     <div className="flex items-center gap-1.5">
-                      <group.icon size={11} className="text-[#0052CC] shrink-0" />
+                      <group.icon size={12} className="text-amber-500 shrink-0" />
                       <span>{group.title}</span>
-                      <span className="text-[8px] text-[#4B5563] font-medium lowercase tracking-normal">
+                      <span className="text-[8px] text-amber-200/40 font-medium lowercase tracking-normal">
                         ({group.visibleItems.length})
                       </span>
                     </div>
-                    {expanded ? <ChevronDown size={10} className="text-[#4B5563]" /> : <ChevronRight size={10} className="text-[#4B5563]" />}
+                    {expanded ? <ChevronDown size={11} className="text-amber-200/50" /> : <ChevronRight size={11} className="text-amber-200/50" />}
                   </button>
 
                   {/* Group Items */}
                   {expanded && (
-                    <div className="space-y-0.5 pl-1.5 fade-in-slide">
+                    <div className="space-y-1 pl-1 fade-in-slide">
                       {group.visibleItems.map((item) => {
                         const active = activeTab === item.id;
                         return (
@@ -428,27 +429,27 @@ export default function Sidebar({
                               setActiveTab(item.id as any);
                               if (onCloseMobile) onCloseMobile();
                             }}
-                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150 focus:outline-none cursor-pointer group/item
+                            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-2xl text-xs font-bold transition-all duration-150 focus:outline-none cursor-pointer group/item
                               ${active 
-                                ? 'bg-[#0052CC] text-white font-bold shadow-md' 
-                                : 'text-[#4B5563] hover:bg-blue-100/70 hover:text-[#111827]'
+                                ? 'bg-gradient-to-r from-[#78350F] to-[#92400E] text-white font-black shadow-md shadow-amber-950/40 border border-amber-500/30' 
+                                : 'text-amber-100/75 hover:bg-[#25150E] hover:text-amber-100'
                               }
                             `}
                             id={`nav_tab_${item.id}`}
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
-                              <item.icon size={18} className={active ? 'text-white' : 'text-[#003D9B] shrink-0'} />
+                              <item.icon size={17} className={active ? 'text-amber-200 stroke-[2.5]' : 'text-amber-500/70 shrink-0'} />
                               <span className="truncate">{item.label}</span>
                             </div>
                             <span 
                               onClick={(e) => toggleFavorite(item.id, e)}
-                              className="p-1 rounded-md hover:bg-blue-200/50 cursor-pointer transition-colors shrink-0"
+                              className="p-1 rounded-md hover:bg-amber-950/50 cursor-pointer transition-colors shrink-0"
                             >
                               <Star 
-                                size={16} 
+                                size={15} 
                                 className={favorites.includes(item.id) 
                                   ? 'fill-amber-400 text-amber-400' 
-                                  : 'text-slate-400 opacity-0 group-hover/item:opacity-100 transition-opacity'
+                                  : 'text-amber-200/20 opacity-0 group-hover/item:opacity-100 transition-opacity'
                                 } 
                               />
                             </span>

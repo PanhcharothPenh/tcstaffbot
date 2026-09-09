@@ -453,15 +453,15 @@ export default function DashboardView({
     <div className="space-y-6 font-sans select-none pb-12">
       
       {/* ANALYTICS SUB-TAB NAVIGATION BAR */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-1.5 shadow-xs flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-1">
+      <div className="bg-white/80 backdrop-blur-md border border-[#EFE8DF] rounded-2xl p-1.5 shadow-xs flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
             onClick={() => setActiveSubTab('overview')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
               activeSubTab === 'overview'
-                ? 'bg-[#003D9B] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                ? 'bg-gradient-to-r from-[#78350F] to-[#92400E] text-white shadow-md shadow-amber-950/20'
+                : 'text-[#574B45] hover:bg-[#F5EBE1] hover:text-[#2B1810]'
             }`}
           >
             <BarChart3 size={15} />
@@ -471,24 +471,24 @@ export default function DashboardView({
           <button
             type="button"
             onClick={() => setActiveSubTab('peakhours')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
               activeSubTab === 'peakhours'
-                ? 'bg-[#003D9B] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                ? 'bg-gradient-to-r from-[#78350F] to-[#92400E] text-white shadow-md shadow-amber-950/20'
+                : 'text-[#574B45] hover:bg-[#F5EBE1] hover:text-[#2B1810]'
             }`}
           >
             <Clock size={15} />
             {lang === 'en' ? '24h Peak Hours Heatmap' : 'ម៉ោងមមាញឹក ២៤ ម៉ោង'}
-            <span className="px-1.5 py-0.2 bg-amber-400/30 text-amber-900 rounded-full text-[9px] font-black">24H</span>
+            <span className="px-1.5 py-0.2 bg-amber-400/20 text-amber-900 rounded-full text-[9px] font-black">24H</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveSubTab('comparison')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
               activeSubTab === 'comparison'
-                ? 'bg-[#003D9B] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                ? 'bg-gradient-to-r from-[#78350F] to-[#92400E] text-white shadow-md shadow-amber-950/20'
+                : 'text-[#574B45] hover:bg-[#F5EBE1] hover:text-[#2B1810]'
             }`}
           >
             <Scale size={15} />
@@ -498,10 +498,10 @@ export default function DashboardView({
           <button
             type="button"
             onClick={() => setActiveSubTab('profit')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all cursor-pointer ${
               activeSubTab === 'profit'
-                ? 'bg-[#003D9B] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                ? 'bg-gradient-to-r from-[#78350F] to-[#92400E] text-white shadow-md shadow-amber-950/20'
+                : 'text-[#574B45] hover:bg-[#F5EBE1] hover:text-[#2B1810]'
             }`}
           >
             <PieChart size={15} />
@@ -509,9 +509,9 @@ export default function DashboardView({
           </button>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-slate-500 pr-2">
+        <div className="flex items-center gap-2 text-xs text-[#78350F] pr-2.5">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span className="font-bold">{activeBranchId === 'all' ? (lang === 'en' ? 'All Branches' : 'គ្រប់សាខា') : (branches.find(b => b.id === activeBranchId)?.branchName || activeBranchId)}</span>
+          <span className="font-extrabold">{activeBranchId === 'all' ? (lang === 'en' ? 'All Cafe Branches' : 'គ្រប់សាខាកាហ្វេ') : (branches.find(b => b.id === activeBranchId)?.branchName || activeBranchId)}</span>
         </div>
       </div>
       
@@ -523,85 +523,85 @@ export default function DashboardView({
           {/* 1. TOP STAT CARDS ROW (4 COLUMNS) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             
-            {/* TODAY'S REVENUE */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all">
+            {/* TODAY'S COFFEE REVENUE */}
+            <div className="bg-white border border-[#EFE8DF] rounded-2xl p-5 shadow-xs hover:shadow-md hover:border-[#D4A373]/50 transition-all">
               <div className="flex items-center justify-between">
-                <div className="w-11 h-11 rounded-2xl bg-[#E7EEFF] flex items-center justify-center text-[#003D9B]">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#F5EBE1] to-[#FAF8F5] border border-[#EFE8DF] flex items-center justify-center text-[#78350F] shadow-xs">
                   <DollarSign size={20} className="stroke-[2.5]" />
                 </div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#4B5563]">
-                  {lang === 'en' ? "TODAY'S REVENUE" : "ចំណូលថ្ងៃនេះ"}
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#78350F]/80">
+                  {lang === 'en' ? "TODAY'S COFFEE REVENUE" : "ចំណូលកាហ្វេថ្ងៃនេះ"}
                 </span>
               </div>
               <div className="mt-3">
-                <h3 className="text-2xl font-black text-[#003D9B] tracking-tight">
+                <h3 className="text-2xl font-black text-[#18110D] tracking-tight">
                   {todayRevenueKhr.toLocaleString()}៛
                 </h3>
               </div>
-              <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                <span className="text-[#4B5563] font-medium">${todayRevenueUsd.toFixed(2)} USD</span>
-                <span className="bg-[#D1FAE5] text-[#065F46] px-2 py-0.5 rounded-lg font-bold flex items-center gap-0.5">
-                  {todayIncomes.length + todayRevenues.length} {lang === 'en' ? 'Orders' : 'ប្រតិបត្តិការ'}
+              <div className="mt-3 pt-3 border-t border-[#F5EBE1] flex items-center justify-between text-[11px]">
+                <span className="text-[#78350F] font-bold">${todayRevenueUsd.toFixed(2)} USD</span>
+                <span className="bg-amber-50 border border-amber-200/60 text-[#78350F] px-2 py-0.5 rounded-lg font-black flex items-center gap-0.5">
+                  ☕ {todayIncomes.length + todayRevenues.length} {lang === 'en' ? 'Orders' : 'កែវ/ការលក់'}
                 </span>
               </div>
             </div>
 
             {/* MONTHLY NET PROFIT */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all">
+            <div className="bg-white border border-[#EFE8DF] rounded-2xl p-5 shadow-xs hover:shadow-md hover:border-emerald-200 transition-all">
               <div className="flex items-center justify-between">
-                <div className="w-11 h-11 rounded-2xl bg-[#D1FAE5] flex items-center justify-center text-[#065F46]">
+                <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-700 shadow-xs">
                   <TrendingUp size={20} className="stroke-[2.5]" />
                 </div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#4B5563]">
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800">
                   {lang === 'en' ? "MONTHLY NET PROFIT" : "ប្រាក់ចំណេញខែនេះ"}
                 </span>
               </div>
               <div className="mt-3">
-                <h3 className={`text-2xl font-black tracking-tight ${monthlyNetProfitKhr >= 0 ? 'text-[#065F46]' : 'text-rose-600'}`}>
+                <h3 className={`text-2xl font-black tracking-tight ${monthlyNetProfitKhr >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
                   {monthlyNetProfitKhr.toLocaleString()}៛
                 </h3>
               </div>
-              <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                <span className="text-[#4B5563] font-medium">${monthlyNetProfitUsd.toFixed(2)} USD</span>
-                <span className="bg-[#D1FAE5] text-[#065F46] px-2 py-0.5 rounded-lg font-bold flex items-center gap-0.5">
+              <div className="mt-3 pt-3 border-t border-[#F5EBE1] flex items-center justify-between text-[11px]">
+                <span className="text-[#574B45] font-bold">${monthlyNetProfitUsd.toFixed(2)} USD</span>
+                <span className="bg-emerald-50 border border-emerald-200/60 text-emerald-800 px-2 py-0.5 rounded-lg font-black flex items-center gap-0.5">
                   {currentMonthStr}
                 </span>
               </div>
             </div>
 
-            {/* ACTIVE STAFF */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all">
+            {/* ACTIVE BARISTAS & STAFF */}
+            <div className="bg-white border border-[#EFE8DF] rounded-2xl p-5 shadow-xs hover:shadow-md hover:border-amber-300/60 transition-all">
               <div className="flex items-center justify-between">
-                <div className="w-11 h-11 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#2B1810] to-[#18110D] flex items-center justify-center text-[#D97706] shadow-xs">
                   <Users size={20} className="stroke-[2.5]" />
                 </div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#4B5563]">
-                  {lang === 'en' ? "ACTIVE STAFF" : "បុគ្គលិកសកម្ម"}
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#78350F]/80">
+                  {lang === 'en' ? "BARISTAS ON DUTY" : "បុគ្គលិកឆុងកាហ្វេ"}
                 </span>
               </div>
               <div className="mt-3">
-                <h3 className="text-2xl font-black text-[#111827] tracking-tight">
+                <h3 className="text-2xl font-black text-[#18110D] tracking-tight">
                   {filteredStaff.length}
                 </h3>
               </div>
-              <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                <span className="text-[#4B5563] font-medium">
+              <div className="mt-3 pt-3 border-t border-[#F5EBE1] flex items-center justify-between text-[11px]">
+                <span className="text-[#574B45] font-medium">
                   {activeBranchId === 'all' ? `${branches.length} ${lang === 'en' ? 'Branches' : 'សាខា'}` : (branches.find(b => b.id === activeBranchId)?.branchName || 'Active Branch')}
                 </span>
-                <span className="bg-blue-50 text-[#0052CC] px-2 py-0.5 rounded-lg font-bold">
+                <span className="bg-[#FAF8F5] border border-[#EFE8DF] text-[#78350F] px-2 py-0.5 rounded-lg font-black">
                   {filteredStaff.length > 0 ? `Active: ${filteredStaff.length}` : (lang === 'en' ? 'No Staff' : 'គ្មានបុគ្គលិក')}
                 </span>
               </div>
             </div>
 
-            {/* COIN VAULT BALANCE */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all">
+            {/* CASH DRAWER & VAULT */}
+            <div className="bg-white border border-[#EFE8DF] rounded-2xl p-5 shadow-xs hover:shadow-md hover:border-amber-200 transition-all">
               <div className="flex items-center justify-between">
-                <div className="w-11 h-11 rounded-2xl bg-amber-50 flex items-center justify-center text-[#92400E]">
+                <div className="w-11 h-11 rounded-2xl bg-amber-50 border border-amber-200/60 flex items-center justify-center text-[#92400E] shadow-xs">
                   <Coins size={20} className="stroke-[2.5]" />
                 </div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#4B5563]">
-                  {lang === 'en' ? "COIN VAULT BALANCE" : "តុល្យភាពកាក់ក្នុងទូ"}
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#78350F]/80">
+                  {lang === 'en' ? "CASH DRAWER & VAULT" : "ថតសាច់ប្រាក់ & ទូកាក់"}
                 </span>
               </div>
               <div className="mt-3">
@@ -609,9 +609,9 @@ export default function DashboardView({
                   {totalCoinValueKhr.toLocaleString()}៛
                 </h3>
               </div>
-              <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                <span className="text-[#4B5563] font-medium">{totalCoinCount.toLocaleString()} {lang === 'en' ? 'Coins' : 'កាក់'}</span>
-                <span className="bg-[#D1FAE5] text-[#065F46] px-2 py-0.5 rounded-lg font-bold flex items-center gap-1">
+              <div className="mt-3 pt-3 border-t border-[#F5EBE1] flex items-center justify-between text-[11px]">
+                <span className="text-[#574B45] font-medium">{totalCoinCount.toLocaleString()} {lang === 'en' ? 'Coins' : 'កាក់'}</span>
+                <span className="bg-emerald-50 border border-emerald-200/60 text-emerald-800 px-2 py-0.5 rounded-lg font-black flex items-center gap-1">
                   <ShieldCheck size={12} /> ${totalCoinValueUsd.toFixed(2)}
                 </span>
               </div>
@@ -625,7 +625,7 @@ export default function DashboardView({
             {/* LEFT COLUMN: TODAY'S OPERATIONS SUMMARY TABLE */}
             <div className="lg:col-span-2 space-y-6">
               
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+              <div className="bg-white border border-[#EFE8DF] rounded-2xl p-6 shadow-xs">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xs font-extrabold text-[#111827] uppercase tracking-wider">
                     {lang === 'en' ? "TODAY'S OPERATIONS SUMMARY" : "សង្ខេបប្រតិបត្តិការថ្ងៃនេះ"}
@@ -696,7 +696,7 @@ export default function DashboardView({
               </div>
 
               {/* MONTHLY PERFORMANCE TABLE */}
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+              <div className="bg-white border border-[#EFE8DF] rounded-2xl p-6 shadow-xs">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xs font-extrabold text-[#111827] uppercase tracking-wider">
                     {lang === 'en' ? "MONTHLY PERFORMANCE" : "លទ្ធផលការងារប្រចាំខែ"} ({currentMonthStr})
@@ -746,7 +746,7 @@ export default function DashboardView({
             <div className="space-y-6">
               
               {/* STOCK & RESERVES ALERT */}
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs">
+              <div className="bg-white border border-[#EFE8DF] rounded-2xl p-5 shadow-xs">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-xs font-extrabold text-[#111827] uppercase tracking-wider">
                     {lang === 'en' ? 'STOCK & RESERVES' : 'ស្តុក & ការបំពេញ'}
@@ -797,7 +797,7 @@ export default function DashboardView({
               </div>
 
               {/* MACHINE STATUS DONUT CHART */}
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs">
+              <div className="bg-white border border-[#EFE8DF] rounded-2xl p-5 shadow-xs">
                 <h3 className="text-xs font-extrabold text-[#111827] uppercase tracking-wider mb-3">
                   {lang === 'en' ? 'MACHINE STATUS' : 'ស្ថានភាពម៉ាស៊ីន'} <span className="text-[#4B5563] font-medium">({filteredMachines.length})</span>
                 </h3>
@@ -913,7 +913,7 @@ export default function DashboardView({
           </div>
 
           {/* 24-Hour Visual Bar Chart */}
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+          <div className="bg-white border border-[#EFE8DF] rounded-2xl p-6 shadow-xs">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
               <div>
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
@@ -921,7 +921,7 @@ export default function DashboardView({
                   {lang === 'en' ? '24-Hour Hourly Customer Traffic Heatmap' : 'តារាងកំដៅចរាចរណ៍អតិថិជន ២៤ ម៉ោង'}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {lang === 'en' ? 'Real distribution of customer laundry orders & revenue per hour of the day' : 'ការបែងចែកជាក់ស្តែងនៃចំនួនភ្ញៀវបោកគក់ និងចំណូលតាមម៉ោងនីមួយៗក្នុងមួយថ្ងៃ'}
+                  {lang === 'en' ? 'Real distribution of customer cafe orders & revenue per hour of the day' : 'ការបែងចែកជាក់ស្តែងនៃចំនួនភ្ញៀវកុម្ម៉ង់កាហ្វេ និងចំណូលតាមម៉ោងនីមួយៗក្នុងមួយថ្ងៃ'}
                 </p>
               </div>
 
@@ -951,7 +951,7 @@ export default function DashboardView({
                     <div className="absolute -top-20 hidden group-hover:flex flex-col items-center bg-slate-900 text-white text-[10px] rounded-lg py-1.5 px-2.5 z-20 whitespace-nowrap shadow-xl pointer-events-none">
                       <span className="font-extrabold text-amber-400">{b.timeRange}</span>
                       <span>{b.orders} Orders (${b.revenueUsd.toFixed(2)})</span>
-                      <span className="text-slate-300 text-[9px]">{b.washCount} Wash | {b.dryCount} Dry</span>
+                      <span className="text-amber-200 text-[9px]">{b.washCount} Hot | {b.dryCount} Iced</span>
                       <div className="w-2 h-2 bg-slate-900 transform rotate-45 -mb-1 mt-0.5"></div>
                     </div>
 
@@ -995,7 +995,7 @@ export default function DashboardView({
       {/* ========================================================================= */}
       {activeSubTab === 'comparison' && (
         <div className="space-y-6">
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+          <div className="bg-white border border-[#EFE8DF] rounded-2xl p-6 shadow-xs">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
               <div>
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
@@ -1077,7 +1077,7 @@ export default function DashboardView({
       {activeSubTab === 'profit' && (
         <div className="space-y-6">
           {/* Top Period Selector */}
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
+          <div className="bg-white border border-[#EFE8DF] rounded-2xl p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-2">
                 <PieChart size={16} className="text-[#003D9B]" />
@@ -1138,7 +1138,7 @@ export default function DashboardView({
           </div>
 
           {/* Cost Distribution Progress Bars */}
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs">
+          <div className="bg-white border border-[#EFE8DF] rounded-2xl p-6 shadow-xs">
             <h3 className="text-sm font-black text-slate-900 mb-4 flex items-center gap-2">
               <DollarSign size={18} className="text-[#003D9B]" />
               {lang === 'en' ? 'Cost Breakdown Structure' : 'រចនាសម្ព័ន្ធចំណាយប្រតិបត្តិការ'}
@@ -1147,7 +1147,7 @@ export default function DashboardView({
             <div className="space-y-4 text-xs">
               <div>
                 <div className="flex justify-between font-bold text-slate-700 mb-1">
-                  <span>☕ {lang === 'en' ? 'Store & Supplies' : 'ចំណាយសម្ភារៈ និងស្តុកហាង'}</span>
+                  <span>☕ {lang === 'en' ? 'Coffee Beans & Supplies' : 'គ្រាប់កាហ្វេ & សម្ភារៈឆុង'}</span>
                   <span className="font-mono text-slate-900">${netProfitBreakdown.detergentCost.toFixed(2)} ({netProfitBreakdown.totalCosts > 0 ? ((netProfitBreakdown.detergentCost / netProfitBreakdown.totalCosts) * 100).toFixed(1) : 0}%)</span>
                 </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
@@ -1157,7 +1157,7 @@ export default function DashboardView({
 
               <div>
                 <div className="flex justify-between font-bold text-slate-700 mb-1">
-                  <span>🌸 {lang === 'en' ? 'Softener Refills' : 'ថ្លៃទឹកក្រអូប'}</span>
+                  <span>🥛 {lang === 'en' ? 'Milk, Syrups & Ingredients' : 'ទឹកដោះគោ ទឹកស៊ីរ៉ូ & គ្រឿងផ្សំ'}</span>
                   <span className="font-mono text-slate-900">${netProfitBreakdown.softenerCost.toFixed(2)} ({netProfitBreakdown.totalCosts > 0 ? ((netProfitBreakdown.softenerCost / netProfitBreakdown.totalCosts) * 100).toFixed(1) : 0}%)</span>
                 </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
@@ -1167,7 +1167,7 @@ export default function DashboardView({
 
               <div>
                 <div className="flex justify-between font-bold text-slate-700 mb-1">
-                  <span>🔥 {lang === 'en' ? 'Gas Fuel (Dryers)' : 'ថ្លៃហ្គាសសម្ងួត'}</span>
+                  <span>⚡ {lang === 'en' ? 'Espresso & Appliance Power' : 'ថាមពលម៉ាស៊ីនកាហ្វេ & ហ្គាស'}</span>
                   <span className="font-mono text-slate-900">${netProfitBreakdown.gasCost.toFixed(2)} ({netProfitBreakdown.totalCosts > 0 ? ((netProfitBreakdown.gasCost / netProfitBreakdown.totalCosts) * 100).toFixed(1) : 0}%)</span>
                 </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">

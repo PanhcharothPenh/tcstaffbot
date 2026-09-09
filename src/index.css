@@ -68,16 +68,23 @@
   --font-sans: "MiSansKhmer", sans-serif;
   --font-mono: "MiSansKhmer", monospace;
 
-  --color-brand-primary: #003D9B;
-  --color-brand-hover: #2563EB;
-  --color-brand-secondary: #0052CC;
-  --color-brand-light: #E7EEFF;
+  /* Modern Coffee & Warm Espresso Palette */
+  --color-brand-primary: #1E100A;
+  --color-brand-espresso: #2B1810;
+  --color-brand-coffee: #78350F;
+  --color-brand-amber: #B45309;
+  --color-brand-caramel: #D97706;
+  --color-brand-latte: #F5EBE1;
+  --color-brand-cream: #FAF6F0;
+  --color-brand-foam: #FCFBF9;
+  --color-brand-secondary: #854D0E;
+  --color-brand-light: #F7EFE6;
   --color-brand-success: #065F46;
   --color-brand-success-light: #D1FAE5;
   --color-brand-warning: #92400E;
   --color-brand-danger: #991B1B;
-  --color-brand-dark: #111827;
-  --color-brand-medium: #4B5563;
+  --color-brand-dark: #18110D;
+  --color-brand-medium: #574B45;
 }
 
 @layer base {
@@ -104,7 +111,7 @@
   }
 
   body {
-    @apply bg-slate-50 text-[#111827] antialiased selection:bg-[#003D9B] selection:text-white transition-all duration-200;
+    @apply bg-[#FAF8F5] text-[#18110D] antialiased selection:bg-[#78350F] selection:text-white transition-all duration-200;
     font-size: 1rem;
     line-height: 1.55;
     -webkit-tap-highlight-color: transparent;
@@ -139,44 +146,52 @@
 
 /* Scrollbar styles */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.3);
+  background: rgba(180, 83, 9, 0.2);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.6);
+  background: rgba(180, 83, 9, 0.45);
 }
 
-/* Crisp Executive Design Tokens */
+/* Crisp Executive Coffee Design Tokens */
 @utility executive-card {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 1rem;
-  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+  border: 1px solid #EFE8DF;
+  border-radius: 1.25rem;
+  box-shadow: 0 1px 4px 0 rgba(43, 24, 16, 0.04), 0 2px 8px -2px rgba(43, 24, 16, 0.02);
 }
 
-@utility executive-dark {
-  background: #0f172a;
-  border: 1px solid #1e293b;
-  color: #f8fafc;
+@utility coffee-glass {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(239, 232, 223, 0.85);
+}
+
+@utility espresso-card {
+  background: linear-gradient(135deg, #24140D 0%, #150A05 100%);
+  border: 1px solid rgba(180, 83, 9, 0.25);
+  color: #FAF6F0;
+  box-shadow: 0 10px 25px -5px rgba(24, 17, 13, 0.35);
 }
 
 @utility crisp-border {
-  border-color: #cbd5e1;
+  border-color: #EFE8DF;
 }
 
 @utility card-hover-effect {
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 20px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
-    border-color: #94a3b8;
+    box-shadow: 0 12px 24px -4px rgba(43, 24, 16, 0.07), 0 4px 8px -2px rgba(43, 24, 16, 0.03);
+    border-color: #D5C7B7;
   }
 }
 

@@ -1143,7 +1143,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-screen max-w-full bg-slate-50 flex overflow-hidden select-none" id="main_saas_root">
+    <div className="h-screen w-screen max-w-full bg-[#FAF8F5] flex overflow-hidden select-none" id="main_saas_root">
       
       {/* 1. Left Sidebar Navigation Segment (Desktop Collapsible) */}
       <div className={`hidden lg:flex flex-col h-screen shrink-0 sticky top-0 transition-all duration-300 ease-in-out z-20 ${sidebarCollapsed ? 'w-20' : 'w-72'}`}>
@@ -1197,7 +1197,7 @@ export default function App() {
       <div className="flex-1 min-w-0 h-screen flex flex-col overflow-y-auto overflow-x-hidden">
         
         {/* Top Header Segment bar */}
-        <header className="bg-white border-b border-slate-200 px-3 sm:px-6 py-2 sm:py-3 flex items-center justify-between sticky top-0 z-30 shadow-xs" id="header_saas_bar">
+        <header className="bg-white/85 backdrop-blur-md border-b border-[#EFE8DF] px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between sticky top-0 z-30 shadow-xs" id="header_saas_bar">
           
           {/* Menu Trigger and Title details */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -1352,7 +1352,7 @@ export default function App() {
             <div className="flex items-center gap-1.5 sm:gap-3 pl-1.5 sm:pl-3 border-l border-slate-200/60">
               <div className="flex items-center gap-2 min-w-0">
                 <div className="relative shrink-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-50 border border-slate-200/50 flex items-center justify-center font-bold text-xs text-slate-750 select-none">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#F5EBE1] border border-[#EFE8DF] flex items-center justify-center font-black text-xs text-[#78350F] select-none shadow-xs">
                     {currentUser?.fullName?.charAt(0) || "?"}
                   </div>
                   <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-emerald-500 border border-white rounded-full"></span>
@@ -1389,7 +1389,7 @@ export default function App() {
                 <select
                   value={activeBranchId}
                   onChange={(e) => setActiveBranchId(e.target.value)}
-                  className="bg-white hover:bg-slate-50 border border-slate-200/90 text-slate-800 text-xs font-bold font-sans rounded-xl pl-2.5 pr-7 py-1.5 focus:outline-none focus:border-blue-600 shadow-2xs cursor-pointer transition-all appearance-none"
+                  className="bg-white hover:bg-[#FAF8F5] border border-[#EFE8DF] text-[#18110D] text-xs font-bold font-sans rounded-xl pl-2.5 pr-7 py-1.5 focus:outline-none focus:border-[#78350F] shadow-2xs cursor-pointer transition-all appearance-none"
                   id="header_quick_branch_switcher"
                   aria-label="Quick Switch Branch"
                 >
