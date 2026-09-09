@@ -74,7 +74,7 @@ export default async function handler(req: any, res: any) {
     const targetChatId = matchedUser.telegramChatId || process.env.TELEGRAM_CHAT_ID || '';
 
     if (botToken) {
-      const message = `🔑 <b>[Clean24 Password Reset PIN]</b>\n\nAccount: <b>@${matchedUser.username}</b>\nYour Password Reset PIN code is: <code>${randomPin}</code>\n\nValid for 15 minutes.`;
+      const message = `🔑 <b>[TC Staff Password Reset PIN]</b>\n\nAccount: <b>@${matchedUser.username}</b>\nYour Password Reset PIN code is: <code>${randomPin}</code>\n\nValid for 15 minutes.`;
       try {
         await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',

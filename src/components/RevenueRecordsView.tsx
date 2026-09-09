@@ -103,7 +103,7 @@ export default function RevenueRecordsView({
       const branchObj = branches.find(b => b.id === selectedBranchId);
       const branchName = branchObj ? branchObj.branchName : 'Branch';
       
-      const email = localStorage.getItem('clean24_user_email') || 'auditor@clean24.com';
+      const email = localStorage.getItem('clean24_user_email') || 'auditor@tcstaff.com';
       
       const response = await fetch(`/api/revenue/export/pdf?branch_id=${selectedBranchId}&month=${selectedMonth}&year=${selectedYear}&generated_by=${encodeURIComponent(email)}`, {
         headers: {

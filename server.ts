@@ -729,7 +729,7 @@ app.get('/auth/telegram/login', (req, res) => {
             ${telegramConfig.botToken ? `
               <!-- Dynamic Telegram Login Widget -->
               <script async src="https://telegram.org/js/telegram-widget.js?22" 
-                data-telegram-login="Clean24_Laundry_Bot" 
+                data-telegram-login="${process.env.TELEGRAM_BOT_USERNAME || 'tc_staff_bot'}" 
                 data-size="large" 
                 data-onauth="onTelegramAuth(user)" 
                 data-request-access="write">
@@ -834,7 +834,7 @@ app.get(['/auth/telegram/callback', '/auth/telegram/callback/'], async (req, res
       id: 'usr_tg_' + query.id,
       fullName,
       username,
-      email: `${username}@telegram.clean24.local`,
+      email: `${username}@telegram.tcstaff.local`,
       phone: '',
       passwordHash: bcrypt.hashSync('TelegramAuthSecuredPass@123', salt),
       roleId: 'staff',
@@ -1023,7 +1023,7 @@ app.post('/api/auth/telegram/webapp-validate', async (req, res) => {
         id: 'usr_tg_sim_' + (mockUser.id || Date.now()),
         fullName: mockUser.fullName || 'Simulated Telegram User',
         username: username,
-        email: `${username}@telegram.clean24.local`,
+        email: `${username}@telegram.tcstaff.local`,
         phone: '',
         passwordHash: bcrypt.hashSync('TelegramAuthSecuredPass@123', salt),
         roleId: mockUser.roleId || 'staff',
@@ -1142,7 +1142,7 @@ app.post('/api/auth/telegram/webapp-validate', async (req, res) => {
       id: 'usr_tg_wa_' + parsedUser.id,
       fullName,
       username,
-      email: `${username}@telegram.clean24.local`,
+      email: `${username}@telegram.tcstaff.local`,
       phone: '',
       passwordHash: bcrypt.hashSync('TelegramAuthSecuredPass@123', salt),
       roleId: 'staff',
@@ -1223,7 +1223,7 @@ app.post('/api/auth/telegram/request-approval', async (req, res) => {
   const approvalLink = `${appOrigin}/auth/telegram/approve-user?username=${encodeURIComponent(username)}&token=${token}`;
 
   // Build the rich notifications block
-  const alertText = `<b>⚠️ CLEAN24 ACCESS REQUEST APPROVED TRIGGERED</b>
+  const alertText = `<b>⚠️ TC STAFF ACCESS REQUEST APPROVED TRIGGERED</b>
 ━━━━━━━━━━━━━━━━━
 👤 <b>Employee:</b> <b>${actualFullName}</b>
 🛡️ <b>Telegram Handle:</b> @${username}
@@ -1294,7 +1294,7 @@ app.get('/auth/telegram/approve-user', async (req, res) => {
   user.status = 'Active';
   saveLocalDb();
 
-  const alertText = `<b>✅ Access Approved!</b>\n━━━━━━━━━━━━━━━━━\n👤 <b>Employee:</b> ${user.fullName}\n🛡️ <b>Username:</b> @${user.username}\n⚡ <b>Status:</b> Authorized / Active\n\n<i>This employee can now log in securely to the Clean24 Operations Console.</i>`;
+  const alertText = `<b>✅ Access Approved!</b>\n━━━━━━━━━━━━━━━━━\n👤 <b>Employee:</b> ${user.fullName}\n🛡️ <b>Username:</b> @${user.username}\n⚡ <b>Status:</b> Authorized / Active\n\n<i>This employee can now log in securely to the TC Staff Operations Console.</i>`;
   
   const config = getTelegramConfig();
   if (config.botToken) {
@@ -1310,7 +1310,7 @@ app.get('/auth/telegram/approve-user', async (req, res) => {
     <!DOCTYPE html>
     <html>
       <head>
-        <title>Clean24 Access Authorized</title>
+        <title>TC Staff Access Authorized</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #0c101b; color: #fff; text-align: center; padding: 40px; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
           .card { background-color: #111827; border: 1px solid #1f2937; padding: 32px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); max-width: 400px; text-align: center; }
@@ -1325,7 +1325,7 @@ app.get('/auth/telegram/approve-user', async (req, res) => {
         <div class="card">
           <div class="icon">✓</div>
           <h2>Access Approved!</h2>
-          <span class="role">CLEAN24 IAM WORKSPACE</span>
+          <span class="role">TC STAFF IAM WORKSPACE</span>
           <p>The employee profile <strong>${user.fullName} (@${user.username})</strong> has been successfully authorized and activated.</p>
           <div class="badge">ACTIVE STAFF</div>
         </div>
@@ -1349,7 +1349,7 @@ async function sendTelegramSecurityAlert(user: any, eventType: string, details: 
   const config = (getTelegramConfig() as any) || {};
   const botToken = config.botToken || process.env.TELEGRAM_BOT_TOKEN;
   
-  const alertText = `🛡️ <b>Clean24 SECURITY MONITOR</b>
+  const alertText = `🛡️ <b>TC Staff SECURITY MONITOR</b>
 ━━━━━━━━━━━━━━━━━
 <b>🔔 EVENT:</b> <code>${eventType.toUpperCase()}</code>
 <b>👤 USER:</b> <b>${user.fullName} (@${user.username})</b>
@@ -1929,7 +1929,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       const targetChatId = user.telegramChatId || process.env.TELEGRAM_CHAT_ID || config.chatIds?.owner || '';
 
       if (botToken && targetChatId) {
-        const text = `🔐 <b>[Clean24 Password Reset PIN]</b>\n\nYour password reset PIN code is: <code>${resetCode}</code>\n\nValid for 15 minutes.`;
+        const text = `🔐 <b>[TC Staff Password Reset PIN]</b>\n\nYour password reset PIN code is: <code>${resetCode}</code>\n\nValid for 15 minutes.`;
         sendTelegramMessage(targetChatId, text, 'HTML', botToken).catch(() => {});
       }
     } catch (tgErr) {
@@ -2449,7 +2449,7 @@ app.post('/api/telegram-test', async (req, res) => {
 <b>Timestamp:</b> <code>${new Date().toISOString().replace('T', ' ').substring(0, 19)}</code>
 <b>Configured For:</b> <b>${username || 'Owner/Admin'}</b>
 
-<i>Congratulations! Your laundry system is now securely linked with this Telegram thread. Instant operational alerts will be delivered here.</i>
+<i>Congratulations! Your TC Staff Management system is now securely linked with this Telegram thread. Instant operational alerts will be delivered here.</i>
 ━━━━━━━━━━━━━━━━━`;
 
   const result = await sendTelegramMessage(chatId, text);
@@ -2692,7 +2692,7 @@ async function sendTelegramMessageWithRetry(chatId: string, text: string, parseM
   return { success: false, error: lastError, attempts: maxAttempts };
 }
 
-// Clean24 Realtime Report builders
+// TC Staff Realtime Report builders
 function generateDailyReportData(branchId: string) {
   const branches = branchId === 'all' || !branchId ? localDb.branches : localDb.branches.filter(b => b.id === branchId);
   if (branches.length === 0) return "<b>🏪 Daily Alert Status:</b> No operational branches found in active database.";
@@ -4072,7 +4072,7 @@ const REUSABLE_PDF_TEMPLATES: Record<string, PDFTemplate> = {
     orientation: 'portrait',
     categoryField: 'type',
     numericFields: ['quantityLiters', 'remainingLiters', 'cost'],
-    signatories: ['Laundry Tech', 'Inventory Auditor', 'Managing Director'],
+    signatories: ['Store Barista', 'Inventory Auditor', 'Managing Director'],
     brandingColor: 'fuchsia',
     remarksDefault: 'Softener volumes are matched directly to wash cycle counts to preserve proper formula density across heavy-duty dry cycles.'
   },
@@ -4700,7 +4700,7 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
           });
         }
       } else {
-        const replyText = `<b>TC Staff Attendance</b>\n\nសួស្តី <b>${firstName}</b>\n\n⚠️ គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយប្រព័ន្ធបុគ្គលិក Clean24 នៅឡើយទេ។\n\n👉 <b>Telegram ID:</b> <code>${telegramId}</code>\n👉 <b>Username:</b> <code>@${username || 'N/A'}</code>\n\nសូមផ្តល់លេខ ID នេះទៅកាន់ Admin / Manager របស់អ្នកដើម្បីភ្ជាប់គណនី។`;
+        const replyText = `<b>TC Staff Attendance</b>\n\nសួស្តី <b>${firstName}</b>\n\n⚠️ គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយប្រព័ន្ធបុគ្គលិក TC Staff នៅឡើយទេ។\n\n👉 <b>Telegram ID:</b> <code>${telegramId}</code>\n👉 <b>Username:</b> <code>@${username || 'N/A'}</code>\n\nសូមផ្តល់លេខ ID នេះទៅកាន់ Admin / Manager របស់អ្នកដើម្បីភ្ជាប់គណនី។`;
 
         if (botToken) {
           await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -4790,7 +4790,7 @@ async function pollTelegramAttendanceBot() {
             })
           }).catch(() => {});
         } else {
-          const replyText = `<b>TC Staff Attendance</b>\n\nសួស្តី <b>${firstName}</b>\n\n⚠️ គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយប្រព័ន្ធបុគ្គលិក Clean24 នៅឡើយទេ។\n\n👉 <b>Telegram ID:</b> <code>${telegramId}</code>\n👉 <b>Username:</b> <code>@${username || 'N/A'}</code>\n\nសូមផ្តល់លេខ ID នេះទៅកាន់ Admin / Manager របស់អ្នកដើម្បីភ្ជាប់គណនី។`;
+          const replyText = `<b>TC Staff Attendance</b>\n\nសួស្តី <b>${firstName}</b>\n\n⚠️ គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយប្រព័ន្ធបុគ្គលិក TC Staff នៅឡើយទេ។\n\n👉 <b>Telegram ID:</b> <code>${telegramId}</code>\n👉 <b>Username:</b> <code>@${username || 'N/A'}</code>\n\nសូមផ្តល់លេខ ID នេះទៅកាន់ Admin / Manager របស់អ្នកដើម្បីភ្ជាប់គណនី។`;
 
           await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
             method: 'POST',

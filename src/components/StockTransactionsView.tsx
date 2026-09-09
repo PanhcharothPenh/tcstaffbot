@@ -33,12 +33,12 @@ interface StockTransactionsViewProps {
 }
 
 const COMMON_ITEMS = [
-  'Bubble Lavender Soap',
-  'Premium Fabric Conditioner',
-  'Heavy Laundry Bags (L)',
-  'Standard Dryer Sheets',
-  'Wire Clothes Hangers',
-  'Automatic Bleach Liquid'
+  'Coffee Beans (Arabica/Robusta)',
+  'Fresh Milk & Condensed Milk',
+  'Coffee Paper Cups & Straws',
+  'Syrups & Flavors (Vanilla/Caramel)',
+  'Cleaning Detergent & Napkins',
+  'Takeaway Bags (L/M)'
 ];
 
 export default function StockTransactionsView({

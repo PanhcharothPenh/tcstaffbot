@@ -232,11 +232,11 @@ export default function DailyIncomeView({
   };
 
   return (
-    <div className="space-y-6" id="daily_income_laundry_module">
+    <div className="space-y-6" id="daily_income_module">
       {/* 4 Summary Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-2xs hover:border-slate-200 transition-colors">
-          <span className="text-[10px] text-slate-450 uppercase font-black tracking-wider block">TOTAL LAUNDRY REVENUE</span>
+          <span className="text-[10px] text-slate-455 uppercase font-black tracking-wider block">TOTAL REVENUE</span>
           <span className="text-xl font-bold font-mono text-emerald-600 block mt-1">{formatCurrency(totalIncomeUsd, 'USD')}</span>
           <span className="text-[9px] text-slate-400 block mt-0.5">៛{totalIncomeKhr.toLocaleString()}</span>
         </div>
@@ -275,7 +275,7 @@ export default function DailyIncomeView({
           id="btn_add_income_trigger"
         >
           <Plus size={14} />
-          {lang === 'en' ? "Record New Laundry Receipt" : "កត់ត្រាការលក់ថ្មី"}
+          {lang === 'en' ? "Record New Sales Receipt" : "កត់ត្រាការលក់ថ្មី"}
         </button>
       </div>
 
@@ -286,7 +286,7 @@ export default function DailyIncomeView({
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-1.5">
                 <Receipt size={15} className="text-blue-600" />
-                {lang === 'en' ? "Log Daily Laundry Sales Transaction" : "កត់ត្រាប្រតិបត្តិការលក់ថ្មី"}
+                {lang === 'en' ? "Log Daily Sales Transaction" : "កត់ត្រាប្រតិបត្តិការលក់ថ្មី"}
               </h4>
               <button 
                 type="button" 

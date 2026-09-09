@@ -57,7 +57,7 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'សូមបញ្ចូលឈ្មោះគណនី និងលេខសម្ងាត់ (Username and password are required)' });
     }
 
-    if (identifier === 'root' || identifier === 'root@laundry.com' || identifier === 'usr_root') {
+    if (identifier === 'root' || identifier === 'root@tcstaff.com' || identifier === 'root@laundry.com' || identifier === 'usr_root') {
       return res.status(401).json({ error: 'គណនី root ត្រូវបានលុបចេញពីប្រព័ន្ធជាស្ថាពរ' });
     }
 

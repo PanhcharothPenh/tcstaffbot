@@ -16,7 +16,7 @@ export default async function handler(req: any, res: any) {
   }
 
   if (req.method !== 'POST') {
-    return res.status(200).json({ success: true, message: 'Clean24 Telegram Test Endpoint Active' });
+    return res.status(200).json({ success: true, message: 'TC Staff Telegram Test Endpoint Active' });
   }
 
   const { chatId, branchId, message } = req.body || {};
@@ -70,10 +70,10 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ success: false, error: 'Chat ID is required' });
   }
 
-  const text = message || `🔔 <b>[Clean24] សារសាកល្បងតេស្តប្រព័ន្ធ (Test Alert)</b>\n\n` +
+  const text = message || `🔔 <b>[TC Staff] សារសាកល្បងតេស្តប្រព័ន្ធ (Test Alert)</b>\n\n` +
     `🏢 <b>សាខា:</b> ${bId === 'b2' ? 'សាខា ចំការដូង' : 'សាខា វេងស្រេង'}\n` +
     `⏰ <b>ម៉ោង:</b> <code>${new Date().toLocaleTimeString()}</code>\n` +
-    `✅ ការតភ្ជាប់រវាង Clean24 App និង Telegram Chat ដំណើរការយ៉ាងរលូន ១០០%!`;
+    `✅ ការតភ្ជាប់រវាង TC Staff App និង Telegram Chat ដំណើរការយ៉ាងរលូន ១០០%!`;
 
   try {
     const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {

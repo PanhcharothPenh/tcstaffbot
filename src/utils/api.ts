@@ -154,7 +154,7 @@ export function getSavedSessionUser() {
 export const authApi = {
   login: async (usernameOrEmail: string, password: string, remember: boolean) => {
     const cleanUsername = (usernameOrEmail || '').trim().toLowerCase();
-    if (cleanUsername === 'root' || cleanUsername === 'root@laundry.com' || cleanUsername === 'usr_root') {
+    if (cleanUsername === 'root' || cleanUsername === 'root@tcstaff.com' || cleanUsername === 'root@laundry.com' || cleanUsername === 'usr_root') {
       throw new Error('គណនី root ត្រូវបានលុបចេញពីប្រព័ន្ធរួចរាល់ហើយ (Account "root" does not exist in production)');
     }
 
