@@ -953,7 +953,7 @@ export default function AttendanceView({
             {/* Header & Add Button */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
               <div>
-                <h3 className="text-base font-black text-[#2A1810] flex items-center gap-2">
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
                   <span>{lang === 'kh' ? 'ការចុះវត្តមានបុគ្គលិក (Staff Attendance)' : 'Staff Attendance Management'}</span>
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -967,14 +967,14 @@ export default function AttendanceView({
                   type="button"
                   onClick={handleManualSync}
                   disabled={isRefreshing}
-                  className="px-3 py-1.5 bg-[#FAF5EE] hover:bg-[#F3ECE1] text-[#78350F] border border-[#E8DFD1] rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95 disabled:opacity-50"
+                  className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95 disabled:opacity-50"
                   title="ទាញយកទិន្នន័យវត្តមានចុងក្រោយពី Server"
                 >
-                  <RefreshCw size={13} className={isRefreshing ? "animate-spin text-[#78350F]" : "text-[#78350F]"} />
+                  <RefreshCw size={13} className={isRefreshing ? "animate-spin text-blue-700" : "text-blue-700"} />
                   <span>{isRefreshing ? (lang === 'kh' ? 'កំពុងទាញ...' : 'Syncing...') : (lang === 'kh' ? 'ទាញទិន្នន័យថ្មី' : 'Sync Now')}</span>
                 </button>
 
-                <span className="text-xs font-bold px-3 py-1 bg-amber-50 text-[#78350F] rounded-full border border-amber-200/80 w-fit">
+                <span className="text-xs font-bold px-3 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-200/80 w-fit">
                   {filteredRecords.length} / {attendance.length} កំណត់ត្រា
                 </span>
               </div>
@@ -989,7 +989,7 @@ export default function AttendanceView({
                 onClick={() => setSelectedDate(todayPhnomPenh)}
                 className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1 text-xs ${
                   selectedDate === todayPhnomPenh
-                    ? 'bg-[#78350F] text-white shadow-xs'
+                    ? 'bg-blue-600 text-white shadow-xs'
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                 }`}
               >
@@ -1002,7 +1002,7 @@ export default function AttendanceView({
                 onClick={() => setSelectedDate('')}
                 className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1 text-xs ${
                   !selectedDate || selectedDate === 'all'
-                    ? 'bg-[#78350F] text-white shadow-xs'
+                    ? 'bg-blue-600 text-white shadow-xs'
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                 }`}
               >
@@ -1039,7 +1039,7 @@ export default function AttendanceView({
             </div>
 
             {/* Filters Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5 text-xs bg-[#FBF9F5] p-3 rounded-2xl border border-[#EAE3D9]">
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5 text-xs bg-slate-50 p-3 rounded-2xl border border-slate-200">
               {/* Date Picker */}
               <div>
                 <label className="text-[10.5px] font-bold text-slate-600 block mb-1">កាលបរិច្ឆេទ</label>
@@ -1048,7 +1048,7 @@ export default function AttendanceView({
                     type="date"
                     value={selectedDate}
                     onChange={e => setSelectedDate(e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-[#78350F]"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
                   />
                   {selectedDate && (
                     <button
@@ -1069,7 +1069,7 @@ export default function AttendanceView({
                 <select
                   value={filterBranchId}
                   onChange={e => setFilterBranchId(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-[#78350F]"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
                 >
                   <option value="all">🌐 គ្រប់សាខា (All)</option>
                   {branches.map(b => (
@@ -1084,7 +1084,7 @@ export default function AttendanceView({
                 <select
                   value={filterStaffId}
                   onChange={e => setFilterStaffId(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-[#78350F]"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
                 >
                   <option value="all">👥 គ្រប់បុគ្គលិក</option>
                   {staffList.map(s => (
@@ -1099,7 +1099,7 @@ export default function AttendanceView({
                 <select
                   value={filterStatus}
                   onChange={e => setFilterStatus(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-[#78350F]"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
                 >
                   <option value="all">✨ គ្រប់ស្ថានភាព</option>
                   <option value="Working">⏳ កំពុងធ្វើការ (Working)</option>
@@ -1121,7 +1121,7 @@ export default function AttendanceView({
                     placeholder="ឈ្មោះបុគ្គលិក..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full pl-7 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#78350F]"
+                    className="w-full pl-7 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -1129,8 +1129,8 @@ export default function AttendanceView({
 
             {/* Attendance Data Table */}
             {filteredRecords.length === 0 ? (
-              <div className="text-center py-12 px-4 text-slate-500 bg-[#FBF9F5] rounded-3xl border border-dashed border-[#EAE3D9] space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-[#78350F] flex items-center justify-center mx-auto shadow-2xs">
+              <div className="text-center py-12 px-4 text-slate-500 bg-slate-50 rounded-3xl border border-dashed border-slate-200 space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto shadow-2xs">
                   <Calendar size={24} />
                 </div>
                 <div>
@@ -1141,7 +1141,7 @@ export default function AttendanceView({
                   <button 
                     type="button"
                     onClick={() => { setSelectedDate(''); setFilterBranchId('all'); setFilterStaffId('all'); setFilterStatus('all'); setSearchQuery(''); }}
-                    className="px-4 py-2 bg-[#78350F] hover:bg-[#5C2B10] text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
                   >
                     🌐 បង្ហាញគ្រប់កាលបរិច្ឆេទ & គ្រប់សាខា ({attendance.length})
                   </button>
@@ -1151,7 +1151,7 @@ export default function AttendanceView({
                     disabled={isRefreshing}
                     className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
                   >
-                    <RefreshCw size={13} className={isRefreshing ? "animate-spin text-[#78350F]" : "text-[#78350F]"} />
+                    <RefreshCw size={13} className={isRefreshing ? "animate-spin text-blue-600" : "text-blue-600"} />
                     <span>ទាញទិន្នន័យពី Server</span>
                   </button>
                 </div>
@@ -1160,7 +1160,7 @@ export default function AttendanceView({
               <div className="overflow-x-auto rounded-2xl border border-slate-200/80 shadow-2xs">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-[#F8F5EE] text-slate-600 border-b border-[#E8DFD1] text-[10.5px] uppercase font-bold tracking-wider">
+                    <tr className="bg-slate-100/70 text-slate-600 border-b border-slate-200 text-[10.5px] uppercase font-bold tracking-wider">
                       <th className="py-3 px-3.5">ឈ្មោះបុគ្គលិក</th>
                       <th className="py-3 px-3">សាខា</th>
                       <th className="py-3 px-3 text-center">ចូល (Check In)</th>
@@ -1174,13 +1174,13 @@ export default function AttendanceView({
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
                     {filteredRecords.map(rec => (
-                      <tr key={rec.id} className={`transition-colors ${rec.date === todayPhnomPenh ? 'bg-amber-50/20 hover:bg-amber-50/40' : 'hover:bg-slate-50/60'}`}>
+                      <tr key={rec.id} className={`transition-colors ${rec.date === todayPhnomPenh ? 'bg-blue-50/30 hover:bg-blue-50/50' : 'hover:bg-slate-50/60'}`}>
                         {/* Staff Name */}
                         <td className="py-3 px-3.5">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-bold text-slate-900">{rec.staffName}</span>
                             {rec.date === todayPhnomPenh && (
-                              <span className="px-1.5 py-0.2 rounded-md text-[9px] font-extrabold bg-amber-100 text-[#78350F] border border-amber-300">
+                              <span className="px-1.5 py-0.2 rounded-md text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
                                 ✨ ថ្ងៃនេះ
                               </span>
                             )}

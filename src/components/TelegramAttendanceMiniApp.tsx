@@ -443,12 +443,12 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
   if (authError) {
     return (
-      <div className="min-h-screen bg-[#FAF8F5] flex flex-col items-center justify-center p-6 text-center">
-        <div className="bg-white p-6 rounded-3xl border border-amber-200/80 shadow-xl max-w-sm w-full space-y-4 animate-in fade-in">
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-6 text-center">
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl max-w-sm w-full space-y-4 animate-in fade-in">
           <div className="w-16 h-16 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto text-amber-600">
             <AlertCircle size={36} />
           </div>
-          <h2 className="text-base font-black text-[#18110D]">គណនីមិនទាន់បានភ្ជាប់ / Unlinked</h2>
+          <h2 className="text-base font-black text-slate-900">គណនីមិនទាន់បានភ្ជាប់ / Unlinked</h2>
           <div className="p-3 bg-amber-50/70 border border-amber-200/60 rounded-2xl text-xs text-amber-950 font-medium leading-relaxed text-left">
             {authError}
           </div>
@@ -464,7 +464,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
             </button>
             <button 
               onClick={closeMiniApp}
-              className="flex-1 py-2.5 bg-[#18110D] text-white hover:bg-[#2B1810] rounded-xl text-xs font-bold cursor-pointer transition shadow-xs"
+              className="flex-1 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-xl text-xs font-bold cursor-pointer transition shadow-xs"
             >
               ចាកចេញ
             </button>

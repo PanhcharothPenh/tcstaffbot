@@ -68,23 +68,23 @@
   --font-sans: "MiSansKhmer", sans-serif;
   --font-mono: "MiSansKhmer", monospace;
 
-  /* Modern Coffee & Warm Espresso Palette */
-  --color-brand-primary: #1E100A;
-  --color-brand-espresso: #2B1810;
-  --color-brand-coffee: #78350F;
-  --color-brand-amber: #B45309;
-  --color-brand-caramel: #D97706;
-  --color-brand-latte: #F5EBE1;
-  --color-brand-cream: #FAF6F0;
-  --color-brand-foam: #FCFBF9;
-  --color-brand-secondary: #854D0E;
-  --color-brand-light: #F7EFE6;
-  --color-brand-success: #065F46;
-  --color-brand-success-light: #D1FAE5;
-  --color-brand-warning: #92400E;
-  --color-brand-danger: #991B1B;
-  --color-brand-dark: #18110D;
-  --color-brand-medium: #574B45;
+  /* Modern Soft Blue & Executive Slate Palette */
+  --color-brand-primary: #2563EB;
+  --color-brand-sky: #0284C7;
+  --color-brand-soft-blue: #38BDF8;
+  --color-brand-blue-light: #EFF6FF;
+  --color-brand-slate-dark: #0F172A;
+  --color-brand-slate-card: #1E293B;
+  --color-brand-border: #E2E8F0;
+  --color-brand-bg: #F8FAFC;
+  --color-brand-secondary: #0284C7;
+  --color-brand-light: #F0F9FF;
+  --color-brand-success: #059669;
+  --color-brand-success-light: #ECFDF5;
+  --color-brand-warning: #D97706;
+  --color-brand-danger: #DC2626;
+  --color-brand-dark: #0F172A;
+  --color-brand-medium: #64748B;
 }
 
 @layer base {
@@ -193,15 +193,15 @@
 }
 
 @utility crisp-border {
-  border-color: #EFE8DF;
+  border-color: #E2E8F0;
 }
 
 @utility card-hover-effect {
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 12px 24px -4px rgba(43, 24, 16, 0.07), 0 4px 8px -2px rgba(43, 24, 16, 0.03);
-    border-color: #D5C7B7;
+    box-shadow: 0 12px 24px -4px rgba(15, 23, 42, 0.06), 0 4px 8px -2px rgba(15, 23, 42, 0.03);
+    border-color: #CBD5E1;
   }
 }
 
