@@ -218,27 +218,24 @@ export default function Sidebar({
     <aside className={`h-full bg-white text-slate-800 border-r border-slate-200/80 flex flex-col justify-between overflow-hidden shadow-xs transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-72'}`}>
       
       {/* 1. TOP HEADER BRANDING BLOCK */}
-      <div className="p-3.5 border-b border-slate-200/80 bg-white shrink-0">
+      <div className="relative p-3.5 border-b border-slate-200/80 bg-white shrink-0">
         
         {!isCollapsed ? (
           <>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <TCLogo className="h-11 sm:h-12 cursor-pointer shrink-0" />
-              </div>
+            {/* Mobile close button positioned in top-right */}
+            {onCloseMobile && (
+              <button 
+                onClick={onCloseMobile}
+                className="lg:hidden absolute right-2.5 top-2.5 p-1.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 cursor-pointer transition-colors z-20"
+                aria-label="Close Navigation"
+              >
+                <X size={18} />
+              </button>
+            )}
 
-              <div className="flex items-center gap-1.5 shrink-0">
-                {/* Mobile close button */}
-                {onCloseMobile && (
-                  <button 
-                    onClick={onCloseMobile}
-                    className="lg:hidden p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 cursor-pointer transition-colors shrink-0"
-                    aria-label="Close Navigation"
-                  >
-                    <X size={20} />
-                  </button>
-                )}
-              </div>
+            {/* Centered & Big Brand Logo */}
+            <div className="flex flex-col items-center justify-center text-center w-full py-1">
+              <TCLogo className="h-20 sm:h-24 cursor-pointer hover:scale-102 transition-transform" />
             </div>
 
             {/* Active Branch Select Form */}
@@ -271,10 +268,10 @@ export default function Sidebar({
           <div className="flex flex-col items-center justify-center gap-2">
             <button
               onClick={() => setIsCollapsed && setIsCollapsed(!isCollapsed)}
-              className="w-11 h-11 hover:bg-slate-100 p-1.5 rounded-2xl flex items-center justify-center cursor-pointer transition-all active:scale-95 group"
+              className="w-13 h-13 hover:bg-slate-100 p-1.5 rounded-2xl flex items-center justify-center cursor-pointer transition-all active:scale-95 group"
               title="Expand Sidebar"
             >
-              <img src="/logo.png" alt="TC Staff" className="w-8 h-8 object-contain group-hover:scale-105 transition-transform" />
+              <img src="/logo.png" alt="TC Staff" className="w-10 h-10 object-contain group-hover:scale-105 transition-transform" />
             </button>
           </div>
         )}
