@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Calendar, 
   Clock, 
@@ -118,6 +118,15 @@ export default function AttendanceView({
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const isAuthorized = ['Owner', 'Admin', 'Manager'].includes(currentRole);
+
+  // Sync active branch selection from top bar
+  useEffect(() => {
+    setFilterBranchId(activeBranchId);
+    if (activeBranchId !== 'all') {
+      setSummaryBranchId(activeBranchId);
+      setReportBranchId(activeBranchId);
+    }
+  }, [activeBranchId]);
 
   if (!isAuthorized) {
     return (

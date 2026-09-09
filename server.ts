@@ -186,10 +186,11 @@ async function pullCollectionsFromSupabase() {
 async function pushCollectionToSupabase(collectionId: string) {
   if (!supabase) return;
   try {
-    const { error } = await supabase
-      .from('clean24_collections')
-      .upsert({ id: collectionId, data: localDb[collectionId], updated_at: new Date().toISOString() });
-    if (error) throw error;
+    const row = { id: collectionId, data: localDb[collectionId], updated_at: new Date().toISOString() };
+    await Promise.allSettled([
+      supabase.from('tc_collections').upsert(row),
+      supabase.from('clean24_collections').upsert(row)
+    ]);
   } catch (err: any) {
     console.error(`[TC Staff Server] Supabase push for ${collectionId} failed:`, err.message);
   }

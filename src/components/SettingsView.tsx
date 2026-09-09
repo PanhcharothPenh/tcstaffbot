@@ -65,7 +65,7 @@ export default function SettingsView({
 }: SettingsViewProps) {
   const t = translations[lang];
 
-  const [address, setAddress] = useState('Veng Sreng Blvd, Phnom Penh, Cambodia');
+  const [address, setAddress] = useState('Phnom Penh, Cambodia');
   const [shopPhone, setShopPhone] = useState('');
   const [opening, setOpening] = useState('6:00 AM');
   const [closing, setClosing] = useState('10:00 PM');

@@ -13,6 +13,21 @@ const DEFAULT_USERS = [
     roleId: 'owner',
     status: 'Active',
     assignedBranchIds: [],
+import { createClient } from '@supabase/supabase-js';
+import dns from 'dns/promises';
+
+let lastSupabaseErrorTime = 0;
+
+const DEFAULT_USERS = [
+  {
+    id: 'usr_owner',
+    username: 'roth',
+    email: 'roth@p2bkh.tech',
+    fullName: 'Roth (Executive Owner)',
+    role: 'Owner',
+    roleId: 'owner',
+    status: 'Active',
+    assignedBranchIds: [],
     telegramUsername: '',
     telegramChatId: '',
     twoFactorMethod: 'telegram'
@@ -22,29 +37,37 @@ const DEFAULT_USERS = [
 const DEFAULT_BRANCHES = [
   {
     id: 'b1',
-    branchCode: 'C24-VS01',
-    branchName: 'Veng Sreng Branch',
-    address: 'Veng Sreng Blvd, Phnom Penh',
+    branchCode: 'TOTO-01',
+    branchName: 'toto by Chichi',
+    address: 'Phnom Penh, Cambodia',
     phone: '012 888 999',
     managerId: 'usr_owner',
-    managerName: 'Roth',
-    openingTime: '06:00 AM',
-    closingTime: '10:00 PM',
+    managerName: 'Owner / Manager',
+    openingTime: '06:30 AM',
+    closingTime: '09:30 PM',
     status: 'Active',
+    latitude: 11.5300,
+    longitude: 104.8800,
+    allowedRadius: 100,
+    locationVerificationEnabled: true,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z'
   },
   {
     id: 'b2',
-    branchCode: 'C24-CD02',
-    branchName: 'Chomka Doung Branch',
-    address: 'Chomka Doung (St. 217), Phnom Penh',
+    branchCode: 'CORNER-02',
+    branchName: 'Coffee corner',
+    address: 'Phnom Penh, Cambodia',
     phone: '012 777 888',
     managerId: 'usr_owner',
-    managerName: 'Roth',
-    openingTime: '06:00 AM',
-    closingTime: '10:00 PM',
+    managerName: 'Owner / Manager',
+    openingTime: '06:30 AM',
+    closingTime: '09:30 PM',
     status: 'Active',
+    latitude: 11.5400,
+    longitude: 104.8900,
+    allowedRadius: 100,
+    locationVerificationEnabled: true,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z'
   }
@@ -76,7 +99,7 @@ const DEFAULT_PAYLOAD: Record<string, any> = {
   salaryAdvances: [],
   auditLogs: [],
   settings: {
-    shopName: 'Clean24 Laundry',
+    shopName: 'TC Staff Management',
     openingHours: '6:00 AM – 10:00 PM',
     mainCurrency: 'USD',
     khmerExchangeRate: 4100
@@ -104,20 +127,42 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'GET') {
     try {
       if (supabase) {
-        let { data, error } = await supabase.from('tc_collections').select('*');
-      if (error || !data || data.length === 0) {
-        const alt = await supabase.from('clean24_collections').select('*');
-        if (!alt.error && alt.data && alt.data.length > 0) {
-          data = alt.data;
-          error = null;
+        // Query both tc_collections and clean24_collections concurrently
+        const [tcRes, c24Res] = await Promise.allSettled([
+          supabase.from('tc_collections').select('*'),
+          supabase.from('clean24_collections').select('*')
+        ]);
+
+        const tcRows: any[] = (tcRes.status === 'fulfilled' && !tcRes.value.error && Array.isArray(tcRes.value.data)) ? tcRes.value.data : [];
+        const c24Rows: any[] = (c24Res.status === 'fulfilled' && !c24Res.value.error && Array.isArray(c24Res.value.data)) ? c24Res.value.data : [];
+
+        // Build reconciled map: for each collection id, pick whichever has later updated_at
+        const collectionMap: Record<string, any> = {};
+        for (const r of tcRows) {
+          if (r && r.id && r.data !== undefined) {
+            collectionMap[r.id] = r;
+          }
         }
-      }
-        if (!error && Array.isArray(data) && data.length > 0) {
-          const db: Record<string, any> = { ...DEFAULT_PAYLOAD };
-          for (const row of data) {
-            if (row && row.id && row.data !== undefined) {
-              db[row.id] = row.data;
+        for (const r of c24Rows) {
+          if (r && r.id && r.data !== undefined) {
+            const existing = collectionMap[r.id];
+            if (!existing) {
+              collectionMap[r.id] = r;
+            } else if (r.updated_at && existing.updated_at) {
+              if (new Date(r.updated_at) > new Date(existing.updated_at)) {
+                collectionMap[r.id] = r;
+              }
+            } else if (!existing.updated_at && r.updated_at) {
+              collectionMap[r.id] = r;
             }
+          }
+        }
+
+        const keys = Object.keys(collectionMap);
+        if (keys.length > 0) {
+          const db: Record<string, any> = { ...DEFAULT_PAYLOAD };
+          for (const key of keys) {
+            db[key] = collectionMap[key].data;
           }
           return res.status(200).json({
             success: true,
@@ -144,13 +189,18 @@ export default async function handler(req: any, res: any) {
     try {
       if (supabase) {
         const entries = Object.entries(body);
+        const nowIso = new Date().toISOString();
         const rows = entries.map(([collectionId, collectionData]) => ({
           id: collectionId,
           data: collectionData,
-          updated_at: new Date().toISOString()
+          updated_at: nowIso
         }));
         if (rows.length > 0) {
-          await supabase.from('clean24_collections').upsert(rows);
+          // Upsert to both collections to guarantee no stale cache or desync
+          await Promise.allSettled([
+            supabase.from('tc_collections').upsert(rows),
+            supabase.from('clean24_collections').upsert(rows)
+          ]);
         }
         return res.status(200).json({
           success: true,

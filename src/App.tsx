@@ -721,6 +721,7 @@ export default function App() {
         return (
           <TelegramConfigView
             currentRole={currentRole}
+            branches={branches}
             lang={lang}
             onAddLog={handleAddNewAuditLog}
           />

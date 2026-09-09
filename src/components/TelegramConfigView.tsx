@@ -26,7 +26,7 @@ import {
   Edit2,
   Clock
 } from 'lucide-react';
-import { Role } from '../types';
+import { Role, Branch } from '../types';
 
 interface FeatureConfig {
   chatId: string;
@@ -67,12 +67,14 @@ interface TelegramConfig {
 
 interface TelegramConfigViewProps {
   currentRole: Role;
+  branches?: Branch[];
   lang: 'en' | 'kh';
   onAddLog: (msg: string) => void;
 }
 
 export default function TelegramConfigView({
   currentRole,
+  branches = [],
   lang,
   onAddLog
 }: TelegramConfigViewProps) {
@@ -522,113 +524,67 @@ export default function TelegramConfigView({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-              {/* Branch 1: Veng Sreng */}
-              <div className="bg-slate-50 border border-slate-200/70 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                    <strong className="text-xs font-bold text-slate-800">
-                      {lang === 'kh' ? 'សាខា វេងស្រេង (b1)' : 'Veng Sreng Branch (b1)'}
-                    </strong>
+              {(branches && branches.length > 0 ? branches : [
+                { id: 'b1', branchName: 'Branch 1', branchCode: 'B1' },
+                { id: 'b2', branchName: 'Branch 2', branchCode: 'B2' }
+              ]).map((b, idx) => {
+                const colorClass = idx % 2 === 0 ? 'bg-blue-500' : 'bg-emerald-500';
+                const btnColorClass = idx % 2 === 0 ? 'bg-blue-600 hover:bg-blue-500' : 'bg-emerald-600 hover:bg-emerald-500';
+                const currentChatId = config.chatIds?.branches?.[b.id] || '';
+                return (
+                  <div key={b.id} className="bg-slate-50 border border-slate-200/70 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2.5 h-2.5 rounded-full ${colorClass}`} />
+                        <strong className="text-xs font-bold text-slate-800">
+                          {b.branchName} ({b.branchCode || b.id})
+                        </strong>
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200">
+                        ID: {b.id}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 mb-1 block">
+                        {lang === 'kh' ? `Telegram Chat ID / Group ID (${b.branchName})` : `${b.branchName} Chat / Group ID`}
+                      </label>
+                      <input
+                        type="text"
+                        value={currentChatId}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setConfig(prev => ({
+                            ...prev,
+                            chatIds: {
+                              ...prev.chatIds,
+                              branches: {
+                                ...prev.chatIds?.branches,
+                                [b.id]: val
+                              }
+                            }
+                          }));
+                        }}
+                        disabled={!isAuthorized}
+                        placeholder="e.g. -100xxxxxxxx ឬ Chat ID"
+                        className="w-full bg-white border border-slate-200 text-xs font-mono rounded-xl p-2.5 outline-none focus:border-slate-400"
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleTestBranch(b.id, currentChatId)}
+                        disabled={testingFeature !== null || !currentChatId}
+                        className={`flex-1 py-1.5 ${btnColorClass} text-white text-[11px] font-bold rounded-lg shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40`}
+                      >
+                        <Send size={11} />
+                        <span>{testingFeature === b.id ? 'Testing...' : (lang === 'kh' ? `🚀 តេស្តផ្ញើទៅ ${b.branchName}` : `Test ${b.branchName}`)}</span>
+                      </button>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-mono text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200">
-                    ID: b1
-                  </span>
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 mb-1 block">
-                    {lang === 'kh' ? 'Telegram Chat ID / Group ID វេងស្រេង' : 'Veng Sreng Chat / Group ID'}
-                  </label>
-                  <input
-                    type="text"
-                    value={config.chatIds?.branches?.b1 || ''}
-                    onChange={e => {
-                      const val = e.target.value;
-                      setConfig(prev => ({
-                        ...prev,
-                        chatIds: {
-                          ...prev.chatIds,
-                          branches: {
-                            ...prev.chatIds?.branches,
-                            b1: val,
-                            veng_sreng: val
-                          }
-                        }
-                      }));
-                    }}
-                    disabled={!isAuthorized}
-                    placeholder="e.g. -100xxxxxxxx ឬ Chat ID"
-                    className="w-full bg-white border border-slate-200 text-xs font-mono rounded-xl p-2.5 outline-none focus:border-slate-400"
-                  />
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleTestBranch('b1', config.chatIds?.branches?.b1 || '')}
-                    disabled={testingFeature !== null || !config.chatIds?.branches?.b1}
-                    className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold rounded-lg shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
-                  >
-                    <Send size={11} />
-                    <span>{testingFeature === 'b1' ? 'Testing...' : (lang === 'kh' ? '🚀 តេស្តផ្ញើទៅ វេងស្រេង' : 'Test Veng Sreng')}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Branch 2: Chomka Doung */}
-              <div className="bg-slate-50 border border-slate-200/70 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                    <strong className="text-xs font-bold text-slate-800">
-                      {lang === 'kh' ? 'សាខា ចំការដូង (b2)' : 'Chomka Doung Branch (b2)'}
-                    </strong>
-                  </div>
-                  <span className="text-[10px] font-mono text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200">
-                    ID: b2
-                  </span>
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 mb-1 block">
-                    {lang === 'kh' ? 'Telegram Chat ID / Group ID ចំការដូង' : 'Chomka Doung Chat / Group ID'}
-                  </label>
-                  <input
-                    type="text"
-                    value={config.chatIds?.branches?.b2 || ''}
-                    onChange={e => {
-                      const val = e.target.value;
-                      setConfig(prev => ({
-                        ...prev,
-                        chatIds: {
-                          ...prev.chatIds,
-                          branches: {
-                            ...prev.chatIds?.branches,
-                            b2: val,
-                            chomka_doung: val
-                          }
-                        }
-                      }));
-                    }}
-                    disabled={!isAuthorized}
-                    placeholder="e.g. -100xxxxxxxx ឬ Chat ID"
-                    className="w-full bg-white border border-slate-200 text-xs font-mono rounded-xl p-2.5 outline-none focus:border-slate-400"
-                  />
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleTestBranch('b2', config.chatIds?.branches?.b2 || '')}
-                    disabled={testingFeature !== null || !config.chatIds?.branches?.b2}
-                    className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold rounded-lg shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
-                  >
-                    <Send size={11} />
-                    <span>{testingFeature === 'b2' ? 'Testing...' : (lang === 'kh' ? '🚀 តេស្តផ្ញើទៅ ចំការដូង' : 'Test Chomka Doung')}</span>
-                  </button>
-                </div>
-              </div>
+                );
+              })}
             </div>
           </div>
 

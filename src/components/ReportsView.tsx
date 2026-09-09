@@ -253,7 +253,7 @@ export default function ReportsView({
           ...filteredIncomes.map(i => ({
             ref: `WASH-${i.id.substring(0, 5).toUpperCase()}`,
             date: i.date,
-            branch: branches.find(b => b.id === i.branchId)?.branchName || (branches[0]?.branchName || 'Veng Sreng'),
+            branch: branches.find(b => b.id === i.branchId)?.branchName || (branches[0]?.branchName || 'Main Branch'),
             desc: `${i.serviceType} (Mach: ${i.machineNumber})`,
             category: i.serviceType,
             qty: i.quantity,
@@ -263,7 +263,7 @@ export default function ReportsView({
           ...filteredRevenues.map(r => ({
             ref: `REV-${r.id.substring(0, 5).toUpperCase()}`,
             date: r.date,
-            branch: branches.find(b => b.id === r.branchId)?.branchName || (branches[0]?.branchName || 'Veng Sreng'),
+            branch: branches.find(b => b.id === r.branchId)?.branchName || (branches[0]?.branchName || 'Main Branch'),
             desc: r.note || 'Other counter revenue',
             category: 'Other Revenue',
             qty: 1,
@@ -292,7 +292,7 @@ export default function ReportsView({
         listRows = filteredExpenses.map(e => ({
           ref: `EXP-${e.id.substring(0, 5).toUpperCase()}`,
           date: e.expenseDate,
-          branch: branches.find(b => b.id === e.branchId)?.branchName || (branches[0]?.branchName || 'Veng Sreng'),
+          branch: branches.find(b => b.id === e.branchId)?.branchName || (branches[0]?.branchName || 'Main Branch'),
           desc: e.description,
           category: e.category,
           qty: 1,
@@ -357,7 +357,7 @@ export default function ReportsView({
         listRows = filteredSal.map(s => ({
           ref: `PAY-${s.id.substring(0, 5).toUpperCase()}`,
           staffName: s.staffName,
-          branch: branches.find(b => b.id === s.branchId)?.branchName || (branches[0]?.branchName || 'Veng Sreng'),
+          branch: branches.find(b => b.id === s.branchId)?.branchName || (branches[0]?.branchName || 'Main Branch'),
           period: s.salaryPeriod,
           baseSalary: s.baseSalary,
           overtime: s.overtime,
@@ -382,7 +382,7 @@ export default function ReportsView({
         listRows = filteredAtt.map(a => ({
           date: a.date,
           staffName: a.staffName,
-          branch: branches.find(b => b.id === a.branchId)?.branchName || (branches[0]?.branchName || 'Veng Sreng'),
+          branch: branches.find(b => b.id === a.branchId)?.branchName || (branches[0]?.branchName || 'Main Branch'),
           clockIn: a.checkIn || '--:--',
           clockOut: a.checkOut || '--:--',
           shift: a.shiftType || 'Regular Shift',
@@ -415,7 +415,7 @@ export default function ReportsView({
         listRows = filteredInv.map(i => ({
           id: i.id,
           itemName: i.itemName,
-          branch: branches.find(b => b.id === i.branchId)?.branchName || (branches[0]?.branchName || 'Veng Sreng'),
+          branch: branches.find(b => b.id === i.branchId)?.branchName || (branches[0]?.branchName || 'Main Branch'),
           category: i.category,
           unit: i.unit,
           stock: i.remainingStock,
@@ -443,7 +443,7 @@ export default function ReportsView({
         listRows = filteredCoins.map(c => ({
           ref: `COIN-${c.id?.substring(0, 5).toUpperCase() || 'TX'}`,
           date: c.date,
-          branch: branches.find(b => b.id === c.branchId)?.branchName || (branches[0]?.branchName || 'Veng Sreng'),
+          branch: branches.find(b => b.id === c.branchId)?.branchName || (branches[0]?.branchName || 'Main Branch'),
           type: c.type,
           coins: c.amount,
           valUsd: c.valueUsd,
@@ -467,7 +467,7 @@ export default function ReportsView({
 
         listRows = filteredGas.map(g => ({
           date: g.date,
-          branch: branches.find(b => b.id === g.branchId)?.branchName || (branches[0]?.branchName || 'Veng Sreng'),
+          branch: branches.find(b => b.id === g.branchId)?.branchName || (branches[0]?.branchName || 'Main Branch'),
           supplier: 'Gas Supply Co.',
           qty: g.remainingKg,
           price: g.cost / (g.tankCount || 1),
@@ -495,7 +495,7 @@ export default function ReportsView({
 
         listRows = filteredDet.map(d => ({
           label: d.date,
-          branch: branches.find(b => b.id === d.branchId)?.branchName || (branches[0]?.branchName || 'Veng Sreng'),
+          branch: branches.find(b => b.id === d.branchId)?.branchName || (branches[0]?.branchName || 'Main Branch'),
           inQty: d.inQty || (d.type === 'Refill' ? d.quantityLiters : 0),
           soapOut: d.soap || (d.type === 'Use' ? d.quantityLiters : 0),
           powderOut: d.powder || 0,
@@ -525,7 +525,7 @@ export default function ReportsView({
 
         listRows = filteredSoft.map(s => ({
           label: s.date,
-          branch: branches.find(b => b.id === s.branchId)?.branchName || (branches[0]?.branchName || 'Veng Sreng'),
+          branch: branches.find(b => b.id === s.branchId)?.branchName || (branches[0]?.branchName || 'Main Branch'),
           inQty: s.inQty || (s.type === 'Refill' ? s.quantityLiters : 0),
           outQty: s.outQty || (s.type === 'Use' ? s.quantityLiters : 0),
           total: s.total || (s.type === 'Use' ? s.quantityLiters : 0),
@@ -554,7 +554,7 @@ export default function ReportsView({
         listRows = filteredMachines.map(m => ({
           tag: m.machineNumber || m.machineId.substring(0, 5).toUpperCase(),
           model: `${m.brand} ${m.capacity}kg (${m.machineType})`,
-          branch: branches.find(b => b.id === m.branchId)?.branchName || (branches[0]?.branchName || 'Veng Sreng'),
+          branch: branches.find(b => b.id === m.branchId)?.branchName || (branches[0]?.branchName || 'Main Branch'),
           runs: Math.round((m.revenue || 0) / 1.5),
           status: m.status === 'Available' ? 'Running' : 'Maintenance',
           lastService: '2026-06-01',
@@ -580,7 +580,7 @@ export default function ReportsView({
 
         listRows = filteredDrawers.map(d => ({
           date: d.openedAt.split(' ')[0],
-          branch: branches.find(b => b.id === d.branchId)?.branchName || (branches[0]?.branchName || 'Veng Sreng'),
+          branch: branches.find(b => b.id === d.branchId)?.branchName || (branches[0]?.branchName || 'Main Branch'),
           staffName: d.closedBy || d.openedBy || 'Shift Operator',
           expected: d.endingCash || d.startingCash || 0,
           actual: d.actualCash || 0,
@@ -611,7 +611,7 @@ export default function ReportsView({
 
         listRows = filteredClosings.map(m => ({
           month: m.month,
-          branch: branches.find(b => b.id === m.branchId)?.branchName || (branches[0]?.branchName || 'Veng Sreng'),
+          branch: branches.find(b => b.id === m.branchId)?.branchName || (branches[0]?.branchName || 'Main Branch'),
           revenue: m.totalRevenue,
           expense: m.totalExpenses,
           savedDep: m.depreciationSavings,

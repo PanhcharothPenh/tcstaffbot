@@ -21,10 +21,11 @@ import {
   Navigation,
   Crosshair,
   Link2,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { Branch, Role, User } from '../types';
-import { translations } from '../mockData';
+import { translations, db } from '../mockData';
 import { formatCurrency } from '../utils';
 
 interface BranchManagementViewProps {
@@ -181,9 +182,10 @@ export default function BranchManagementView({
     const latNum = latitude ? parseFloat(latitude) : undefined;
     const lngNum = longitude ? parseFloat(longitude) : undefined;
 
+    let finalBranches: Branch[] = [];
     if (editingBranch) {
       // Edit
-      const updated = branches.map(b => b.id === editingBranch.id ? {
+      finalBranches = branches.map(b => b.id === editingBranch.id ? {
         ...b,
         branchCode: code.trim(),
         branchName: name.trim(),
@@ -200,7 +202,13 @@ export default function BranchManagementView({
         locationVerificationEnabled,
         updatedAt: new Date().toISOString()
       } : b);
-      setBranches(updated);
+      setBranches(finalBranches);
+      db.saveBranches(finalBranches);
+      fetch('/api/sync-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branches: finalBranches })
+      }).catch(err => console.warn('Cloud sync error for branches:', err));
       onAddLog(`Edited branch "${name.trim()}" details (${code.trim()})`);
       setEditingBranch(null);
     } else {
@@ -223,7 +231,14 @@ export default function BranchManagementView({
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      setBranches([...branches, newB]);
+      finalBranches = [...branches, newB];
+      setBranches(finalBranches);
+      db.saveBranches(finalBranches);
+      fetch('/api/sync-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branches: finalBranches })
+      }).catch(err => console.warn('Cloud sync error for branches:', err));
       onAddLog(`Created new branch "${name.trim()}" with code ${code.trim()}`);
     }
 
@@ -264,8 +279,36 @@ export default function BranchManagementView({
 
   const toggleStatus = (b: Branch) => {
     const nextStatus = b.status === 'Active' ? 'Inactive' : 'Active';
-    setBranches(branches.map(x => x.id === b.id ? { ...x, status: nextStatus } : x));
+    const updated = branches.map(x => x.id === b.id ? { ...x, status: nextStatus, updatedAt: new Date().toISOString() } : x);
+    setBranches(updated);
+    db.saveBranches(updated);
+    fetch('/api/sync-data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ branches: updated })
+    }).catch(err => console.warn('Cloud sync error for branches:', err));
     onAddLog(`Toggled status of branch "${b.branchName}" to ${nextStatus}`);
+  };
+
+  const handleDeleteBranch = (b: Branch) => {
+    if (branches.length <= 1) {
+      alert(lang === 'kh' ? 'មិនអាចលុបសាខាចុងក្រោយបានទេ!' : 'Cannot delete the only remaining branch!');
+      return;
+    }
+    const confirmMsg = lang === 'kh' 
+      ? `តើអ្នកពិតជាចង់លុបសាខា "${b.branchName}" (${b.branchCode}) មែនទេ?` 
+      : `Are you sure you want to delete branch "${b.branchName}" (${b.branchCode})?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    const updated = branches.filter(x => x.id !== b.id);
+    setBranches(updated);
+    db.saveBranches(updated);
+    fetch('/api/sync-data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ branches: updated })
+    }).catch(err => console.warn('Cloud sync error for branches:', err));
+    onAddLog(`Deleted branch "${b.branchName}" (${b.branchCode})`);
   };
 
   return (
@@ -296,7 +339,7 @@ export default function BranchManagementView({
               <label className="text-[11px] font-bold text-slate-500 mb-1 block">{t.branchCode} *</label>
               <input
                 type="text"
-                placeholder="e.g. P2B-TK01"
+                placeholder="e.g. TC-TK01"
                 value={code}
                 onChange={e => setCode(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl p-2.5 focus:outline-none focus:border-blue-500"
@@ -562,7 +605,17 @@ export default function BranchManagementView({
               </div>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end">
+            <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end gap-2">
+              {branches.length > 1 && (
+                <button
+                  onClick={() => handleDeleteBranch(b)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-xl transition cursor-pointer"
+                  title="Delete Branch"
+                >
+                  <Trash2 size={13} />
+                  <span>{t.delete}</span>
+                </button>
+              )}
               <button
                 onClick={() => startEdit(b)}
                 className="flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition cursor-pointer"
