@@ -430,13 +430,13 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   // ─── RENDER: LOADING OR ERROR STATE ─────────────────────────────────────────
   if (isLoadingUser) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center">
-        <div className="bg-white p-3 rounded-2xl shadow-md mb-4 inline-flex">
-          <img src="/logo.png" alt="TC Staff Management" className="h-14 w-auto object-contain" />
+      <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col items-center justify-center p-6 text-center">
+        <div className="mb-4 inline-flex">
+          <img src="/logo.png" alt="TC Staff Management" className="h-16 w-auto object-contain" />
         </div>
-        <Loader2 className="animate-spin text-amber-500 mb-2" size={32} />
-        <h2 className="text-base font-bold text-slate-200">TC Staff Management</h2>
-        <p className="text-xs text-slate-400 mt-1">កំពុងផ្ទៀងផ្ទាត់គណនី Telegram...</p>
+        <Loader2 className="animate-spin text-blue-600 mb-2" size={32} />
+        <h2 className="text-base font-black text-slate-900">TC Staff Management</h2>
+        <p className="text-xs text-slate-500 mt-1">កំពុងផ្ទៀងផ្ទាត់គណនី Telegram...</p>
       </div>
     );
   }
@@ -481,7 +481,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
         <div className="flex items-center gap-2.5">
           <img src="/logo.png" alt="TC Staff" className="h-9 w-auto object-contain shrink-0" />
           <div className="border-l border-slate-200 pl-2">
-            <div className="text-[10px] font-black text-amber-900 uppercase leading-none">TC STAFF</div>
+            <div className="text-[10px] font-black text-blue-700 uppercase leading-none">TC STAFF</div>
             <div className="text-xs font-bold text-slate-800 leading-tight mt-0.5">{staffInfo?.fullName || 'Staff Member'}</div>
           </div>
         </div>

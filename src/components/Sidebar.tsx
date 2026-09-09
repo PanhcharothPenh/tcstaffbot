@@ -215,16 +215,16 @@ export default function Sidebar({
   const favoritesExpanded = isGroupExpanded('clean24_favorites_group');
 
   return (
-    <aside className={`h-full bg-[#0F172A] text-slate-100 border-r border-[#1E293B] flex flex-col justify-between overflow-hidden shadow-2xl transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-72'}`}>
+    <aside className={`h-full bg-white text-slate-800 border-r border-slate-200/80 flex flex-col justify-between overflow-hidden shadow-xs transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-72'}`}>
       
       {/* 1. TOP HEADER BRANDING BLOCK */}
-      <div className="p-3.5 border-b border-[#1E293B] bg-[#0B132B] shrink-0">
+      <div className="p-3.5 border-b border-slate-200/80 bg-white shrink-0">
         
         {!isCollapsed ? (
           <>
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0 bg-white px-3 py-1.5 rounded-2xl shadow-sm border border-slate-700/40">
-                <TCLogo className="h-10 sm:h-12 cursor-pointer shrink-0" lightMode={false} />
+              <div className="flex items-center gap-2 min-w-0">
+                <TCLogo className="h-11 sm:h-12 cursor-pointer shrink-0" />
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
@@ -232,7 +232,7 @@ export default function Sidebar({
                 {onCloseMobile && (
                   <button 
                     onClick={onCloseMobile}
-                    className="lg:hidden p-2 bg-[#1E293B] hover:bg-[#334155] rounded-xl text-slate-300 cursor-pointer transition-colors shrink-0"
+                    className="lg:hidden p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 cursor-pointer transition-colors shrink-0"
                     aria-label="Close Navigation"
                   >
                     <X size={20} />
@@ -242,10 +242,10 @@ export default function Sidebar({
             </div>
 
             {/* Active Branch Select Form */}
-            <div className="mt-3 bg-[#1E293B]/70 p-2.5 rounded-2xl border border-[#334155]/80 shadow-inner">
+            <div className="mt-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80 shadow-xs">
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[9px] text-sky-300 uppercase tracking-widest block font-extrabold flex items-center gap-1">
-                  <Building2 size={11} className="text-sky-400" />
+                <label className="text-[9px] text-blue-700 uppercase tracking-widest block font-extrabold flex items-center gap-1">
+                  <Building2 size={11} className="text-blue-600" />
                   {t.activeBranch}
                 </label>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
@@ -253,7 +253,7 @@ export default function Sidebar({
               <select
                 value={activeBranchId}
                 onChange={(e) => setActiveBranchId(e.target.value)}
-                className="w-full bg-[#0F172A] border border-[#334155] text-xs text-slate-100 rounded-xl p-2 focus:outline-none focus:border-blue-500 font-sans cursor-pointer transition-colors font-bold"
+                className="w-full bg-white border border-slate-200 text-xs text-slate-800 rounded-xl p-2 focus:outline-none focus:border-blue-500 font-sans cursor-pointer transition-colors font-bold shadow-xs"
               >
                 {(currentRole === 'Owner' || currentRole === 'Admin') && (!currentUser?.assignedBranchIds || currentUser.assignedBranchIds.length === 0) && (
                   <option value="all">🏢 {t.allBranches}</option>
@@ -271,10 +271,10 @@ export default function Sidebar({
           <div className="flex flex-col items-center justify-center gap-2">
             <button
               onClick={() => setIsCollapsed && setIsCollapsed(!isCollapsed)}
-              className="w-12 h-12 bg-white hover:bg-slate-100 p-1 rounded-2xl shadow-md border border-slate-700/60 flex items-center justify-center cursor-pointer transition-all active:scale-95 group"
+              className="w-11 h-11 hover:bg-slate-100 p-1.5 rounded-2xl flex items-center justify-center cursor-pointer transition-all active:scale-95 group"
               title="Expand Sidebar"
             >
-              <img src="/logo.png" alt="TC Staff" className="w-9 h-9 object-contain group-hover:scale-105 transition-transform" />
+              <img src="/logo.png" alt="TC Staff" className="w-8 h-8 object-contain group-hover:scale-105 transition-transform" />
             </button>
           </div>
         )}
@@ -283,20 +283,20 @@ export default function Sidebar({
 
       {/* 2. SEARCH MENU FILTER BAR (When expanded) */}
       {!isCollapsed && (
-        <div className="px-3.5 py-2.5 bg-[#0B132B] border-b border-[#1E293B] shrink-0">
+        <div className="px-3.5 py-2.5 bg-white border-b border-slate-200/80 shrink-0">
           <div className="relative">
-            <Search size={13} className="absolute left-3 top-2.5 text-sky-400/60" />
+            <Search size={13} className="absolute left-3 top-2.5 text-slate-400" />
             <input
               type="text"
               placeholder={lang === 'en' ? "Search staff modules..." : "ស្វែងរកមុខងារបុគ្គលិក..."}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full bg-[#1E293B]/70 border border-[#334155]/70 text-xs text-slate-100 placeholder-slate-400 rounded-xl pl-8.5 pr-3 py-1.5 focus:outline-none focus:border-blue-500 font-sans transition-all"
+              className="w-full bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 rounded-xl pl-8.5 pr-3 py-1.5 focus:outline-none focus:border-blue-500 focus:bg-white font-sans transition-all"
             />
             {searchQuery && (
               <button 
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-2 text-[10px] text-sky-300 hover:text-white cursor-pointer"
+                className="absolute right-2.5 top-2 text-[10px] text-blue-600 hover:text-blue-800 font-bold cursor-pointer"
               >
                 Clear
               </button>
@@ -306,7 +306,7 @@ export default function Sidebar({
       )}
 
       {/* 3. DYNAMIC NAVIGATION TABS LIST */}
-      <div className="flex-1 overflow-y-auto px-2.5 pt-2 pb-8 space-y-3 custom-scrollbar bg-[#0F172A]">
+      <div className="flex-1 overflow-y-auto px-2.5 pt-2 pb-8 space-y-3 custom-scrollbar bg-slate-50/50">
         
         {/* COLLAPSED MODE: Clean Icons with Tooltip Popup */}
         {isCollapsed ? (
@@ -322,15 +322,15 @@ export default function Sidebar({
                   }}
                   className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer relative group ${
                     active 
-                      ? 'bg-gradient-to-r from-blue-600 to-sky-600 text-white shadow-lg shadow-blue-950/40 ring-1 ring-sky-400/30' 
-                      : 'text-slate-400 hover:bg-[#1E293B] hover:text-slate-100'
+                      ? 'bg-gradient-to-r from-blue-600 to-sky-600 text-white shadow-md shadow-blue-500/20 ring-1 ring-blue-400/30' 
+                      : 'text-slate-500 hover:bg-slate-200/70 hover:text-slate-900'
                   }`}
                   title={item.label}
                 >
                   <item.icon size={19} className="stroke-[2.2]" />
                   
                   {/* Tooltip on hover */}
-                  <div className="absolute left-14 bg-[#1E293B] text-slate-100 border border-sky-500/20 text-xs font-bold px-3 py-1.5 rounded-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap shadow-xl">
+                  <div className="absolute left-14 bg-slate-900 text-white text-xs font-bold px-3 py-1.5 rounded-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap shadow-xl">
                     {item.label}
                   </div>
                 </button>
@@ -342,19 +342,19 @@ export default function Sidebar({
           <>
             {/* Favorites Collapsible Group */}
             {favorites.length > 0 && (
-              <div className="space-y-1 border-b border-slate-800 pb-3">
+              <div className="space-y-1 border-b border-slate-200/80 pb-3">
                 <button
                   onClick={() => toggleGroup('clean24_favorites_group')}
-                  className="w-full flex items-center justify-between px-2 py-1 text-xs font-black text-sky-400 uppercase tracking-widest hover:text-sky-300 transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-between px-2 py-1 text-xs font-black text-blue-700 uppercase tracking-widest hover:text-blue-900 transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-1.5">
-                    <Star size={11} className="fill-sky-400 text-sky-400 shrink-0" />
+                    <Star size={11} className="fill-blue-500 text-blue-500 shrink-0" />
                     <span>{lang === 'en' ? 'Favorites' : 'សំណព្វចិត្ត'}</span>
                     <span className="text-[8px] text-slate-400 font-medium lowercase tracking-normal">
                       ({favoriteItems.length})
                     </span>
                   </div>
-                  {favoritesExpanded ? <ChevronDown size={10} className="text-sky-400" /> : <ChevronRight size={10} className="text-sky-400" />}
+                  {favoritesExpanded ? <ChevronDown size={10} className="text-blue-600" /> : <ChevronRight size={10} className="text-blue-600" />}
                 </button>
 
                 {favoritesExpanded && (
@@ -370,23 +370,23 @@ export default function Sidebar({
                           }}
                           className={`w-full flex items-center justify-between px-3 py-2.5 rounded-2xl text-xs font-bold transition-all duration-150 focus:outline-none cursor-pointer group/item
                             ${active 
-                              ? 'bg-gradient-to-r from-blue-600 to-sky-600 text-white font-bold shadow-md shadow-blue-950/30 border border-sky-400/30' 
-                              : 'text-slate-300 hover:bg-[#1E293B] hover:text-white'
+                              ? 'bg-gradient-to-r from-blue-600 to-sky-600 text-white font-bold shadow-sm shadow-blue-500/20 border border-blue-400/20' 
+                              : 'text-slate-600 hover:bg-slate-200/60 hover:text-slate-900'
                             }
                           `}
                           id={`fav_tab_${item.id}`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <item.icon size={17} className={active ? 'text-white' : 'text-sky-400/80 shrink-0'} />
+                            <item.icon size={17} className={active ? 'text-white' : 'text-slate-400 group-hover/item:text-blue-600 shrink-0'} />
                             <span className="truncate text-xs font-bold flex-1 text-left">{item.label}</span>
                           </div>
                           <span 
                             onClick={(e) => toggleFavorite(item.id, e)}
-                            className="p-1 rounded-md hover:bg-slate-800 cursor-pointer transition-colors shrink-0"
+                            className="p-1 rounded-md hover:bg-slate-200/70 cursor-pointer transition-colors shrink-0"
                           >
                             <Star 
                               size={15} 
-                              className="fill-sky-400 text-sky-400" 
+                              className="fill-blue-500 text-blue-500" 
                             />
                           </span>
                         </button>
@@ -404,10 +404,10 @@ export default function Sidebar({
                   {/* Group Header */}
                   <button
                     onClick={() => toggleGroup(group.title)}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-black text-slate-400 uppercase tracking-widest hover:text-slate-200 transition-colors cursor-pointer"
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors cursor-pointer"
                   >
                     <div className="flex items-center gap-1.5">
-                      <group.icon size={12} className="text-sky-400 shrink-0" />
+                      <group.icon size={12} className="text-slate-400 shrink-0" />
                       <span>{group.title}</span>
                       <span className="text-[8px] text-slate-400 font-medium lowercase tracking-normal">
                         ({group.visibleItems.length})
@@ -430,25 +430,25 @@ export default function Sidebar({
                             }}
                             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-2xl text-xs font-bold transition-all duration-150 focus:outline-none cursor-pointer group/item
                               ${active 
-                                ? 'bg-gradient-to-r from-blue-600 to-sky-600 text-white font-black shadow-md shadow-blue-950/30 border border-sky-400/30' 
-                                : 'text-slate-300 hover:bg-[#1E293B] hover:text-white'
+                                ? 'bg-gradient-to-r from-blue-600 to-sky-600 text-white font-black shadow-sm shadow-blue-500/20 border border-blue-400/20' 
+                                : 'text-slate-600 hover:bg-slate-200/60 hover:text-slate-900'
                               }
                             `}
                             id={`nav_tab_${item.id}`}
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
-                              <item.icon size={17} className={active ? 'text-white stroke-[2.5]' : 'text-sky-400/80 shrink-0'} />
+                              <item.icon size={17} className={active ? 'text-white stroke-[2.5]' : 'text-slate-400 group-hover/item:text-blue-600 shrink-0'} />
                               <span className="truncate">{item.label}</span>
                             </div>
                             <span 
                               onClick={(e) => toggleFavorite(item.id, e)}
-                              className="p-1 rounded-md hover:bg-slate-800 cursor-pointer transition-colors shrink-0"
+                              className="p-1 rounded-md hover:bg-slate-200/70 cursor-pointer transition-colors shrink-0"
                             >
                               <Star 
                                 size={15} 
                                 className={favorites.includes(item.id) 
-                                  ? 'fill-sky-400 text-sky-400' 
-                                  : 'text-slate-500 opacity-0 group-hover/item:opacity-100 transition-opacity'
+                                  ? 'fill-blue-500 text-blue-500' 
+                                  : 'text-slate-400 opacity-0 group-hover/item:opacity-100 transition-opacity'
                                 } 
                               />
                             </span>
