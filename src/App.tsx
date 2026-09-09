@@ -1143,7 +1143,7 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-screen max-w-full bg-slate-50/70 flex overflow-hidden select-none" id="main_saas_root">
+    <div className="h-screen w-screen max-w-full bg-slate-50/70 flex overflow-hidden" id="main_saas_root">
       
       {/* 1. Left Sidebar Navigation Segment (Desktop Collapsible) */}
       <div className={`hidden lg:flex flex-col h-screen shrink-0 sticky top-0 transition-all duration-300 ease-in-out z-20 ${sidebarCollapsed ? 'w-20' : 'w-72'}`}>
@@ -1193,8 +1193,8 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. Main content area wrapper */}
-      <div className="flex-1 min-w-0 h-screen flex flex-col overflow-y-auto overflow-x-hidden">
+      {/* 2. Main content area wrapper - structured flex column without double scrolling */}
+      <div className="flex-1 min-w-0 h-screen flex flex-col overflow-hidden">
         
         {/* Top Header Segment bar */}
         <header className="bg-white/85 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between sticky top-0 z-30 shadow-xs" id="header_saas_bar">
@@ -1377,7 +1377,7 @@ export default function App() {
         </header>
 
         {/* 3. Primary Workspace rendering and Audit Log trails panels */}
-        <main className="flex-1 min-w-0 max-w-full p-3 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto" id="workspace_viewport">
+        <main className="flex-1 min-w-0 max-w-full p-3 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto overflow-x-hidden scroll-smooth" id="workspace_viewport">
           
           {/* Active branch indicator banner with interactive Quick Branch Switcher */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-4 border-b border-slate-100/80">
