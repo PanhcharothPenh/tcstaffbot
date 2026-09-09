@@ -59,7 +59,7 @@ async function attemptTokenRefresh(): Promise<string | null> {
   if (!refreshToken) return null;
 
   try {
-    const res = await fetch('/api/auth/refresh-token', {
+    const res = await fetch('/api/auth-refresh-token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken })
@@ -122,7 +122,7 @@ export const authApi = {
       localStorage.removeItem(STORAGE_KEYS.REMEMBERED_USER);
     }
 
-    const data = await apiRequest<any>('/api/auth/login', {
+    const data = await apiRequest<any>('/api/auth-login', {
       method: 'POST',
       body: JSON.stringify({ usernameOrEmail, password, remember })
     });
@@ -140,7 +140,7 @@ export const authApi = {
   },
 
   verify2fa: async (mfaToken: string, code: string) => {
-    const data = await apiRequest<any>('/api/auth/verify-2fa', {
+    const data = await apiRequest<any>('/api/auth-verify-2fa', {
       method: 'POST',
       body: JSON.stringify({ mfaToken, code })
     });
@@ -155,7 +155,7 @@ export const authApi = {
     const refreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
     try {
       if (refreshToken) {
-        await fetch('/api/auth/logout', {
+        await fetch('/api/auth-logout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken })
@@ -166,14 +166,14 @@ export const authApi = {
   },
 
   forgotPassword: async (usernameOrEmail: string) => {
-    return apiRequest<{ success: boolean; message: string; mfaToken?: string; simulatedCode?: string }>('/api/auth/forgot-password', {
+    return apiRequest<{ success: boolean; message: string; mfaToken?: string; simulatedCode?: string }>('/api/auth-forgot-password', {
       method: 'POST',
       body: JSON.stringify({ usernameOrEmail })
     });
   },
 
   resetPassword: async (code: string, newPassword: string, mfaToken?: string) => {
-    return apiRequest<{ success: boolean; message: string }>('/api/auth/reset-password', {
+    return apiRequest<{ success: boolean; message: string }>('/api/auth-reset-password', {
       method: 'POST',
       body: JSON.stringify({ code, token: code, newPassword, mfaToken })
     });
@@ -181,7 +181,7 @@ export const authApi = {
 
   getMe: async () => {
     try {
-      const data = await apiRequest<any>('/api/auth/me');
+      const data = await apiRequest<any>('/api/auth-me');
       if (data && data.user) return data.user;
       if (data && data.id) return data;
       return getSavedSessionUser();

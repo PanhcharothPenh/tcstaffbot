@@ -36,7 +36,7 @@ window.fetch = async function (input, init) {
 
   const response = await originalFetch(input, init);
 
-  if (response.status === 401 && isApi && !url.includes('/api/auth/login')) {
+  if (response.status === 401 && isApi && !url.includes('auth-login') && !url.includes('/api/auth/login')) {
     const hasToken = !!localStorage.getItem('coffee_access_token');
     if (hasToken) {
       localStorage.removeItem('coffee_access_token');
