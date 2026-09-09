@@ -47,13 +47,23 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   });
   const cameraFacingMode = 'user';
 
+  // 0. High-Speed Stale-While-Revalidate Local Cache for 0ms instant startup
+  const getCachedData = () => {
+    try {
+      const cached = localStorage.getItem('tc_staff_mini_cache');
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return null;
+  };
+  const cachedData = getCachedData();
+
   // Telegram WebApp & Auth State
   const [initData, setInitData] = useState<string>('');
   const [isTelegramWebview, setIsTelegramWebview] = useState(false);
-  const [isLoadingUser, setIsLoadingUser] = useState(true);
-  const [staffInfo, setStaffInfo] = useState<any>(null);
-  const [branchInfo, setBranchInfo] = useState<any>(null);
-  const [todayAttendance, setTodayAttendance] = useState<any>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState<boolean>(() => !cachedData);
+  const [staffInfo, setStaffInfo] = useState<any>(() => cachedData?.staff || null);
+  const [branchInfo, setBranchInfo] = useState<any>(() => cachedData?.branch || null);
+  const [todayAttendance, setTodayAttendance] = useState<any>(() => cachedData?.todayAttendance || null);
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Camera & Capture State
@@ -82,19 +92,24 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   // 1. Initialize Telegram WebApp SDK & Validate Session
   useEffect(() => {
     const tg = (window as any).Telegram?.WebApp;
+    let rawInitData = '';
     if (tg) {
       tg.ready();
       tg.expand();
       setIsTelegramWebview(true);
-      const rawInitData = tg.initData || '';
+      rawInitData = tg.initData || '';
       setInitData(rawInitData);
-      validateSession(rawInitData);
-    } else {
-      // In standalone browser test mode
-      validateSession('');
     }
 
-    // Get device GPS location proactively
+    // Validate in background if cached, or with spinner if cold start
+    validateSession(rawInitData, Boolean(cachedData));
+
+    // Warm up camera in parallel immediately if action is checkin/checkout
+    if (actionParam !== 'history') {
+      startCamera();
+    }
+
+    // Get device GPS location with fast cache allowance (maximumAge: 60s)
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -107,7 +122,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
           console.warn('Geolocation warning:', err.message);
           setLocationError('មិនអាចទទួលទីតាំង GPS បានទេ។');
         },
-        { enableHighAccuracy: true, timeout: 8000 }
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
       );
     }
   }, []);
@@ -131,23 +146,36 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
         setStaffInfo(data.staff);
         setBranchInfo(data.branch);
         setTodayAttendance(data.todayAttendance);
+
+        // Update local cache for instant future loads
+        try {
+          localStorage.setItem('tc_staff_mini_cache', JSON.stringify({
+            staff: data.staff,
+            branch: data.branch,
+            todayAttendance: data.todayAttendance
+          }));
+        } catch {}
         
         // Auto-switch action if already checked in today
         if (data.todayAttendance?.checkIn && !data.todayAttendance?.checkOut && actionParam !== 'history') {
           setCurrentAction('checkout');
         }
 
-        // Only auto-start camera on initial load, never during background/silent refresh after verification
-        if (!isSilent) {
-          setTimeout(() => {
-            startCamera();
-          }, 150);
+        // If camera wasn't running, start it
+        if (!isCameraActive && actionParam !== 'history') {
+          startCamera();
         }
       } else {
+        try {
+          localStorage.removeItem('tc_staff_mini_cache');
+        } catch {}
+        stopCamera();
         setAuthError(data.error || 'គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិក TC Staff ណាម្នាក់ឡើយ។');
       }
     } catch (err: any) {
-      setAuthError(err.message || 'Error communicating with TC Staff server');
+      if (!isSilent) {
+        setAuthError(err.message || 'Error communicating with TC Staff server');
+      }
     } finally {
       if (!isSilent) {
         setIsLoadingUser(false);
@@ -313,19 +341,21 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     const startX = (vWidth - minDim) / 2;
     const startY = (vHeight - minDim) / 2;
 
-    canvas.width = minDim;
-    canvas.height = minDim;
+    // Scale to optimal 480x480 resolution for sub-second mobile network upload
+    const targetDim = Math.min(480, minDim);
+    canvas.width = targetDim;
+    canvas.height = targetDim;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     // If mirrored, mirror canvas so captured photo matches preview pixel-for-pixel with ZERO surprise flip!
     if (isMirrored) {
-      ctx.translate(minDim, 0);
+      ctx.translate(targetDim, 0);
       ctx.scale(-1, 1);
     }
-    ctx.drawImage(video, startX, startY, minDim, minDim, 0, 0, minDim, minDim);
+    ctx.drawImage(video, startX, startY, minDim, minDim, 0, 0, targetDim, targetDim);
 
-    const photoDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    const photoDataUrl = canvas.toDataURL('image/jpeg', 0.80);
     const vector = generateFaceDescriptorFromCanvas(canvas);
 
     setCapturedImage(photoDataUrl);

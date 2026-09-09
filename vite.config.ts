@@ -21,6 +21,12 @@ export default defineConfig(() => {
             if (id.includes('node_modules/jspdf') || id.includes('node_modules/html2canvas')) {
               return 'vendor-pdf';
             }
+            if (id.includes('node_modules/xlsx')) {
+              return 'vendor-xlsx';
+            }
+            if (id.includes('node_modules/tesseract.js')) {
+              return 'vendor-ocr';
+            }
             if (id.includes('node_modules/lucide-react')) {
               return 'vendor-icons';
             }

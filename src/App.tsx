@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
 import { 
   Building2, 
   MapPin, 
@@ -55,37 +55,37 @@ import { db, translations } from './mockData';
 // Subcomponents import
 import Sidebar from './components/Sidebar';
 import TCLogo from './components/TCLogo';
-import DashboardView from './components/DashboardView';
-import BranchManagementView from './components/BranchManagementView';
-import StaffManagementView from './components/StaffManagementView';
-import ShiftCalendarView from './components/ShiftCalendarView';
-import SalaryManagementView from './components/SalaryManagementView';
-import TelegramConfigView from './components/TelegramConfigView';
-import AttendanceView from './components/AttendanceView';
-import DailyIncomeView from './components/DailyIncomeView';
-import ExpenseView from './components/ExpenseView';
-import InventoryView from './components/InventoryView';
-import ReportsView from './components/ReportsView';
-import UserManagementView from './components/UserManagementView';
-import SettingsView from './components/SettingsView';
-import TelegramLogin from './components/TelegramLogin';
+const DashboardView = lazy(() => import('./components/DashboardView'));
+const BranchManagementView = lazy(() => import('./components/BranchManagementView'));
+const StaffManagementView = lazy(() => import('./components/StaffManagementView'));
+const ShiftCalendarView = lazy(() => import('./components/ShiftCalendarView'));
+const SalaryManagementView = lazy(() => import('./components/SalaryManagementView'));
+const TelegramConfigView = lazy(() => import('./components/TelegramConfigView'));
+const AttendanceView = lazy(() => import('./components/AttendanceView'));
+const DailyIncomeView = lazy(() => import('./components/DailyIncomeView'));
+const ExpenseView = lazy(() => import('./components/ExpenseView'));
+const InventoryView = lazy(() => import('./components/InventoryView'));
+const ReportsView = lazy(() => import('./components/ReportsView'));
+const UserManagementView = lazy(() => import('./components/UserManagementView'));
+const SettingsView = lazy(() => import('./components/SettingsView'));
+const TelegramLogin = lazy(() => import('./components/TelegramLogin'));
 import TelegramAttendanceMiniApp from './components/TelegramAttendanceMiniApp';
 import { authApi, getSavedSessionUser, saveSession, clearSession, getSavedAccessToken, getSavedRefreshToken } from './utils/api';
 
 // 6 New Submodules Imported Here
-import CoinTransactionsView from './components/CoinTransactionsView';
-import RevenueRecordsView from './components/RevenueRecordsView';
-import GasRecordsView from './components/GasRecordsView';
-import DetergentRecordsView from './components/DetergentRecordsView';
-import SoftenerRecordsView from './components/SoftenerRecordsView';
-import StockTransactionsView from './components/StockTransactionsView';
+const CoinTransactionsView = lazy(() => import('./components/CoinTransactionsView'));
+const RevenueRecordsView = lazy(() => import('./components/RevenueRecordsView'));
+const GasRecordsView = lazy(() => import('./components/GasRecordsView'));
+const DetergentRecordsView = lazy(() => import('./components/DetergentRecordsView'));
+const SoftenerRecordsView = lazy(() => import('./components/SoftenerRecordsView'));
+const StockTransactionsView = lazy(() => import('./components/StockTransactionsView'));
 
 // Suppliers, Debts, CashDrawer, MonthClosing, and AuditLogs submodules
-import SuppliersView from './components/SuppliersView';
-import DebtsView from './components/DebtsView';
-import CashDrawerView from './components/CashDrawerView';
-import MonthClosingView from './components/MonthClosingView';
-import AuditLogsView from './components/AuditLogsView';
+const SuppliersView = lazy(() => import('./components/SuppliersView'));
+const DebtsView = lazy(() => import('./components/DebtsView'));
+const CashDrawerView = lazy(() => import('./components/CashDrawerView'));
+const MonthClosingView = lazy(() => import('./components/MonthClosingView'));
+const AuditLogsView = lazy(() => import('./components/AuditLogsView'));
 import { encryptLiveUrl, decryptLiveUrl } from './utils/urlSecurity';
 
 const getTabFromUrl = (): ActiveTab => {
@@ -1107,38 +1107,44 @@ export default function App() {
 
   if (!authenticatedUser) {
     return (
-      <TelegramLogin
-        lang={lang}
-        setLang={setLang}
-        onLoginSuccess={(user) => {
-          setAuthenticatedUser(user);
-          setCurrentRole(user.role);
-          
-          // STRICT REDIRECTION MATRIX:
-          // Owner -> Owner Dashboard (consolidated overview)
-          // Admin -> Admin Dashboard (analytical admin level)
-          // Manager -> Branch Dashboard (specific assigned branch workspace)
-          // Staff -> Staff Dashboard (assigned branch operational console)
-          if (user.role === 'Owner') {
-            setActiveTab('staff');
-            setActiveBranchId('all');
-          } else if (user.role === 'Admin') {
-            setActiveTab('staff');
-            setActiveBranchId(user.assignedBranchIds && user.assignedBranchIds.length > 0 ? user.assignedBranchIds[0] : 'b1');
-          } else if (user.role === 'Manager') {
-            setActiveTab('staff');
-            setActiveBranchId(user.assignedBranchIds && user.assignedBranchIds.length > 0 ? user.assignedBranchIds[0] : 'b1');
-          } else if (user.role === 'Staff') {
-            setActiveTab('staff');
-            setActiveBranchId(user.assignedBranchIds && user.assignedBranchIds.length > 0 ? user.assignedBranchIds[0] : 'b1');
-          } else {
-            setActiveTab('staff');
-            setActiveBranchId('all');
-          }
+      <Suspense fallback={
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans">
+          <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      }>
+        <TelegramLogin
+          lang={lang}
+          setLang={setLang}
+          onLoginSuccess={(user) => {
+            setAuthenticatedUser(user);
+            setCurrentRole(user.role);
+            
+            // STRICT REDIRECTION MATRIX:
+            // Owner -> Owner Dashboard (consolidated overview)
+            // Admin -> Admin Dashboard (analytical admin level)
+            // Manager -> Branch Dashboard (specific assigned branch workspace)
+            // Staff -> Staff Dashboard (assigned branch operational console)
+            if (user.role === 'Owner') {
+              setActiveTab('staff');
+              setActiveBranchId('all');
+            } else if (user.role === 'Admin') {
+              setActiveTab('staff');
+              setActiveBranchId(user.assignedBranchIds && user.assignedBranchIds.length > 0 ? user.assignedBranchIds[0] : 'b1');
+            } else if (user.role === 'Manager') {
+              setActiveTab('staff');
+              setActiveBranchId(user.assignedBranchIds && user.assignedBranchIds.length > 0 ? user.assignedBranchIds[0] : 'b1');
+            } else if (user.role === 'Staff') {
+              setActiveTab('staff');
+              setActiveBranchId(user.assignedBranchIds && user.assignedBranchIds.length > 0 ? user.assignedBranchIds[0] : 'b1');
+            } else {
+              setActiveTab('staff');
+              setActiveBranchId('all');
+            }
 
-          handleAddNewAuditLog(`User fully authenticated: Welcome, ${user.fullName} (${user.role})`);
-        }}
-      />
+            handleAddNewAuditLog(`User fully authenticated: Welcome, ${user.fullName} (${user.role})`);
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -1412,7 +1418,14 @@ export default function App() {
 
           {/* Actual subtab components renders here */}
           <div className="transition-all duration-300 w-full min-w-0">
-            {renderTabContent()}
+            <Suspense fallback={
+              <div className="flex flex-col items-center justify-center p-16 space-y-3">
+                <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-xs text-slate-500 font-bold">កំពុងផ្ទុក...</span>
+              </div>
+            }>
+              {renderTabContent()}
+            </Suspense>
           </div>
 
           
