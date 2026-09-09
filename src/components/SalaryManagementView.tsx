@@ -1045,21 +1045,6 @@ export default function SalaryManagementView({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Dedicated Top Button for External Temp Covers */}
-            <button
-              onClick={() => setShowTempModal(true)}
-              className="px-3.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0"
-              title={lang === 'kh' ? 'គ្រប់គ្រងអ្នកជំនួសក្រៅ' : 'Manage Temp Shift Covers'}
-            >
-              <UserPlus size={15} className="text-purple-600" />
-              <span>{lang === 'kh' ? '👥 អ្នកជំនួសក្រៅ ($6)' : 'Temp Covers ($6)'}</span>
-              {currentMonthTempCovers.length > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.2 bg-purple-200 text-purple-900 rounded-full text-[10px] font-black">
-                  {currentMonthTempCovers.length}
-                </span>
-              )}
-            </button>
-
             {/* Branch Telegram Salary Due Alert Button */}
             <button
               onClick={handleSendSalaryDueAlert}
