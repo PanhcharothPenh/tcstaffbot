@@ -21,8 +21,7 @@ import {
   Loader2,
   ShieldCheck,
   Smartphone,
-  Coffee,
-  Upload
+  Coffee
 } from 'lucide-react';
 
 interface TelegramAttendanceMiniAppProps {
@@ -88,7 +87,6 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   // DOM Video & Canvas Refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // 1. Initialize Telegram WebApp SDK & Validate Session
   useEffect(() => {
@@ -251,35 +249,8 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     } catch (err: any) {
       console.warn('Camera access error:', err);
       setIsCameraActive(false);
-      setErrorMessage('មិនអាចបើក Camera ដោយស្វ័យប្រវត្តិបានទេ! សូមចុចប៊ូតុង "បើក Camera" ឬ "ជ្រើសរើសរូបថត"។');
+      setErrorMessage('មិនអាចបើក Camera បានទេ! សូមចុចប៊ូតុង "បើក Camera" និងអនុញ្ញាតសិទ្ធិ (Camera Permission)។');
     }
-  };
-
-  const handleNativeFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) {
-        setCapturedImage(dataUrl);
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = 64;
-          canvas.height = 64;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, 64, 64);
-            const vector = generateFaceDescriptorFromCanvas(canvas);
-            setCapturedVector(vector);
-            submitAttendance(dataUrl, vector);
-          }
-        };
-        img.src = dataUrl;
-      }
-    };
-    reader.readAsDataURL(file);
   };
 
   const stopCamera = () => {
@@ -730,14 +701,6 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                   </div>
                 )}
 
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  accept="image/*" 
-                  capture="user" 
-                  className="hidden" 
-                  onChange={handleNativeFileUpload} 
-                />
 
                 {/* Camera / Photo Frame */}
                 <div className="relative w-64 h-64 mx-auto rounded-full overflow-hidden border-4 border-[#003D9B]/20 bg-slate-900 flex items-center justify-center shadow-inner">
@@ -814,25 +777,15 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
                 {/* Camera Buttons */}
                 {!isCameraActive ? (
-                  <div className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={startCamera}
-                      disabled={isVerifying}
-                      className="w-full py-3 bg-[#003D9B] hover:bg-blue-800 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-blue-900/10"
-                    >
-                      <Camera size={16} />
-                      <span>📸 បើក Camera</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 border border-slate-200"
-                    >
-                      <Upload size={14} />
-                      <span>📁 ថតរូប ឬជ្រើសរើសរូបភាពពីទូរស័ព្ទ</span>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={startCamera}
+                    disabled={isVerifying}
+                    className="w-full py-3 bg-[#003D9B] hover:bg-blue-800 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-blue-900/10"
+                  >
+                    <Camera size={16} />
+                    <span>📸 បើក Camera</span>
+                  </button>
                 ) : (
                   <div className="flex gap-2">
                     <button
