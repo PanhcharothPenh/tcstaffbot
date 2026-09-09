@@ -223,8 +223,8 @@ export default function Sidebar({
         {!isCollapsed ? (
           <>
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <Clean24Logo className="h-10 sm:h-12 cursor-pointer text-slate-100 shrink-0" lightMode={false} />
+              <div className="flex items-center gap-2 min-w-0 bg-white px-3 py-1.5 rounded-2xl shadow-sm border border-slate-700/40">
+                <Clean24Logo className="h-10 sm:h-12 cursor-pointer shrink-0" lightMode={false} />
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
@@ -267,14 +267,14 @@ export default function Sidebar({
             </div>
           </>
         ) : (
-          /* COLLAPSED HEADER: Centered Coffee Icon / Toggle Button */
+          /* COLLAPSED HEADER: Centered Brand Logo / Toggle Button */
           <div className="flex flex-col items-center justify-center gap-2">
             <button
               onClick={() => setIsCollapsed && setIsCollapsed(!isCollapsed)}
-              className="w-11 h-11 bg-[#281812] hover:bg-[#3D251A] text-blue-400 rounded-2xl shadow-md border border-slate-700/60 flex items-center justify-center cursor-pointer transition-all active:scale-95 group"
+              className="w-12 h-12 bg-white hover:bg-slate-100 p-1 rounded-2xl shadow-md border border-slate-700/60 flex items-center justify-center cursor-pointer transition-all active:scale-95 group"
               title="Expand Sidebar"
             >
-              <Users size={20} className="stroke-[2.2] text-blue-400 group-hover:scale-110 transition-transform" />
+              <img src="/logo.png" alt="TC Staff" className="w-9 h-9 object-contain group-hover:scale-105 transition-transform" />
             </button>
           </div>
         )}

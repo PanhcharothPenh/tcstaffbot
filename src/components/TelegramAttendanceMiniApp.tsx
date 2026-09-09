@@ -431,7 +431,10 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   if (isLoadingUser) {
     return (
       <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center">
-        <Loader2 className="animate-spin text-[#003D9B] mb-4" size={42} />
+        <div className="bg-white p-3 rounded-2xl shadow-md mb-4 inline-flex">
+          <img src="/logo.png" alt="TC Staff Management" className="h-14 w-auto object-contain" />
+        </div>
+        <Loader2 className="animate-spin text-amber-500 mb-2" size={32} />
         <h2 className="text-base font-bold text-slate-200">TC Staff Management</h2>
         <p className="text-xs text-slate-400 mt-1">កំពុងផ្ទៀងផ្ទាត់គណនី Telegram...</p>
       </div>
@@ -474,13 +477,11 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col max-w-md mx-auto relative font-sans select-none pb-8">
       {/* Top Mobile App Header */}
-      <header className="bg-white border-b border-slate-200 px-4 py-3.5 sticky top-0 z-30 flex items-center justify-between shadow-2xs">
+      <header className="bg-white border-b border-slate-200 px-4 py-2.5 sticky top-0 z-30 flex items-center justify-between shadow-2xs">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-600 to-amber-900 text-white flex items-center justify-center shadow-xs shrink-0">
-            <Coffee size={18} className="stroke-[2.5]" />
-          </div>
-          <div>
-            <div className="text-[11px] font-black text-[#003D9B] uppercase leading-none">TC STAFF MANAGEMENT</div>
+          <img src="/logo.png" alt="TC Staff" className="h-9 w-auto object-contain shrink-0" />
+          <div className="border-l border-slate-200 pl-2">
+            <div className="text-[10px] font-black text-amber-900 uppercase leading-none">TC STAFF</div>
             <div className="text-xs font-bold text-slate-800 leading-tight mt-0.5">{staffInfo?.fullName || 'Staff Member'}</div>
           </div>
         </div>
