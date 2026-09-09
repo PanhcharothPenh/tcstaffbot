@@ -4832,16 +4832,7 @@ app.post('/api/telegram/validate-init-data', (req, res) => {
       }
     }
 
-    if (!staff && simulationStaffId) {
-      staff = (localDb.staff || []).find(s => s.id === simulationStaffId);
-      if (staff) {
-        tgUser = {
-          id: staff.telegramId || '12345678',
-          first_name: staff.fullName,
-          username: staff.telegramUsername || staff.fullName.replace(/\s+/g, '_').toLowerCase()
-        };
-      }
-    }
+
 
     if (!staff) {
       return res.status(404).json({
@@ -5004,9 +4995,7 @@ app.post('/api/attendance/check-in', async (req, res) => {
       }
     }
 
-    if (!staff && simulationStaffId) {
-      staff = (localDb.staff || []).find(s => s.id === simulationStaffId);
-    }
+
 
     if (!staff) {
       return res.status(404).json({ success: false, error: 'រកមិនឃើញទិន្នន័យបុគ្គលិកឡើយ!' });
@@ -5140,9 +5129,7 @@ app.post('/api/attendance/check-out', async (req, res) => {
       }
     }
 
-    if (!staff && simulationStaffId) {
-      staff = (localDb.staff || []).find(s => s.id === simulationStaffId);
-    }
+
 
     if (!staff) {
       return res.status(404).json({ success: false, error: 'រកមិនឃើញទិន្នន័យបុគ្គលិកឡើយ!' });

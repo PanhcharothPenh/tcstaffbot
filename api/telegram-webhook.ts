@@ -401,11 +401,14 @@ export default async function handler(req: any, res: any) {
             }
           }
 
-          // 8. Find matching staff by Telegram ID or Username
+          // 8. Find matching staff by Telegram ID or Username (Must be Active)
           matchedStaff = allStaff.find((s: any) => {
             const sId = String(s.telegramId || '').trim();
             const sUser = (s.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
-            return (telegramId && sId === telegramId) || (cleanTgHandle && sUser === cleanTgHandle);
+            return s.status === 'Active' && (
+              (telegramId && sId === telegramId) || 
+              (cleanTgHandle && sUser === cleanTgHandle)
+            );
           });
 
           // Auto-bind telegramId if matched
@@ -658,8 +661,24 @@ export default async function handler(req: any, res: any) {
         (userText.includes('ចូល') && !userText.includes('ចេញ'));
 
       if (isCheckInCmd) {
+        if (!matchedStaff) {
+          const unlinkedMsg = `⚠️ <b>[TC Staff - គណនីមិនទាន់បានភ្ជាប់ / Unlinked Account]</b>\n\n` +
+            `សួស្តី <b>${firstName}</b>!\n` +
+            `គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិក TC Staff ណាម្នាក់នៅឡើយទេ។\n\n` +
+            `🆔 <b>Telegram ID របស់អ្នក:</b> <code>${telegramId}</code>\n` +
+            `👤 <b>Username:</b> ${cleanTgHandle ? '@' + cleanTgHandle : 'គ្មាន'}\n\n` +
+            `👉 <b>សូមទាក់ទង Admin ឬ Manager</b> ដើម្បីចុះឈ្មោះ និងភ្ជាប់ Telegram ID នេះទៅកាន់គណនីបុគ្គលិករបស់អ្នកក្នុងប្រព័ន្ធ TC Staff ជាមុនសិន ទើបអាចចុះវត្តមានបាន!`;
+
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text: unlinkedMsg, parse_mode: 'HTML' })
+          });
+          return res.status(200).json({ ok: true });
+        }
+
         const checkinMsg = `📸 <b>[TC Staff - ចុះឈ្មោះចូលបំពេញការងារ]</b>\n\n` +
-          `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff ? matchedStaff.fullName : firstName}</b>\n` +
+          `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff.fullName}</b>\n` +
           `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
           `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
           `👇 <b>សូមចុចប៊ូតុងខាងក្រោមដើម្បីបើកស្កេន Face ID និងផ្ទៀងផ្ទាត់ទីតាំង GPS៖</b>`;
@@ -696,8 +715,24 @@ export default async function handler(req: any, res: any) {
         userText.includes('ចេញ');
 
       if (isCheckOutCmd) {
+        if (!matchedStaff) {
+          const unlinkedMsg = `⚠️ <b>[TC Staff - គណនីមិនទាន់បានភ្ជាប់ / Unlinked Account]</b>\n\n` +
+            `សួស្តី <b>${firstName}</b>!\n` +
+            `គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិក TC Staff ណាម្នាក់នៅឡើយទេ។\n\n` +
+            `🆔 <b>Telegram ID របស់អ្នក:</b> <code>${telegramId}</code>\n` +
+            `👤 <b>Username:</b> ${cleanTgHandle ? '@' + cleanTgHandle : 'គ្មាន'}\n\n` +
+            `👉 <b>សូមទាក់ទង Admin ឬ Manager</b> ដើម្បីចុះឈ្មោះ និងភ្ជាប់ Telegram ID នេះទៅកាន់គណនីបុគ្គលិករបស់អ្នកក្នុងប្រព័ន្ធ TC Staff ជាមុនសិន ទើបអាចចុះវត្តមានបាន!`;
+
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text: unlinkedMsg, parse_mode: 'HTML' })
+          });
+          return res.status(200).json({ ok: true });
+        }
+
         const checkoutMsg = `🚪 <b>[TC Staff - ចុះឈ្មោះចេញពីការងារ]</b>\n\n` +
-          `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff ? matchedStaff.fullName : firstName}</b>\n` +
+          `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff.fullName}</b>\n` +
           `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
           `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
           `👇 <b>សូមចុចប៊ូតុងខាងក្រោមដើម្បីបញ្ជាក់ការចេញ៖</b>`;
@@ -735,6 +770,20 @@ export default async function handler(req: any, res: any) {
         userText.toLowerCase().includes('attendance') ||
         userText.toLowerCase().includes('report')
       ) {
+        if (!matchedStaff) {
+          const unlinkedMsg = `⚠️ <b>[TC Staff - គណនីមិនទាន់បានភ្ជាប់ / Unlinked Account]</b>\n\n` +
+            `សួស្តី <b>${firstName}</b>!\n` +
+            `គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិក TC Staff ណាម្នាក់នៅឡើយទេ។\n\n` +
+            `🆔 <b>Telegram ID របស់អ្នក:</b> <code>${telegramId}</code>\n` +
+            `👉 សូមទាក់ទង Admin ឬ Manager ដើម្បីភ្ជាប់ Telegram ID នេះជាមុនសិន។`;
+
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text: unlinkedMsg, parse_mode: 'HTML' })
+          });
+          return res.status(200).json({ ok: true });
+        }
         const monthRecords = allAtt.filter((a: any) => {
           if (!a.date) return false;
           const [y, m] = a.date.split('-').map(Number);
@@ -864,10 +913,42 @@ export default async function handler(req: any, res: any) {
       // =================================================================================
       // DEFAULT: 🌟 MAIN MENU / START GREETING (/start or /menu)
       // =================================================================================
-      const greetingName = matchedStaff ? matchedStaff.fullName : firstName;
+      if (!matchedStaff) {
+        const unlinkedWelcome = `👋 <b>សួស្តី ${firstName}!</b>\n\n` +
+          `សូមស្វាគមន៍មកកាន់ <b>TC Staff Management Bot</b> 📱\n\n` +
+          `⚠️ <b>ស្ថានភាពគណនី:</b> <code>មិនទាន់បានភ្ជាប់ (Unlinked)</code>\n` +
+          `គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយទិន្នន័យបុគ្គលិកណាមួយនៅក្នុងប្រព័ន្ធនៅឡើយទេ។\n\n` +
+          `🆔 <b>Telegram ID របស់អ្នក:</b> <code>${telegramId}</code>\n` +
+          `💬 <b>Chat ID:</b> <code>${chatId}</code>\n` +
+          `👤 <b>Username:</b> ${cleanTgHandle ? '@' + cleanTgHandle : 'គ្មាន'}\n\n` +
+          `👉 <b>ដើម្បីចុះវត្តមានបាន:</b> សូមផ្ញើលេខ <b>Telegram ID (<code>${telegramId}</code>)</b> នេះទៅកាន់ Admin ឬ Manager របស់អ្នក ដើម្បីភ្ជាប់គណនីជាមុនសិន។`;
+
+        const unlinkedMenuButtons = {
+          inline_keyboard: [
+            [
+              { text: '🆔 ពិនិត្យ Chat ID / Telegram ID', callback_data: '/id' }
+            ]
+          ]
+        };
+
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: unlinkedWelcome,
+            parse_mode: 'HTML',
+            reply_markup: unlinkedMenuButtons
+          })
+        });
+
+        return res.status(200).json({ ok: true });
+      }
+
+      const greetingName = matchedStaff.fullName;
       const checkInTime = todayAttendance?.checkIn || '--';
       const checkOutTime = todayAttendance?.checkOut || '--';
-      const staffPos = matchedStaff?.position || 'Staff';
+      const staffPos = matchedStaff.position || 'Staff';
 
       const welcomeText = `👋 <b>សួស្តី ${greetingName}!</b>\n\n` +
         `សូមស្វាគមន៍មកកាន់ <b>TC Staff Mini App</b> 📱\n` +

@@ -461,33 +461,22 @@ export default async function handler(req: any, res: any) {
           tgUser = val.user;
           const tgId = String(tgUser.id);
           const tgName = (tgUser.username || '').toLowerCase().replace(/^@/, '').trim();
+          
+          // STRICT AUTH: Must match an active staff member explicitly registered with this telegramId or telegramUsername
           matchedStaff = allStaff.find((s: any) => 
-            (s.telegramId && String(s.telegramId) === tgId) ||
-            (tgName && s.telegramUsername && s.telegramUsername.replace(/^@/, '').toLowerCase().trim() === tgName)
+            s.status === 'Active' && (
+              (s.telegramId && String(s.telegramId) === tgId) ||
+              (tgName && s.telegramUsername && s.telegramUsername.replace(/^@/, '').toLowerCase().trim() === tgName)
+            )
           );
 
-          // If single active staff and not yet linked, auto-link
-          if (!matchedStaff && allStaff.length === 1 && allStaff[0].status === 'Active') {
-            matchedStaff = allStaff[0];
-          }
-
+          // If matched by username and telegramId is empty, link their telegramId
           if (matchedStaff && (!matchedStaff.telegramId || String(matchedStaff.telegramId) !== tgId)) {
             matchedStaff.telegramId = tgId;
             matchedStaff.telegramLinked = true;
             if (tgName && !matchedStaff.telegramUsername) matchedStaff.telegramUsername = `@${tgName}`;
             await saveCollection('staff', allStaff);
           }
-        }
-      }
-
-      if (!matchedStaff && simulationStaffId) {
-        matchedStaff = allStaff.find((s: any) => s.id === simulationStaffId) || allStaff[0];
-        if (matchedStaff) {
-          tgUser = {
-            id: matchedStaff.telegramId || '',
-            first_name: matchedStaff.fullName,
-            username: matchedStaff.telegramUsername || 'staff'
-          };
         }
       }
 
@@ -554,14 +543,12 @@ export default async function handler(req: any, res: any) {
           const tgId = String(val.user.id);
           const tgName = (val.user.username || '').toLowerCase().replace(/^@/, '').trim();
           staff = allStaff.find((s: any) => 
-            (s.telegramId && String(s.telegramId) === tgId) ||
-            (tgName && s.telegramUsername && s.telegramUsername.replace(/^@/, '').toLowerCase().trim() === tgName)
+            s.status === 'Active' && (
+              (s.telegramId && String(s.telegramId) === tgId) ||
+              (tgName && s.telegramUsername && s.telegramUsername.replace(/^@/, '').toLowerCase().trim() === tgName)
+            )
           );
         }
-      }
-
-      if (!staff && simulationStaffId) {
-        staff = allStaff.find((s: any) => s.id === simulationStaffId);
       }
 
       if (!staff) {
@@ -678,14 +665,12 @@ export default async function handler(req: any, res: any) {
           const tgId = String(val.user.id);
           const tgName = (val.user.username || '').toLowerCase().replace(/^@/, '').trim();
           staff = allStaff.find((s: any) => 
-            (s.telegramId && String(s.telegramId) === tgId) ||
-            (tgName && s.telegramUsername && s.telegramUsername.replace(/^@/, '').toLowerCase().trim() === tgName)
+            s.status === 'Active' && (
+              (s.telegramId && String(s.telegramId) === tgId) ||
+              (tgName && s.telegramUsername && s.telegramUsername.replace(/^@/, '').toLowerCase().trim() === tgName)
+            )
           );
         }
-      }
-
-      if (!staff && simulationStaffId) {
-        staff = allStaff.find((s: any) => s.id === simulationStaffId);
       }
 
       // Photo is saved directly as live attendance proof; verification is authenticated via Telegram

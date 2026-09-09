@@ -112,9 +112,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          initData: dataStr,
-          // Simulation fallback for browser testing when initData is empty
-          simulationStaffId: !dataStr ? 'st_1' : undefined
+          initData: dataStr
         })
       });
 
@@ -282,8 +280,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
           faceDescriptor: vector,
           photo,
           latitude: locationCoords?.lat,
-          longitude: locationCoords?.lng,
-          simulationStaffId: !initData && staffInfo?.id ? staffInfo.id : undefined
+          longitude: locationCoords?.lng
         })
       });
 
@@ -367,17 +364,32 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
   if (authError) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
-        <div className="bg-white p-6 rounded-3xl border border-rose-200 shadow-xl max-w-sm w-full space-y-4">
-          <AlertCircle className="text-rose-500 mx-auto" size={48} />
-          <h2 className="text-base font-bold text-slate-900">មិនអាចភ្ជាប់ប្រព័ន្ធបានទេ</h2>
-          <p className="text-xs text-slate-600 leading-relaxed">{authError}</p>
-          <button 
-            onClick={() => validateSession(initData)}
-            className="w-full py-2.5 bg-[#003D9B] text-white rounded-xl text-xs font-bold cursor-pointer hover:bg-blue-800 transition"
-          >
-            ព្យាយាមម្តងទៀត
-          </button>
+      <div className="min-h-screen bg-[#FAF8F5] flex flex-col items-center justify-center p-6 text-center">
+        <div className="bg-white p-6 rounded-3xl border border-amber-200/80 shadow-xl max-w-sm w-full space-y-4 animate-in fade-in">
+          <div className="w-16 h-16 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto text-amber-600">
+            <AlertCircle size={36} />
+          </div>
+          <h2 className="text-base font-black text-[#18110D]">គណនីមិនទាន់បានភ្ជាប់ / Unlinked</h2>
+          <div className="p-3 bg-amber-50/70 border border-amber-200/60 rounded-2xl text-xs text-amber-950 font-medium leading-relaxed text-left">
+            {authError}
+          </div>
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            សូមទាក់ទង <b>Admin ឬ Manager</b> របស់អ្នកដើម្បីចុះឈ្មោះ និងភ្ជាប់គណនី Telegram នេះទៅកាន់ប្រព័ន្ធ TC Staff មុនពេលចុះវត្តមាន។
+          </p>
+          <div className="flex gap-2 pt-2">
+            <button 
+              onClick={() => validateSession(initData)}
+              className="flex-1 py-2.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl text-xs font-bold cursor-pointer transition"
+            >
+              ផ្ទៀងផ្ទាត់ឡើងវិញ
+            </button>
+            <button 
+              onClick={closeMiniApp}
+              className="flex-1 py-2.5 bg-[#18110D] text-white hover:bg-[#2B1810] rounded-xl text-xs font-bold cursor-pointer transition shadow-xs"
+            >
+              ចាកចេញ
+            </button>
+          </div>
         </div>
       </div>
     );
