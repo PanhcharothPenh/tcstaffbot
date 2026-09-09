@@ -220,7 +220,7 @@ export default function RevenueRecordsView({
 
   // Helper translations for UI
   const tLocal = {
-    revenueSheet: lang === 'en' ? 'Clean24 Revenue & Counter Sheet' : 'សៀវភៅកុងទ័រនិងចំណូល Clean24',
+    revenueSheet: lang === 'en' ? 'TC Staff Daily Revenue & Cash Sheet' : 'សៀវភៅចំណូល និងសាច់ប្រាក់ប្រចាំថ្ងៃ TC Staff',
     staffOnlyEnters: lang === 'en' 
       ? 'Staff enters Start/End Counters, Cash, ABA, Bank Deposit, Actual Cash Count & Notes. Everything derives automatically.' 
       : 'បុគ្គលិកកត់ត្រា កុងទ័រចាប់ផ្ដើម/បញ្ចប់ លុយសុទ្ធ ABA ប្រាក់ចូលធនាគារ លុយរាប់ជាក់ស្ដែង និងចំណាំ។ ប្រព័ន្ធគណនាដោយស្វ័យប្រវត្ត។',
@@ -254,7 +254,7 @@ export default function RevenueRecordsView({
   const selectedBranchName = useMemo(() => {
     if (selectedBranchId === 'all') return lang === 'en' ? 'Consolidated Branches View' : 'គ្រប់សាខាទាំងអស់';
     const br = branches.find(b => b.id === selectedBranchId);
-    return br ? br.branchName : (branches.length > 0 ? branches[0].branchName : 'Clean24 Laundry');
+    return br ? br.branchName : (branches.length > 0 ? branches[0].branchName : 'TC Staff');
   }, [branches, selectedBranchId, lang]);
 
   // Get days count
@@ -763,7 +763,7 @@ export default function RevenueRecordsView({
     XLSX.utils.book_append_sheet(workbook, worksheet, asBlank ? "Blank Ledger Template" : "Branch Revenue");
 
     const safeBranchStr = selectedBranchName.replace(/\s+/g, '_');
-    const prefix = asBlank ? 'Clean24_BlankLedger_' : 'Clean24_RevenueBook_';
+    const prefix = asBlank ? 'TCStaff_BlankLedger_' : 'TCStaff_RevenueBook_';
     XLSX.writeFile(workbook, `${prefix}${safeBranchStr}_${getMonthAbbr(selectedMonth)}_${selectedYear}.xlsx`);
     onAddLog(`Exported ${asBlank ? 'Blank Ledger Template' : 'Counter Book'} for branch "${selectedBranchName}" to Excel`);
   };

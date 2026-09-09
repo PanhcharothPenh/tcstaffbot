@@ -702,7 +702,7 @@ export default function TelegramTemplatesView({ branches }: TelegramTemplatesVie
                             BOT
                           </div>
                           <div className="min-w-0 flex-1">
-                            <span className="text-[10px] font-bold text-sky-400 block pb-1 border-b border-slate-800">Clean24 Alert Engine</span>
+                            <span className="text-[10px] font-bold text-sky-400 block pb-1 border-b border-slate-800">TC Staff Alert Engine</span>
                             <div className="whitespace-pre-wrap text-[11px] font-normal leading-relaxed text-slate-205 mt-2 font-mono scrollbar-none" id="telegram_parsed_preview_block">
                               {testLogs?.text || (testLang === 'en' ? testTemplate.engTemplate : testTemplate.khmerTemplate)}
                             </div>

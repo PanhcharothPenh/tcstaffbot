@@ -56,7 +56,7 @@ export default function AuditLogsView({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `clean24_audit_logs_${new Date().toISOString().substring(0,10)}.csv`);
+    link.setAttribute("download", `tc_staff_audit_logs_${new Date().toISOString().substring(0,10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

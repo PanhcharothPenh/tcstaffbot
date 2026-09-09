@@ -310,7 +310,7 @@ export function generatePayslipText(record: any, lang: 'en' | 'kh') {
   text += `📈 ${lang === 'kh' ? 'ចំណូល & ប្រាក់បន្ថែម' : 'Earnings & Additions'}:\n`;
   text += `  • ${lang === 'kh' ? 'ប្រាក់ខែគោល' : 'Base Salary'}: $${baseSalary.toFixed(2)}\n`;
   if (extraShiftAmount > 0) {
-    text += `  • ${lang === 'kh' ? 'ជំនួសវេន ($6)' : 'Shift Covers ($6)'}: +$${extraShiftAmount.toFixed(2)} ${extraShiftCount > 0 ? `(${extraShiftCount} វេន)` : ''}\n`;
+    text += `  • ${lang === 'kh' ? 'ជំនួសវេន (Shift Cover)' : 'Shift Covers'}: +$${extraShiftAmount.toFixed(2)} ${extraShiftCount > 0 ? `(${extraShiftCount} វេន)` : ''}\n`;
   }
   if (staffExpenseAmount > 0) {
     text += `  • ${lang === 'kh' ? 'សងថ្លៃចំណាយ' : 'Staff Expense'}: +$${staffExpenseAmount.toFixed(2)}\n`;
@@ -331,7 +331,7 @@ export function generatePayslipText(record: any, lang: 'en' | 'kh') {
     } else if (typeof record.leaveDates === 'string' && record.leaveDates.trim()) {
       datesStr = ` [ថ្ងៃ៖ ${record.leaveDates}]`;
     }
-    text += `  • ${lang === 'kh' ? 'ឈប់សម្រាក ($6)' : 'Absence ($6)'}: -$${leaveDeduction.toFixed(2)} ${record.leaveDays ? `(${record.leaveDays} វេន)` : ''}${datesStr}\n`;
+    text += `  • ${lang === 'kh' ? 'ឈប់សម្រាក (Absence)' : 'Absence Deduction'}: -$${leaveDeduction.toFixed(2)} ${record.leaveDays ? `(${record.leaveDays} វេន)` : ''}${datesStr}\n`;
   }
   if (otherDeduction > 0) {
     text += `  • ${lang === 'kh' ? 'កាត់ផ្សេងៗ' : 'Other'}: -$${otherDeduction.toFixed(2)}\n`;

@@ -421,7 +421,7 @@ export default function SalaryManagementView({
     return availableStaff.map(staff => {
       const adj = getAdjustment(staff.id);
       const baseSalary = Number(staff.baseSalary || 0);
-      const shiftRate = 6; // Standard Clean24 rate: $6 per shift/day
+      const shiftRate = 6; // Standard rate per shift/day
       const dailyRate = 6;
 
       // 1. Extra Shifts for this employee in selected month & year (Rate = $6 per shift)
@@ -880,8 +880,8 @@ export default function SalaryManagementView({
   const handleConvertTempToStaff = (temp: TempShiftCover) => {
     if (!setStaff) return;
     const confirmConvert = confirm(lang === 'kh' 
-      ? `តើលោកអ្នកពិតជាចង់បង្កើត "${temp.name}" ទៅជាបុគ្គលិកពេញសិទ្ធិរបស់ Clean24 មែនទេ?` 
-      : `Convert "${temp.name}" into official Clean24 employee?`
+      ? `តើលោកអ្នកពិតជាចង់បង្កើត "${temp.name}" ទៅជាបុគ្គលិកពេញសិទ្ធិរបស់ TC Staff មែនទេ?` 
+      : `Convert "${temp.name}" into official TC Staff employee?`
     );
     if (!confirmConvert) return;
 
@@ -904,7 +904,7 @@ export default function SalaryManagementView({
     };
 
     setStaff(prev => [...prev, newStaff]);
-    onAddLog(`Converted temporary worker ${temp.name} into official Clean24 employee`);
+    onAddLog(`Converted temporary worker ${temp.name} into official TC Staff employee`);
     showBanner('success', lang === 'kh' ? `បានបង្កើត ${temp.name} ជាបុគ្គលិកពេញសិទ្ធិជោគជ័យ!` : `Converted ${temp.name} into official staff!`);
   };
 
@@ -932,7 +932,7 @@ export default function SalaryManagementView({
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Payroll');
-    XLSX.writeFile(wb, `Clean24_Payroll_${monthName}_${selectedYear}.xlsx`);
+    XLSX.writeFile(wb, `TCStaff_Payroll_${monthName}_${selectedYear}.xlsx`);
   };
 
   const [isSendingTelegram, setIsSendingTelegram] = useState(false);
@@ -977,7 +977,7 @@ export default function SalaryManagementView({
   };
 
   return (
-    <div className="space-y-5" id="clean24_payroll_management_view">
+    <div className="space-y-5" id="tcstaff_payroll_management_view">
       
       {/* Top Banner Alert */}
       {bannerNotice && (
@@ -1106,7 +1106,7 @@ export default function SalaryManagementView({
             }`}
           >
             <UserCheck size={14} className="shrink-0" />
-            <span className="truncate">{lang === 'kh' ? '៣. ជំនួសវេន ($6)' : '3. Shift Covers'}</span>
+            <span className="truncate">{lang === 'kh' ? '៣. ជំនួសវេន / វេនបន្ថែម' : '3. Shift Covers'}</span>
           </button>
 
           {/* 4. ចំណាយបុគ្គលិក */}
@@ -1214,8 +1214,8 @@ export default function SalaryManagementView({
             <div className="text-xs text-blue-900 leading-relaxed">
               <span className="font-bold">{lang === 'kh' ? 'រូបមន្តគណនាផ្លូវការ៖ ' : 'Official Formula: '}</span>
               {lang === 'kh' 
-                ? 'ប្រាក់ត្រូវបើក = ប្រាក់ខែគោល + ជំនួសវេន ($6/វេន) + ចំណាយបុគ្គលិក - បើកមុន - ឈប់សម្រាក/កាត់ប្រាក់' 
-                : 'Final Payment = Base Salary + Extra Shift Payment ($6/shift) + Staff Expense - Advance - Deduction'}
+                ? 'ប្រាក់ត្រូវបើក = ប្រាក់ខែគោល + ជំនួសវេន (Shift Cover) + ចំណាយបុគ្គលិក - បើកមុន - ឈប់សម្រាក/កាត់ប្រាក់' 
+                : 'Final Payment = Base Salary + Extra Shift Payment + Staff Expense - Advance - Deduction'}
             </div>
           </div>
 
@@ -1254,7 +1254,7 @@ export default function SalaryManagementView({
                   <tr className="bg-slate-50/80 text-slate-500 border-b border-slate-200 text-[10.5px] uppercase font-bold tracking-wider">
                     <th className="py-3 px-3.5">{lang === 'kh' ? 'បុគ្គលិក' : 'Staff'}</th>
                     <th className="py-3 px-3 text-right">{lang === 'kh' ? 'ប្រាក់ខែគោល' : 'Base'}</th>
-                    <th className="py-3 px-3 text-right text-sky-800 bg-sky-50/30">{lang === 'kh' ? '+ ជំនួសវេន ($6)' : '+ Shifts ($6)'}</th>
+                    <th className="py-3 px-3 text-right text-sky-800 bg-sky-50/30">{lang === 'kh' ? '+ ជំនួសវេន' : '+ Shifts'}</th>
                     <th className="py-3 px-3 text-right text-amber-800 bg-amber-50/30">{lang === 'kh' ? '+ ចំណាយបុគ្គលិក' : '+ Staff Expense'}</th>
                     <th className="py-3 px-3 text-right text-rose-800 bg-rose-50/30">{lang === 'kh' ? '- បើកមុន' : '- Advance'}</th>
                     <th className="py-3 px-3 text-right text-purple-800 bg-purple-50/30">{lang === 'kh' ? '- ឈប់សម្រាក' : '- Deduction'}</th>
@@ -1548,7 +1548,7 @@ export default function SalaryManagementView({
         </div>
       )}
 
-      {/* SECTION 3: EXTRA SHIFTS (៣. ជំនួសវេន / វេនបន្ថែម $6) */}
+      {/* SECTION 3: EXTRA SHIFTS (៣. ជំនួសវេន / វេនបន្ថែម) */}
       {activeTab === 'extrashifts' && (
         <div className="space-y-6">
           {/* Quick Direct Entry Form Card (Matching requested screenshot) */}
@@ -1557,12 +1557,12 @@ export default function SalaryManagementView({
               <div>
                 <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                   <UserCheck className="text-blue-600" size={18} />
-                  {lang === 'kh' ? 'កត់ត្រាការថែមម៉ោង / ជំនួសវេន (គិតជាវេន $6)' : 'Record Extra Shift Cover ($6 per shift)'}
+                  {lang === 'kh' ? 'កត់ត្រាការថែមម៉ោង / ជំនួសវេន (Shift Cover)' : 'Record Extra Shift Cover'}
                 </h3>
                 <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
                   {lang === 'kh' 
-                    ? 'សម្រាប់បុគ្គលិកផ្លូវការ Clean24 • តម្លៃស្វ័យប្រវត្តិ $6/វេន • បូកចូលប្រាក់ខែស្វ័យប្រវត្តិ (+ ជំនួសវេន)' 
-                    : 'For official Clean24 employees. Default rate $6/shift. Automatically added to monthly payroll.'}
+                    ? 'សម្រាប់បុគ្គលិកផ្លូវការ (TC Staff) • បូកចូលប្រាក់ខែស្វ័យប្រវត្តិ (+ ជំនួសវេន)' 
+                    : 'For official TC Staff employees. Automatically added to monthly payroll.'}
                 </p>
               </div>
 
@@ -1858,7 +1858,7 @@ export default function SalaryManagementView({
                 {lang === 'kh' ? 'ចំណាយបុគ្គលិក / បុគ្គលិកចេញលុយផ្ទាល់ខ្លួនមុន (Staff Expense Reimbursement)' : 'Staff Expense Reimbursements'}
               </h3>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                {lang === 'kh' ? 'ទិញសាប៊ូ ទឹកក្រអូប ថង់ ឬជួសជុលហាង • មិនមែនជាការកាត់ប្រាក់ទេ គឺជាប្រាក់ដែលហាងជំពាក់បុគ្គលិក' : 'Money Clean24 owes the employee for purchases made.'}
+                {lang === 'kh' ? 'ទិញសាប៊ូ ទឹកក្រអូប ថង់ ឬជួសជុលហាង • មិនមែនជាការកាត់ប្រាក់ទេ គឺជាប្រាក់ដែលហាងជំពាក់បុគ្គលិក' : 'Money the store owes the employee for purchases made.'}
               </p>
             </div>
 
@@ -1964,7 +1964,7 @@ export default function SalaryManagementView({
                 {lang === 'kh' ? 'វត្តមាន និងការឈប់សម្រាកបុគ្គលិក (Attendance & Leaves)' : 'Attendance & Leave Deductions'}
               </h3>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                {lang === 'kh' ? 'ស្តង់ដារ Clean24៖ កាត់ $6 ក្នុង ១វេន • ចុច «បញ្ជាក់ថ្ងៃឈប់» ដើម្បីកត់ត្រាកាលបរិច្ឆេទឈប់ជាក់ស្តែង' : 'Clean24 Standard: $6 per shift deduction (Days absent × $6)'}
+                {lang === 'kh' ? 'កត់ត្រាការកាត់ប្រាក់ឈប់សម្រាក • ចុច «បញ្ជាក់ថ្ងៃឈប់» ដើម្បីកត់ត្រាកាលបរិច្ឆេទឈប់ជាក់ស្តែង' : 'Standard leave deduction per shift (Days absent × $6)'}
               </p>
             </div>
           </div>
@@ -1987,7 +1987,7 @@ export default function SalaryManagementView({
                   <tr key={row.staff.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="py-3 px-3.5 font-bold text-slate-900">{row.staff.fullName}</td>
                     <td className="py-3 px-3 text-right font-mono text-slate-600">${row.baseSalary}</td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-700">$6 / វេន</td>
+                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-700">${row.shiftRate || 6} / វេន</td>
                     <td className="py-3 px-3 text-right font-mono font-bold text-amber-700">{row.leaveDays} ថ្ងៃ</td>
                     <td className="py-3 px-3">
                       {row.leaveDates && row.leaveDates.length > 0 ? (
@@ -2303,7 +2303,7 @@ export default function SalaryManagementView({
                   {lang === 'kh' ? 'កត់ត្រាជំនួសវេន / វេនបន្ថែម' : 'Record Shift Cover'}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {lang === 'kh' ? 'សម្រាប់បុគ្គលិកផ្លូវការ • ១វេន = $6' : 'For Clean24 Staff • $6/shift'}
+                  {lang === 'kh' ? 'សម្រាប់បុគ្គលិកផ្លូវការ ' : 'For Official Staff '}
                 </p>
               </div>
               <button onClick={() => setShowExtraShiftModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
@@ -2444,7 +2444,7 @@ export default function SalaryManagementView({
                   {lang === 'kh' ? 'គ្រប់គ្រងអ្នកជំនួសវេនក្រៅ / បណ្តោះអាសន្ន (Temp Shift Covers)' : 'External Temp Shift Covers'}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {lang === 'kh' ? '១វេន = $6 • មិនបូកចូលបញ្ជីបុគ្គលិកផ្លូវការឡើយ • ពេលទូទាត់ប្រាក់ នឹងបង្ហាញក្នុងប្រវត្តិទូទាត់ប្រចាំខែស្វ័យប្រវត្តិ' : 'External workers • 1 shift = $6 • Included in monthly payout history upon payment'}
+                  {lang === 'kh' ? 'មិនបូកចូលបញ្ជីបុគ្គលិកផ្លូវការឡើយ • ពេលទូទាត់ប្រាក់ នឹងបង្ហាញក្នុងប្រវត្តិទូទាត់ប្រចាំខែស្វ័យប្រវត្តិ' : 'External workers • Included in monthly payout history upon payment'}
                 </p>
               </div>
               <button onClick={() => setShowTempModal(false)} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer">
@@ -2678,7 +2678,7 @@ export default function SalaryManagementView({
                   {lang === 'kh' ? 'កត់ត្រាចំណាយបុគ្គលិក' : 'Record Staff Expense'}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {lang === 'kh' ? 'បុគ្គលិកចេញលុយផ្ទាល់ខ្លួនទិញអីវ៉ាន់ឱ្យ Clean24' : 'Personal money spent for Clean24'}
+                  {lang === 'kh' ? 'បុគ្គលិកចេញលុយផ្ទាល់ខ្លួនទិញអីវ៉ាន់ឱ្យហាង (TC Staff)' : 'Personal money spent for store'}
                 </p>
               </div>
               <button onClick={() => setShowExpenseModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
@@ -3037,7 +3037,7 @@ export default function SalaryManagementView({
               </div>
 
               <div className="p-3 bg-rose-50 rounded-xl border border-rose-200/80 flex items-center justify-between text-xs font-bold text-rose-900">
-                <span>{lang === 'kh' ? 'ប្រាក់ត្រូវកាត់ ($6/វេន):' : 'Total Deduction ($6/shift):'}</span>
+                <span>{lang === 'kh' ? 'ប្រាក់ត្រូវកាត់ (Deduction):' : 'Total Deduction:'}</span>
                 <span className="text-sm font-black font-mono text-rose-700">-${leaveDaysInput * 6} ({leaveDaysInput} វេន × $6)</span>
               </div>
 

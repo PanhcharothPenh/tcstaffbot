@@ -473,7 +473,7 @@ export default function TelegramSettingsView({
                 value={groupName}
                 onChange={e => setGroupName(e.target.value)}
                 disabled={!hasConfigurePermission}
-                placeholder="e.g. Clean24 Operations Room"
+                placeholder="e.g. TC Staff Operations Room"
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:bg-white"
               />
             </div>

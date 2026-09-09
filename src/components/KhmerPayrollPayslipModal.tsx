@@ -365,7 +365,7 @@ export default function KhmerPayrollPayslipModal({
                 {extraShiftAmount > 0 && (
                   <div className="flex justify-between items-center py-0.5 text-sky-900">
                     <span>
-                      • ជំនួសវេន ($6/វេន)
+                      • ជំនួសវេន (Shift Cover)
                       {extraShiftCount > 0 && <span className="text-slate-500 ml-1">({extraShiftCount} វេន)</span>}
                     </span>
                     <span className="font-bold text-sky-700">+${extraShiftAmount.toFixed(2)}</span>
@@ -407,7 +407,7 @@ export default function KhmerPayrollPayslipModal({
                   <div className="py-0.5 text-rose-900 space-y-0.5">
                     <div className="flex justify-between items-center">
                       <span>
-                        • ឈប់សម្រាក ($6/វេន)
+                        • ឈប់សម្រាក (Absence Deduction)
                         {leaveDays > 0 && <span className="text-slate-500 ml-1">({leaveDays} វេន)</span>}
                       </span>
                       <span className="font-bold text-rose-600">-${leaveDeduction.toFixed(2)}</span>

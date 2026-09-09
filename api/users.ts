@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import dns from 'dns/promises';
 
 let lastUsersErrorTime = 0;
 
@@ -47,13 +46,21 @@ async function loadUsers(): Promise<any[]> {
 async function saveUsers(users: any[]) {
   const supabase = await getSupabase();
   if (supabase) {
+    const payload = {
+      id: 'users',
+      data: users,
+      updated_at: new Date().toISOString()
+    };
     try {
-      await supabase.from('clean24_collections').upsert({
-        id: 'users',
-        data: users,
-        updated_at: new Date().toISOString()
-      });
-    } catch (e) {}
+      await supabase.from('tc_collections').upsert(payload);
+    } catch (e) {
+      console.warn('[users.ts] Failed to upsert to tc_collections:', e);
+    }
+    try {
+      await supabase.from('clean24_collections').upsert(payload);
+    } catch (e) {
+      console.warn('[users.ts] Failed to upsert to clean24_collections:', e);
+    }
   }
 }
 
@@ -82,8 +89,12 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({ success: true, users });
   }
 
+  let body = req.body || {};
+  if (typeof body === 'string') {
+    try { body = JSON.parse(body); } catch (e) {}
+  }
+
   if (req.method === 'POST') {
-    const body = req.body || {};
     const newUsername = String(body.username || '').trim().toLowerCase();
 
     if (!newUsername) {
@@ -120,7 +131,7 @@ export default async function handler(req: any, res: any) {
     const idx = users.findIndex(u => u.id === targetId);
     if (idx === -1) return res.status(404).json({ error: 'User not found' });
 
-    users[idx] = { ...users[idx], ...req.body, id: targetId, updatedAt: new Date().toISOString() };
+    users[idx] = { ...users[idx], ...body, id: targetId, updatedAt: new Date().toISOString() };
     await saveUsers(users);
     return res.status(200).json({ success: true, user: users[idx] });
   }
@@ -130,7 +141,7 @@ export default async function handler(req: any, res: any) {
     const idx = users.findIndex(u => u.id === targetId);
     if (idx === -1) return res.status(404).json({ error: 'User not found' });
 
-    users[idx].status = req.body?.status || (users[idx].status === 'Active' ? 'Locked' : 'Active');
+    users[idx].status = body?.status || (users[idx].status === 'Active' ? 'Locked' : 'Active');
     users[idx].updatedAt = new Date().toISOString();
     await saveUsers(users);
     return res.status(200).json({ success: true, user: users[idx] });

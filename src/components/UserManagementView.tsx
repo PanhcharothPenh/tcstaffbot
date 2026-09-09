@@ -64,7 +64,12 @@ export default function UserManagementView({
   // Loading & Data States
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<User[]>(() => {
+    if (Array.isArray(initialExternalUsers) && initialExternalUsers.length > 0) {
+      return initialExternalUsers;
+    }
+    return userApi.getCachedUsers ? userApi.getCachedUsers() : [];
+  });
   const [roles, setRoles] = useState<RoleDefinition[]>(FALLBACK_ROLES);
   const [permissions, setPermissions] = useState<Permission[]>(FALLBACK_PERMISSIONS);
 

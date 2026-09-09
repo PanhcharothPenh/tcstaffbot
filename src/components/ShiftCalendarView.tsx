@@ -297,7 +297,7 @@ export default function ShiftCalendarView({
             className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
           >
             <ArrowRightLeft size={14} />
-            {lang === 'en' ? 'Assign Shift Cover (+$6)' : 'ចាត់ចែងជំនួសវេន (+$6)'}
+            {lang === 'en' ? 'Assign Shift Cover' : 'ចាត់ចែងជំនួសវេន'}
           </button>
 
           <button
@@ -363,7 +363,7 @@ export default function ShiftCalendarView({
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span> 🌅 {lang === 'en' ? 'Morning' : 'ព្រឹក'}</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-sky-500"></span> ☀️ {lang === 'en' ? 'Afternoon' : 'រសៀល'}</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> 🌙 {lang === 'en' ? 'Night' : 'យប់'}</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> 🔄 {lang === 'en' ? 'Cover (+$6)' : 'ជំនួសវេន (+$6)'}</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> 🔄 {lang === 'en' ? 'Cover' : 'ជំនួសវេន'}</span>
         </div>
       </div>
 
@@ -446,7 +446,7 @@ export default function ShiftCalendarView({
                           </span>
                           
                           <span className="text-[9px] opacity-75 shrink-0">
-                            {s.isCover ? '+$6' : (isPresent ? '✓' : isAbsent ? '✗' : '')}
+                            {s.isCover ? (lang === 'kh' ? 'ជំនួស' : 'Cover') : (isPresent ? '✓' : isAbsent ? '✗' : '')}
                           </span>
                         </div>
                       );
@@ -505,7 +505,7 @@ export default function ShiftCalendarView({
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">
-                  👤 {lang === 'en' ? 'Employee Working (Receives +$6)' : 'បុគ្គលិកដែលមកធ្វើការ (អ្នកទទួលបាន +$6)'}
+                  👤 {lang === 'en' ? 'Employee Working (Receives Cover Payout)' : 'បុគ្គលិកដែលមកធ្វើការ (អ្នកទទួលបានប្រាក់ជំនួសវេន)'}
                 </label>
                 <select
                   value={swapStaffId}
@@ -562,7 +562,7 @@ export default function ShiftCalendarView({
                     💵 {lang === 'en' ? 'Shift Rate' : 'កម្រៃវេន'}
                   </label>
                   <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl font-black text-emerald-700 text-center">
-                    +$6.00 / វេន
+                    ប្រាក់ជំនួសវេន / Cover Rate
                   </div>
                 </div>
               </div>

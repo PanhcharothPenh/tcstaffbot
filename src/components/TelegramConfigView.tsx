@@ -173,10 +173,10 @@ export default function TelegramConfigView({
         body: JSON.stringify({
           branchId,
           chatId: targetChatId,
-          message: `🔔 <b>[Clean24] សារសាកល្បងតេស្តប្រព័ន្ធ (Test Alert)</b>\n\n` +
+          message: `🔔 <b>[TC Staff] សារសាកល្បងតេស្តប្រព័ន្ធ (Test Alert)</b>\n\n` +
             `🏢 <b>សាខា:</b> ${bName}\n` +
             `⏰ <b>ម៉ោង:</b> <code>${new Date().toLocaleTimeString()}</code>\n` +
-            `✅ ការតភ្ជាប់រវាង Clean24 App និង Telegram Chat ដំណើរការយ៉ាងរលូន ១០០%!`
+            `✅ ការតភ្ជាប់រវាង TC Staff App និង Telegram Chat ដំណើរការយ៉ាងរលូន ១០០%!`
         })
       });
       const data = await res.json();

@@ -627,7 +627,7 @@ export default function TelegramSchedulesView({ branches }: TelegramSchedulesVie
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-slate-400">Branch Attached:</span>
-                      <strong className="text-slate-700 font-medium">{r.branchId === 'all' ? '🌐 All Clean24' : (bObj?.branchName || 'Assigned Branch')}</strong>
+                      <strong className="text-slate-700 font-medium">{r.branchId === 'all' ? '🌐 All Branches' : (bObj?.branchName || 'Assigned Branch')}</strong>
                     </div>
 
                     <div className="flex items-center gap-1.5 ml-auto mt-2.5 pt-1.5 border-t border-dashed border-slate-100 w-full justify-end">

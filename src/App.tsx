@@ -512,6 +512,7 @@ export default function App() {
         const payload = {
           branches,
           staff,
+          users,
           salaries,
           salarySchedules,
           salaryAdvances,
@@ -559,7 +560,7 @@ export default function App() {
       window.removeEventListener('pagehide', handleBeforeUnloadFlush);
     };
   }, [
-    branches, staff, salaries, salarySchedules, salaryAdvances,
+    branches, staff, users, salaries, salarySchedules, salaryAdvances,
     attendance, incomes, expenses, inventory, machines,
     coinTransactions, revenueRecords, gasRecords, detergentRecords,
     softenerRecords, stockTransactions, suppliers, debts, debtPayments,
@@ -572,6 +573,7 @@ export default function App() {
     const payload = {
       branches,
       staff,
+      users,
       salaries,
       salarySchedules,
       salaryAdvances,
@@ -615,7 +617,8 @@ export default function App() {
   }, [
     branches,
     staff,
-    salaries,
+      users,
+      salaries,
     salarySchedules,
     salaryAdvances,
     attendance,
