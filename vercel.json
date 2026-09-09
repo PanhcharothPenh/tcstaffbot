@@ -3,31 +3,31 @@
   "rewrites": [
     {
       "source": "/api/auth/login",
-      "destination": "/api/auth/login"
+      "destination": "/api/auth-login"
     },
     {
       "source": "/api/auth/verify-2fa",
-      "destination": "/api/auth/verify-2fa"
+      "destination": "/api/auth-verify-2fa"
     },
     {
       "source": "/api/auth/me",
-      "destination": "/api/auth/me"
+      "destination": "/api/auth-me"
     },
     {
       "source": "/api/auth/logout",
-      "destination": "/api/auth/logout"
+      "destination": "/api/auth-logout"
     },
     {
       "source": "/api/auth/refresh-token",
-      "destination": "/api/auth/refresh-token"
+      "destination": "/api/auth-refresh-token"
     },
     {
       "source": "/api/auth/forgot-password",
-      "destination": "/api/auth/forgot-password"
+      "destination": "/api/auth-forgot-password"
     },
     {
       "source": "/api/auth/reset-password",
-      "destination": "/api/auth/reset-password"
+      "destination": "/api/auth-reset-password"
     },
     {
       "source": "/api/permissions",
