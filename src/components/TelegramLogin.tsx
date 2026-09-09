@@ -107,7 +107,7 @@ export default function TelegramLogin({ onLoginSuccess, lang: propLang, setLang:
       setMfaRequired(true);
       setMfaToken(mfaTok);
       if (result?.dispatched) {
-        setSuccess(result.telegramNotice || (lang === 'en' ? '2FA PIN sent to your Telegram!' : 'លេខកូដ 2FA ត្រូវបានផ្ញើទៅកាន់ Telegram របស់អ្នករួចរាល់ហើយ!'));
+        setSuccess(null);
         setError(null);
       } else {
         setError(result?.telegramNotice || (lang === 'en' ? 'Could not reach Telegram. Please press /start on the bot.' : 'រកមិនឃើញគណនី Telegram របស់អ្នកឡើយ។ សូមបើក Telegram រួចចុច /start លើ Bot ជាមុនសិន។'));
@@ -210,7 +210,7 @@ export default function TelegramLogin({ onLoginSuccess, lang: propLang, setLang:
         setMfaToken(loginData.mfaToken);
       }
       if (loginData?.dispatched) {
-        setSuccess(loginData.telegramNotice || (lang === 'en' ? 'New 2FA PIN dispatched to your Telegram!' : 'លេខកូដសុវត្ថិភាព 2FA ថ្មីត្រូវបានផ្ញើទៅកាន់ Telegram រួចរាល់!'));
+        setSuccess(null);
         setError(null);
       } else {
         setError(loginData?.telegramNotice || (lang === 'en' ? 'Could not dispatch 2FA to Telegram. Please press /start on the bot first.' : 'មិនអាចផ្ញើលេខកូដទៅ Telegram បានទេ។ សូមចុច /start លើ Bot ជាមុនសិន។'));
@@ -294,7 +294,7 @@ export default function TelegramLogin({ onLoginSuccess, lang: propLang, setLang:
               <span>{error}</span>
             </div>
           )}
-          {success && (
+          {!mfaRequired && success && (
             <div className="bg-emerald-50/90 border border-emerald-200 rounded-2xl p-3.5 text-emerald-700 text-xs font-medium flex items-start gap-2.5 shadow-xs text-left" id="login_success_alert">
               <Check size={14} className="text-emerald-600 mt-0.5 flex-shrink-0" />
               <span>{success}</span>

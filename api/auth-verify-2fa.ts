@@ -134,6 +134,62 @@ export default async function handler(req: any, res: any) {
     const accessToken = createSessionToken(resolvedUser);
     const refreshToken = createSessionToken(resolvedUser);
 
+    // Dispatch Telegram Login Notification
+    try {
+      const botToken = (
+        process.env.TELEGRAM_BOT_TOKEN_COFFEE ||
+        process.env.TELEGRAM_BOT_TOKEN ||
+        process.env.TELEGRAM_BOT_TOKEN_CODE ||
+        process.env.BOT_TOKEN ||
+        process.env.TELEGRAM_BOT_TOKEN_ATTENDANCE ||
+        ''
+      ).trim();
+
+      let notifyChatId = String(resolvedUser.telegramChatId || '').trim();
+      if ((!notifyChatId || !/^-?\d+$/.test(notifyChatId)) && supabase) {
+        let { data: cfgRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
+        if (!cfgRow || !cfgRow.data) {
+          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
+          if (alt.data) cfgRow = alt;
+        }
+        if (cfgRow?.data?.chatIds?.owner) notifyChatId = String(cfgRow.data.chatIds.owner);
+        if (!notifyChatId && cfgRow?.data?.lastPrivateChatId) notifyChatId = String(cfgRow.data.lastPrivateChatId);
+      }
+      if (!notifyChatId && process.env.TELEGRAM_CHAT_ID && /^-?\d+$/.test(process.env.TELEGRAM_CHAT_ID)) {
+        notifyChatId = process.env.TELEGRAM_CHAT_ID;
+      }
+
+      if (botToken && notifyChatId) {
+        const phnomPenhTime = new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Asia/Phnom_Penh',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        }).format(new Date());
+
+        const loginNoticeText = `✅ <b>[TC Staff Management - ចូលប្រើប្រាស់ជោគជ័យ]</b>\n\n` +
+          `👤 <b>គណនី:</b> <b>${resolvedUser.fullName || resolvedUser.username}</b> (${resolvedUser.role || 'Administrator'})\n` +
+          `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhTime}</code>\n` +
+          `🌐 <b>ប្រព័ន្ធ:</b> TC Staff Management Web Portal\n` +
+          `🛡️ <b>ស្ថានភាព:</b> បានផ្ទៀងផ្ទាត់ 2FA ជោគជ័យ (Authorized Session)\n\n` +
+          `🔔 <i>គណនីនេះទើបតែបាន Login ចូលកាន់ផ្ទាំងគ្រប់គ្រង TC Staff Management ដោយជោគជ័យ។</i>`;
+
+        fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: notifyChatId,
+            text: loginNoticeText,
+            parse_mode: 'HTML'
+          })
+        }).catch(() => {});
+      }
+    } catch (_) {}
+
     return res.status(200).json({
       success: true,
       accessToken,

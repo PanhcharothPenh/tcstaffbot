@@ -45,18 +45,34 @@ export default async function handler(req: any, res: any) {
     ''
   ).trim();
 
-  // 2. Fetch Config & Recipients from Supabase
+  // 2. Fetch Config, Recipients, and Chat Registry from Supabase
   const supabase = getSupabase();
   let storedConfig: any = null;
   let recipientsList: any[] = [];
+  let chatRegistry: any[] = [];
+  let allUsers: any[] = [];
 
   if (supabase) {
     try {
-      const { data: cfg } = await supabase.from('clean24_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
+      let { data: cfg } = await supabase.from('tc_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
+      if (!cfg || !cfg.data) {
+        const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
+        if (alt.data) cfg = alt;
+      }
       if (cfg && cfg.data) storedConfig = cfg.data;
 
-      const { data: recs } = await supabase.from('clean24_collections').select('data').eq('id', 'telegramRecipients').maybeSingle();
+      let { data: recs } = await supabase.from('tc_collections').select('data').eq('id', 'telegramRecipients').maybeSingle();
+      if (!recs || !recs.data) {
+        const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegramRecipients').maybeSingle();
+        if (alt.data) recs = alt;
+      }
       if (recs && Array.isArray(recs.data)) recipientsList = recs.data;
+
+      let { data: reg } = await supabase.from('tc_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
+      if (reg && Array.isArray(reg.data)) chatRegistry = reg.data;
+
+      let { data: uData } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
+      if (uData && Array.isArray(uData.data)) allUsers = uData.data;
     } catch (e) {
       console.warn('Supabase fetch error in telegram-trigger-instant:', e);
     }
@@ -144,13 +160,30 @@ export default async function handler(req: any, res: any) {
     }
   }
 
-  // Admin & Owner fallbacks ONLY if no branch-specific chat was resolved
-  if (targetChatIds.size === 0) {
-    if (storedConfig?.chatIds?.admin) targetChatIds.add(String(storedConfig.chatIds.admin).trim());
-    if (storedConfig?.chatIds?.owner) targetChatIds.add(String(storedConfig.chatIds.owner).trim());
-    if (process.env.TELEGRAM_CHAT_ID) targetChatIds.add(process.env.TELEGRAM_CHAT_ID.trim());
-    if (process.env.TELEGRAM_GROUP_ID) targetChatIds.add(process.env.TELEGRAM_GROUP_ID.trim());
-    if (process.env.CHAT_ID) targetChatIds.add(process.env.CHAT_ID.trim());
+  // Always include Owner / Executive Admin for critical business notifications (Sales, Stock, Payroll)
+  const ownerChat = storedConfig?.chatIds?.owner || storedConfig?.lastPrivateChatId || storedConfig?.chatIds?.admin;
+  if (ownerChat && /^-?\d+$/.test(String(ownerChat))) {
+    targetChatIds.add(String(ownerChat).trim());
+  }
+
+  // Also check chatRegistry for owner
+  if (chatRegistry.length > 0) {
+    const ownerReg = chatRegistry.find((r: any) => r.isOwner || r.username === 'roth' || r.username === 'millerppc') || chatRegistry[chatRegistry.length - 1];
+    if (ownerReg?.chatId && /^-?\d+$/.test(String(ownerReg.chatId))) {
+      targetChatIds.add(String(ownerReg.chatId).trim());
+    }
+  }
+
+  // Also check users collection for owner's telegramChatId
+  if (allUsers.length > 0) {
+    const dbOwner = allUsers.find((u: any) => u.id === 'usr_owner' || u.username === 'roth' || u.role === 'Owner');
+    if (dbOwner?.telegramChatId && /^-?\d+$/.test(String(dbOwner.telegramChatId))) {
+      targetChatIds.add(String(dbOwner.telegramChatId).trim());
+    }
+  }
+
+  if (process.env.TELEGRAM_CHAT_ID && /^-?\d+$/.test(process.env.TELEGRAM_CHAT_ID)) {
+    targetChatIds.add(process.env.TELEGRAM_CHAT_ID.trim());
   }
 
   // 4. Construct message text

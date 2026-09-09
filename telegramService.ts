@@ -75,14 +75,15 @@ export function resolveTelegramBotToken(customToken?: string, branchId?: string,
 
   const config = getTelegramConfig();
   return (
+    process.env.TELEGRAM_BOT_TOKEN_COFFEE ||
+    process.env.TELEGRAM_BOT_TOKEN ||
+    process.env.TELEGRAM_BOT_TOKEN_CODE ||
+    process.env.BOT_TOKEN ||
     process.env.TELEGRAM_BOT_TOKEN_VENG_SRENG ||
     process.env.TELEGRAM_BOT_TOKEN_CHOMKA_DOUNG ||
     process.env.TELEGRAM_BOT_TOKEN_ATTENDANCE ||
     process.env.TELEGRAM_BOT_TOKEN_ATTENDENT ||
     process.env.TELEGRAM_ATTENDANCE_BOT_TOKEN ||
-    process.env.TELEGRAM_BOT_TOKEN ||
-    process.env.TELEGRAM_BOT_TOKEN_CODE ||
-    process.env.BOT_TOKEN ||
     config.botToken ||
     ''
   ).trim();

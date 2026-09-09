@@ -36,29 +36,53 @@ export default async function handler(req: any, res: any) {
       botToken = process.env.TELEGRAM_BOT_TOKEN_CHOMKA_DOUNG || '';
     }
     if (!botToken) {
-      botToken = 
-        process.env.TELEGRAM_BOT_TOKEN_VENG_SRENG ||
-        process.env.TELEGRAM_BOT_TOKEN_CHOMKA_DOUNG ||
-        process.env.TELEGRAM_BOT_TOKEN_ATTENDANCE ||
-        process.env.TELEGRAM_BOT_TOKEN_ATTENDENT ||
-        process.env.TELEGRAM_ATTENDANCE_BOT_TOKEN ||
+      botToken = (
+        process.env.TELEGRAM_BOT_TOKEN_COFFEE ||
         process.env.TELEGRAM_BOT_TOKEN ||
         process.env.TELEGRAM_BOT_TOKEN_CODE ||
         process.env.BOT_TOKEN ||
-        '';
+        process.env.TELEGRAM_BOT_TOKEN_ATTENDANCE ||
+        process.env.TELEGRAM_BOT_TOKEN_VENG_SRENG ||
+        process.env.TELEGRAM_BOT_TOKEN_CHOMKA_DOUNG ||
+        ''
+      ).trim();
     }
 
     const supabase = getSupabase();
     let allStaff: any[] = [];
     let allUsers: any[] = [];
+    let storedConfig: any = null;
+    let chatRegistry: any[] = [];
 
     if (supabase) {
       try {
-        const { data: sData } = await supabase.from('clean24_collections').select('data').eq('id', 'staff').maybeSingle();
+        let { data: sData } = await supabase.from('tc_collections').select('data').eq('id', 'staff').maybeSingle();
+        if (!sData || !sData.data) {
+          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'staff').maybeSingle();
+          if (alt.data) sData = alt;
+        }
         if (sData && Array.isArray(sData.data)) allStaff = sData.data;
 
-        const { data: uData } = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
+        let { data: uData } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
+        if (!uData || !uData.data) {
+          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
+          if (alt.data) uData = alt;
+        }
         if (uData && Array.isArray(uData.data)) allUsers = uData.data;
+
+        let { data: cfgData } = await supabase.from('tc_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
+        if (!cfgData || !cfgData.data) {
+          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
+          if (alt.data) cfgData = alt;
+        }
+        if (cfgData?.data) storedConfig = cfgData.data;
+
+        let { data: regData } = await supabase.from('tc_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
+        if (!regData || !regData.data) {
+          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
+          if (alt.data) regData = alt;
+        }
+        if (regData && Array.isArray(regData.data)) chatRegistry = regData.data;
       } catch (e) {
         console.warn('Supabase fetch collections warning:', e);
       }
@@ -104,19 +128,33 @@ export default async function handler(req: any, res: any) {
         targetRecipientLabel = `Staff (${destinationChatId || 'គ្មាន Telegram'})`;
       }
     } else if (target === 'admin') {
-      destinationChatId = process.env.TELEGRAM_CHAT_ID || '';
       const ownerUser = allUsers.find((u: any) => u.role === 'Owner' || u.id === 'usr_owner');
-      if (ownerUser?.telegramChatId && !ownerUser.telegramChatId.startsWith('@')) {
+      if (ownerUser?.telegramChatId && /^-?\d+$/.test(ownerUser.telegramChatId)) {
         destinationChatId = ownerUser.telegramChatId;
       }
-      targetRecipientLabel = `Admin / Group Notification (${destinationChatId || 'Default'})`;
+      if (!destinationChatId && storedConfig?.chatIds?.owner) {
+        destinationChatId = String(storedConfig.chatIds.owner);
+      }
+      if (!destinationChatId && storedConfig?.lastPrivateChatId) {
+        destinationChatId = String(storedConfig.lastPrivateChatId);
+      }
+      if (!destinationChatId && chatRegistry.length > 0) {
+        const ownerReg = chatRegistry.find((r: any) => r.isOwner || r.username === 'roth' || r.username === 'millerppc') || chatRegistry[chatRegistry.length - 1];
+        if (ownerReg?.chatId) destinationChatId = String(ownerReg.chatId);
+      }
+      if (!destinationChatId) {
+        destinationChatId = process.env.TELEGRAM_CHAT_ID || '';
+      }
+      targetRecipientLabel = `Admin / TC Staff Bot (${destinationChatId || 'Default'})`;
     } else if (target === 'custom') {
       destinationChatId = customChatId || '';
       targetRecipientLabel = `Custom Chat (${destinationChatId})`;
     }
 
     if (!destinationChatId) {
-      destinationChatId = process.env.TELEGRAM_CHAT_ID || '';
+      if (storedConfig?.chatIds?.owner) destinationChatId = String(storedConfig.chatIds.owner);
+      else if (chatRegistry.length > 0) destinationChatId = String(chatRegistry[chatRegistry.length - 1].chatId);
+      else destinationChatId = process.env.TELEGRAM_CHAT_ID || '';
       targetRecipientLabel = `Admin (${destinationChatId || 'Default'})`;
     }
 
