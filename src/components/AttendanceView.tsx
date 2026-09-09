@@ -603,19 +603,25 @@ export default function AttendanceView({
 
       let msg = '';
       if (telegramTarget === 'staff' && targetStaff) {
-        msg = `📊 <b>[Cafe - របាយការណ៍វត្តមានប្រចាំខែ / Monthly Attendance]</b>\n\n` +
-          `👤 <b>បុគ្គលិក:</b> ${targetStaff.fullName} (${targetStaff.position || 'Staff'})\n` +
+        const daysWorked = staffStats ? staffStats.daysWorked : printableTotals.totalDays;
+        const totalWorkHours = staffStats ? formatWorkDuration(staffStats.totalWorkHours, 'kh') : formatWorkDuration(printableTotals.totalWorkHours, 'kh');
+        const totalOtHours = staffStats ? staffStats.totalOtHours : printableTotals.totalOtHours;
+        const presentCount = staffStats ? staffStats.presentCount : printableTotals.presentCount;
+        const lateCount = staffStats ? staffStats.lateCount : printableTotals.lateCount;
+        const absentCount = staffStats ? staffStats.absentCount : printableTotals.absentCount;
+
+        msg = `📊 <b>របាយការណ៍វត្តមានប្រចាំខែ</b>\n\n` +
+          `👤 <b>បុគ្គលិក:</b> ${targetStaff.fullName}\n` +
+          `💼 <b>តួនាទី:</b> ${targetStaff.position || 'Staff'}\n` +
           `🏢 <b>សាខា:</b> ${targetBranch?.branchName || 'toto by Chichi'}\n` +
-          `📅 <b>រយៈពេល:</b> ${periodStr}\n\n` +
-          `━━━━━━━━━━━━━━━━━━\n` +
-          `✅ <b>ថ្ងៃធ្វើការសរុប:</b> <b>${staffStats ? staffStats.daysWorked : printableTotals.totalDays} ថ្ងៃ</b>\n` +
-          `⏱️ <b>ម៉ោងបំពេញការងារសរុប:</b> <b>${staffStats ? formatWorkDuration(staffStats.totalWorkHours, 'kh') : formatWorkDuration(printableTotals.totalWorkHours, 'kh')}</b>\n` +
-          `⚡ <b>ម៉ោងបន្ថែម (OT):</b> <b>${staffStats ? staffStats.totalOtHours : printableTotals.totalOtHours}h</b>\n` +
-          `🎯 <b>ទាន់ពេល:</b> ${staffStats ? staffStats.presentCount : printableTotals.presentCount} ថ្ងៃ | ` +
-          `⚠️ <b>យឺត:</b> ${staffStats ? staffStats.lateCount : printableTotals.lateCount} ថ្ងៃ | ` +
-          `❌ <b>អវត្តមាន:</b> ${staffStats ? staffStats.absentCount : printableTotals.absentCount} ថ្ងៃ\n` +
-          `━━━━━━━━━━━━━━━━━━\n` +
-          `✨ <i>សូមពិនិត្យមើលទិន្នន័យវត្តមាន និងតារាងលម្អិតភ្ជាប់ជាមួយនេះ។ អរគុណសម្រាប់ការបំពេញការងារ!</i>`;
+          `📅 <b>ប្រចាំខែ:</b> ${selectedMonth}/${selectedYear}\n\n` +
+          `📅 <b>ថ្ងៃធ្វើការសរុប:</b> ${daysWorked} ថ្ងៃ\n` +
+          `⏱️ <b>ម៉ោងធ្វើការសរុប:</b> ${totalWorkHours}\n` +
+          `⚡ <b>ម៉ោងបន្ថែម (OT):</b> ${totalOtHours} ម៉ោង\n\n` +
+          `🟢 <b>ទាន់ពេល:</b> ${presentCount} ថ្ងៃ\n` +
+          `🟠 <b>មកយឺត:</b> ${lateCount} ថ្ងៃ\n` +
+          `🔴 <b>អវត្តមាន:</b> ${absentCount} ថ្ងៃ`;
+      } else {
         msg = `📊 <b>របាយការណ៍វត្តមានសរុប</b>\n\n` +
           `🏢 <b>សាខា:</b> ${targetBranch ? targetBranch.branchName : 'គ្រប់សាខាទាំងអស់'}\n` +
           `📅 <b>ប្រចាំខែ:</b> ${selectedMonth}/${selectedYear}\n\n` +
