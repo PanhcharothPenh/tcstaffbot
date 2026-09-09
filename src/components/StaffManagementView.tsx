@@ -253,9 +253,9 @@ export default function StaffManagementView({
         userApi.createUser({
           fullName,
           username: userAccountUsername || fullName.toLowerCase().replace(/[^a-z0-9]/g, '_'),
-          email: userAccountEmail || `${fullName.toLowerCase().replace(/[^a-z0-9]/g, '')}@clean24.com`,
+          email: userAccountEmail || `${fullName.toLowerCase().replace(/[^a-z0-9]/g, '')}@tcstaff.com`,
           phone,
-          password: userAccountPassword || 'Clean24@123',
+          password: userAccountPassword || 'TCStaff@123',
           role: userAccountRole as Role,
           assignedBranchIds: userAccountBranches.length > 0 ? userAccountBranches : [branchId],
           status: 'Active',
@@ -721,7 +721,8 @@ export default function StaffManagementView({
               <datalist id="staff_positions_list">
                 <option value="Helper">Helper (បុគ្គលិកទូទៅ)</option>
                 <option value="Cashier">Cashier (គិតលុយ)</option>
-                <option value="Laundry Operator">Laundry Operator (អ្នកបោកគក់)</option>
+                <option value="Barista">Barista (អ្នកឆុងកាហ្វេ)</option>
+                <option value="Senior Barista">Senior Barista (ប្រធានក្រុមឆុង)</option>
                 <option value="Supervisor">Supervisor (ប្រធានផ្នែក)</option>
                 <option value="Manager">Manager (អ្នកគ្រប់គ្រង)</option>
                 <option value="Technician">Technician (ជាងបច្ចេកទេស)</option>
@@ -845,6 +846,68 @@ export default function StaffManagementView({
               </label>
             </div>
           </div>
+
+          {/* User Account Login Creation Box */}
+          {!editingStaff && ['Owner', 'Admin'].includes(currentRole) && (
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="chk_create_user_account"
+                    checked={createUserAccount}
+                    onChange={e => setCreateUserAccount(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <label htmlFor="chk_create_user_account" className="text-xs font-bold text-slate-800 cursor-pointer select-none flex items-center gap-1.5">
+                    <span>🔐 បង្កើតគណនី Login ចូលប្រព័ន្ធជូនបុគ្គលិកនេះ (Create System Login Account)</span>
+                  </label>
+                </div>
+                <span className="text-[11px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                  Staff / Admin
+                </span>
+              </div>
+
+              {createUserAccount && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-200">
+                  <div>
+                    <label className="text-[10.5px] font-bold text-slate-600 block mb-1">ឈ្មោះគណនី (Username) *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. sok_staff"
+                      value={userAccountUsername}
+                      onChange={e => setUserAccountUsername(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-xs rounded-xl p-2 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10.5px] font-bold text-slate-600 block mb-1">លេខសម្ងាត់ (Password) *</label>
+                    <input
+                      type="text"
+                      placeholder="TCStaff@123"
+                      value={userAccountPassword}
+                      onChange={e => setUserAccountPassword(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-xs rounded-xl p-2 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10.5px] font-bold text-slate-600 block mb-1">តួនាទីសិទ្ធិ (System Role) *</label>
+                    <select
+                      value={userAccountRole}
+                      onChange={e => setUserAccountRole(e.target.value)}
+                      className="w-full bg-white border border-slate-200 text-xs rounded-xl p-2 font-bold"
+                    >
+                      <option value="Staff">Staff (បុគ្គលិកទូទៅ)</option>
+                      <option value="Manager">Manager (អ្នកគ្រប់គ្រង)</option>
+                      <option value="Admin">Admin (រដ្ឋបាលប្រព័ន្ធ)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <button

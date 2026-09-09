@@ -122,14 +122,15 @@ export default function Sidebar({
     { id: 'shifts', label: lang === 'en' ? 'Shift Roster Calendar' : 'ប្រតិទិនវេនការងារ', icon: CalendarDays, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
     { id: 'attendance', label: t.attendance, icon: Calendar, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
     { id: 'salary', label: t.salary, icon: DollarSign, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
-    { id: 'branches', label: lang === 'en' ? 'Branch & GPS Setup' : 'សាខា & ទីតាំងស្កេន GPS', icon: MapPin, roles: ['Owner', 'Admin'] }
+    { id: 'branches', label: lang === 'en' ? 'Branch & GPS Setup' : 'សាខា & ទីតាំងស្កេន GPS', icon: MapPin, roles: ['Owner', 'Admin'] },
+    { id: 'users', label: lang === 'en' ? 'User Accounts & Roles' : 'គណនី & សិទ្ធិប្រើប្រាស់', icon: ShieldCheck, roles: ['Owner', 'Admin'] }
   ];
 
   const navGroups = [
     {
       title: lang === 'en' ? 'Staff & Payroll' : 'បុគ្គលិក និងប្រាក់ខែ',
       icon: Users,
-      items: ['staff', 'shifts', 'attendance', 'salary', 'branches']
+      items: ['staff', 'shifts', 'attendance', 'salary', 'branches', 'users']
     }
   ];
 
@@ -225,7 +226,7 @@ export default function Sidebar({
                 <Clean24Logo className="h-10 sm:h-12 cursor-pointer text-[#003D9B] shrink-0" lightMode={true} />
                 <div className="flex flex-col min-w-0">
                   <span className="text-[10px] font-black text-[#003D9B] tracking-tight uppercase block leading-tight font-sans">
-                    P2B Laundry System
+                    TC Staff Management
                   </span>
                 </div>
               </div>

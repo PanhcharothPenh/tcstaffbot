@@ -301,12 +301,12 @@ export default function KhmerPayrollPayslipModal({
             <div className="flex items-center gap-3">
               <img 
                 src="/logo.png" 
-                alt="P2B Laundry System" 
+                alt="TC Staff Management" 
                 className="h-12 w-auto max-h-14 object-contain shrink-0" 
               />
               <div>
                 <div className="text-xs font-black text-[#003D9B] uppercase tracking-wide">
-                  P2B LAUNDRY SYSTEM | {branchName}
+                  TC STAFF MANAGEMENT | {branchName}
                 </div>
                 <h1 className="text-base sm:text-lg font-black text-slate-900 mt-0.5 leading-snug">
                   {lang === 'kh' ? 'បង្កាន់ដៃបើកប្រាក់បៀវត្សរ៍បុគ្គលិក' : 'OFFICIAL SALARY PAYSLIP'}

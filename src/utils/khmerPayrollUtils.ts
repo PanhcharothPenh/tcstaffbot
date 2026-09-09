@@ -298,7 +298,7 @@ export function generatePayslipText(record: any, lang: 'en' | 'kh') {
     : (lang === 'kh' ? '⏳ មិនទាន់ទូទាត់ (PENDING)' : '⏳ PENDING');
 
   let text = `=======================================\n`;
-  text += `   ✨ CLEAN 24 LAUNDRY MANAGEMENT ✨\n`;
+  text += `   ✨ TC STAFF MANAGEMENT ✨\n`;
   text += lang === 'kh' ? `      បង្កាន់ដៃបើកប្រាក់បៀវត្សរ៍បុគ្គលិក\n` : `       OFFICIAL SALARY PAYSLIP\n`;
   text += `=======================================\n`;
   text += `${lang === 'kh' ? 'ឈ្មោះបុគ្គលិក' : 'Employee'}: ${name}\n`;

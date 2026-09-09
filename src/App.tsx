@@ -532,7 +532,7 @@ export default function App() {
       cashDrawers,
       cashDrawerTransactions,
       monthClosings,
-      settings: { shopName: "P2B Laundry System" }
+      settings: { shopName: "TC Staff Management" }
     };
     const serialized = JSON.stringify(payload);
     if (serialized === lastPushedJsonRef.current) return;
@@ -641,7 +641,7 @@ export default function App() {
 
     // Lock non-authorized roles from restricted tabs when swapping
     if (nextRole === 'Staff') {
-      setActiveTab('income'); // staff defaults to daily income laundry book
+      setActiveTab('staff'); // staff defaults to staff profile
       setActiveBranchId('b1'); // staff forced to Toul Kork (b1)
     } else if (nextRole === 'Manager') {
       setActiveBranchId('b1'); // manager restricted to Toul Kork (b1)

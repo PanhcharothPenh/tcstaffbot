@@ -386,7 +386,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
         <div className="flex items-center gap-2.5">
           <img src="/logo.png" alt="Clean24" className="h-8 w-auto object-contain" />
           <div>
-            <div className="text-[11px] font-black text-[#003D9B] uppercase leading-none">P2B LAUNDRY SYSTEM</div>
+            <div className="text-[11px] font-black text-[#003D9B] uppercase leading-none">TC STAFF MANAGEMENT</div>
             <div className="text-xs font-bold text-slate-800 leading-tight mt-0.5">{staffInfo?.fullName || 'Staff Member'}</div>
           </div>
         </div>
@@ -414,7 +414,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
               <div className="flex items-center justify-between text-xs pb-2.5 border-b border-slate-100">
                 <div className="flex items-center gap-1.5 text-slate-600">
                   <Building2 size={14} className="text-[#003D9B]" />
-                  <span className="font-bold">{branchInfo?.branchName || 'Clean24 Laundry'}</span>
+                  <span className="font-bold">{branchInfo?.branchName || 'TC Staff Management'}</span>
                 </div>
                 <div className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
                   {staffInfo?.position || 'Staff'}

@@ -61,7 +61,7 @@ export default function TelegramLogin({ onLoginSuccess, lang: propLang, setLang:
   useEffect(() => {
     const remembered = authApi.getRememberedUser();
     if (remembered) {
-      setUsername(remembered.replace('@laundry.com', ''));
+      setUsername(remembered.replace('@tcstaff.com', ''));
       setRemember(true);
     }
   }, []);
@@ -194,7 +194,7 @@ export default function TelegramLogin({ onLoginSuccess, lang: propLang, setLang:
     setSuccess(null);
     try {
       // Re-trigger login to generate a fresh signed MFA token and dispatch PIN via Telegram
-      const loginRes = await fetch('/api/auth/login', {
+      const loginRes = await fetch('/api/auth-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ usernameOrEmail: username.trim(), password: password.trim() })
@@ -584,7 +584,7 @@ export default function TelegramLogin({ onLoginSuccess, lang: propLang, setLang:
 
       {/* FOOTER COPYRIGHT (MATCHES DESIGN EXACTLY) */}
       <div className="w-full text-center text-[11px] text-slate-400 font-sans tracking-wide z-10 pt-4">
-        © 2026 Clean24 P2B Laundry System. All Rights Reserved.
+        © 2026 TC Staff Management System. All Rights Reserved.
       </div>
 
     </div>
