@@ -150,10 +150,19 @@ async function sendTelegramNotification(token: string, chatId: string, text: str
 
 function parseGoogleMapsString(text: string): { lat: string; lng: string; success: boolean } {
   if (!text) return { lat: '', lng: '', success: false };
-  const raw = text.trim();
+  let raw = '';
+  try {
+    raw = decodeURIComponent(text.trim());
+  } catch (e) {
+    raw = text.trim();
+  }
 
-  // Pattern 1: Direct coordinates e.g. "11.556374, 104.928210"
-  const directMatch = raw.match(/(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/);
+  // Extract URL or target from shared text
+  const urlMatch = raw.match(/https?:\/\/[^\s"'<>]+/);
+  const target = urlMatch ? urlMatch[0] : raw;
+
+  // 1. Direct coordinates e.g. "11.556374, 104.928210" or "11.556374 104.928210"
+  const directMatch = target.match(/(-?\d{1,3}\.\d+)[,\s;]+(-?\d{1,3}\.\d+)/);
   if (directMatch) {
     const lat = parseFloat(directMatch[1]);
     const lng = parseFloat(directMatch[2]);
@@ -162,22 +171,32 @@ function parseGoogleMapsString(text: string): { lat: string; lng: string; succes
     }
   }
 
-  // Pattern 2: @lat,lng
-  const atMatch = raw.match(/@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
+  // 2. Google Maps @lat,lng e.g. /@11.556374,104.928210,17z
+  const atMatch = target.match(/@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
   if (atMatch) {
     return { lat: parseFloat(atMatch[1]).toFixed(6), lng: parseFloat(atMatch[2]).toFixed(6), success: true };
   }
 
-  // Pattern 3: ?q=lat,lng or ?query=lat,lng
-  const qMatch = raw.match(/[?&](?:q|query|ll|center)=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
+  // 3. PB embed !3dlat!4dlng or !3dlat!2dlng
+  const pbMatch = target.match(/!3d(-?\d{1,3}\.\d+)!4d(-?\d{1,3}\.\d+)/) || target.match(/!3d(-?\d{1,3}\.\d+)!2d(-?\d{1,3}\.\d+)/);
+  if (pbMatch) {
+    return { lat: parseFloat(pbMatch[1]).toFixed(6), lng: parseFloat(pbMatch[2]).toFixed(6), success: true };
+  }
+
+  // 4. Query params ?q=lat,lng or ?query=lat,lng or center=lat,lng
+  const qMatch = target.match(/(?:[?&](?:q|query|ll|center|sll|daddr)=|center=)(-?\d{1,3}\.\d+)[,%2C\s]+(-?\d{1,3}\.\d+)/i);
   if (qMatch) {
     return { lat: parseFloat(qMatch[1]).toFixed(6), lng: parseFloat(qMatch[2]).toFixed(6), success: true };
   }
 
-  // Pattern 4: !3dlat!2dlng
-  const pbMatch = raw.match(/!3d(-?\d{1,3}\.\d+)!2d(-?\d{1,3}\.\d+)/);
-  if (pbMatch) {
-    return { lat: parseFloat(pbMatch[1]).toFixed(6), lng: parseFloat(pbMatch[2]).toFixed(6), success: true };
+  // 5. DMS coordinates e.g. 11°33'22.9"N 104°55'41.6"E
+  const dmsMatch = target.match(/(\d+)°(\d+)'([\d.]+)"([NS])[\s,]+(\d+)°(\d+)'([\d.]+)"([EW])/i);
+  if (dmsMatch) {
+    let lat = Number(dmsMatch[1]) + Number(dmsMatch[2])/60 + Number(dmsMatch[3])/3600;
+    let lng = Number(dmsMatch[5]) + Number(dmsMatch[6])/60 + Number(dmsMatch[7])/3600;
+    if (dmsMatch[4].toUpperCase() === 'S') lat = -lat;
+    if (dmsMatch[8].toUpperCase() === 'W') lng = -lng;
+    return { lat: lat.toFixed(6), lng: lng.toFixed(6), success: true };
   }
 
   return { lat: '', lng: '', success: false };
@@ -867,33 +886,72 @@ export default async function handler(req: any, res: any) {
   // 8. RESOLVE GOOGLE MAPS URL / LINK (POST /api/resolve-maps-url)
   if (path === '/api/resolve-maps-url' && req.method === 'POST') {
     try {
-      const { url } = req.body || {};
-      if (!url) return res.status(400).json({ success: false, error: 'url is required' });
+      let body = req.body;
+      if (typeof body === 'string') {
+        try { body = JSON.parse(body); } catch (e) {}
+      }
+      const rawInput = body?.url || req.query?.url || '';
+      if (!rawInput) return res.status(400).json({ success: false, error: 'url is required' });
 
-      // Direct regex parsing
-      const direct = parseGoogleMapsString(url);
+      // Direct regex parsing first
+      const direct = parseGoogleMapsString(rawInput);
       if (direct.success) {
         return res.status(200).json({ success: true, latitude: direct.lat, longitude: direct.lng });
       }
 
-      // Fetch redirected URL if shortened
-      const response = await fetch(url, {
-        redirect: 'follow',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
-      });
+      const urlMatch = String(rawInput).match(/https?:\/\/[^\s"'<>]+/);
+      const targetUrl = urlMatch ? urlMatch[0] : String(rawInput).trim();
 
-      const finalUrl = response.url || '';
-      const finalParsed = parseGoogleMapsString(finalUrl);
-      if (finalParsed.success) {
-        return res.status(200).json({ success: true, latitude: finalParsed.lat, longitude: finalParsed.lng });
+      // Fetch redirected URL if shortened
+      let finalUrl = targetUrl;
+      let html = '';
+      try {
+        const response = await fetch(targetUrl, {
+          redirect: 'follow',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9'
+          }
+        });
+
+        finalUrl = response.url || targetUrl;
+        const redirectParsed = parseGoogleMapsString(finalUrl);
+        if (redirectParsed.success) {
+          return res.status(200).json({ success: true, latitude: redirectParsed.lat, longitude: redirectParsed.lng });
+        }
+
+        html = await response.text();
+      } catch (fErr: any) {
+        console.warn('[resolve-maps-url] fetch notice:', fErr.message);
       }
 
-      const html = await response.text();
-      const htmlParsed = parseGoogleMapsString(html);
-      if (htmlParsed.success) {
-        return res.status(200).json({ success: true, latitude: htmlParsed.lat, longitude: htmlParsed.lng });
+      if (html) {
+        const htmlParsed = parseGoogleMapsString(html);
+        if (htmlParsed.success) {
+          return res.status(200).json({ success: true, latitude: htmlParsed.lat, longitude: htmlParsed.lng });
+        }
+
+        // Check for APP_INITIALIZATION_STATE coordinates [null,null,lat,lng]
+        const stateMatch = html.match(/\[null,null,(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)\]/);
+        if (stateMatch) {
+          return res.status(200).json({ success: true, latitude: Number(stateMatch[1]).toFixed(6), longitude: Number(stateMatch[2]).toFixed(6) });
+        }
+
+        // Check for meta content refresh
+        const metaMatch = html.match(/content="0;url=(https?:\/\/[^"]+)"/i);
+        if (metaMatch) {
+          const metaParsed = parseGoogleMapsString(decodeURIComponent(metaMatch[1]));
+          if (metaParsed.success) {
+            return res.status(200).json({ success: true, latitude: metaParsed.lat, longitude: metaParsed.lng });
+          }
+        }
+
+        // Check for static map center
+        const staticMatch = html.match(/staticmap[^"]*center=(-?\d{1,3}\.\d+)(?:%2C|,)(-?\d{1,3}\.\d+)/i);
+        if (staticMatch) {
+          return res.status(200).json({ success: true, latitude: Number(staticMatch[1]).toFixed(6), longitude: Number(staticMatch[2]).toFixed(6) });
+        }
       }
 
       return res.status(400).json({ success: false, error: 'Could not resolve Google Maps coordinates' });

@@ -66,12 +66,21 @@ export default function BranchManagementView({
   const [googleMapsInput, setGoogleMapsInput] = useState('');
   const [isResolvingMapUrl, setIsResolvingMapUrl] = useState(false);
 
-  const parseGoogleMapsInput = (text: string): { lat: string; lng: string; success: boolean } => {
+    const parseGoogleMapsInput = (text: string): { lat: string; lng: string; success: boolean } => {
     if (!text) return { lat: '', lng: '', success: false };
-    const raw = text.trim();
+    let raw = '';
+    try {
+      raw = decodeURIComponent(text.trim());
+    } catch (e) {
+      raw = text.trim();
+    }
 
-    // 1. Direct coordinates e.g. "11.556374, 104.928210"
-    const directMatch = raw.match(/(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/);
+    // Extract URL or target if there's surrounding text
+    const urlMatch = raw.match(/https?:\/\/[^\s"'<>]+/);
+    const target = urlMatch ? urlMatch[0] : raw;
+
+    // 1. Direct coordinates e.g. "11.556374, 104.928210" or "11.556374 104.928210"
+    const directMatch = target.match(/(-?\d{1,3}\.\d+)[,\s;]+(-?\d{1,3}\.\d+)/);
     if (directMatch) {
       const lat = parseFloat(directMatch[1]);
       const lng = parseFloat(directMatch[2]);
@@ -81,21 +90,31 @@ export default function BranchManagementView({
     }
 
     // 2. Google Maps @lat,lng e.g. /@11.556374,104.928210,17z
-    const atMatch = raw.match(/@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
+    const atMatch = target.match(/@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
     if (atMatch) {
       return { lat: parseFloat(atMatch[1]).toFixed(6), lng: parseFloat(atMatch[2]).toFixed(6), success: true };
     }
 
-    // 3. Query params ?q=lat,lng or ?query=lat,lng
-    const qMatch = raw.match(/[?&](?:q|query|ll|center)=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
+    // 3. PB embed !3dlat!4dlng or !3dlat!2dlng
+    const pbMatch = target.match(/!3d(-?\d{1,3}\.\d+)!4d(-?\d{1,3}\.\d+)/) || target.match(/!3d(-?\d{1,3}\.\d+)!2d(-?\d{1,3}\.\d+)/);
+    if (pbMatch) {
+      return { lat: parseFloat(pbMatch[1]).toFixed(6), lng: parseFloat(pbMatch[2]).toFixed(6), success: true };
+    }
+
+    // 4. Query params ?q=lat,lng or ?query=lat,lng or center=lat,lng
+    const qMatch = target.match(/(?:[?&](?:q|query|ll|center|sll|daddr)=|center=)(-?\d{1,3}\.\d+)[,%2C\s]+(-?\d{1,3}\.\d+)/i);
     if (qMatch) {
       return { lat: parseFloat(qMatch[1]).toFixed(6), lng: parseFloat(qMatch[2]).toFixed(6), success: true };
     }
 
-    // 4. PB embed !3dlat!2dlng
-    const pbMatch = raw.match(/!3d(-?\d{1,3}\.\d+)!2d(-?\d{1,3}\.\d+)/);
-    if (pbMatch) {
-      return { lat: parseFloat(pbMatch[1]).toFixed(6), lng: parseFloat(pbMatch[2]).toFixed(6), success: true };
+    // 5. DMS coordinates e.g. 11°33'22.9"N 104°55'41.6"E
+    const dmsMatch = target.match(/(\d+)°(\d+)'([\d.]+)"([NS])[\s,]+(\d+)°(\d+)'([\d.]+)"([EW])/i);
+    if (dmsMatch) {
+      let lat = Number(dmsMatch[1]) + Number(dmsMatch[2])/60 + Number(dmsMatch[3])/3600;
+      let lng = Number(dmsMatch[5]) + Number(dmsMatch[6])/60 + Number(dmsMatch[7])/3600;
+      if (dmsMatch[4].toUpperCase() === 'S') lat = -lat;
+      if (dmsMatch[8].toUpperCase() === 'W') lng = -lng;
+      return { lat: lat.toFixed(6), lng: lng.toFixed(6), success: true };
     }
 
     return { lat: '', lng: '', success: false };
@@ -114,7 +133,8 @@ export default function BranchManagementView({
     }
 
     // 2. If it's a URL, resolve through API
-    if (val.includes('http://') || val.includes('https://') || val.includes('maps.app.goo.gl') || val.includes('goo.gl/maps')) {
+    const hasUrl = val.includes('http://') || val.includes('https://') || val.includes('goo.gl') || val.includes('google.com/maps') || val.includes('maps.app');
+    if (hasUrl) {
       setIsResolvingMapUrl(true);
       try {
         const res = await fetch('/api/resolve-maps-url', {
@@ -123,7 +143,7 @@ export default function BranchManagementView({
           body: JSON.stringify({ url: val.trim() })
         });
         const data = await res.json();
-        if (data.success && data.latitude && data.longitude) {
+        if (data && data.success && data.latitude && data.longitude) {
           setLatitude(String(data.latitude));
           setLongitude(String(data.longitude));
         }
@@ -179,8 +199,17 @@ export default function BranchManagementView({
     const managerObj = users.find(u => u.id === managerId);
     const mName = managerObj ? managerObj.fullName : 'Unassigned';
 
-    const latNum = latitude ? parseFloat(latitude) : undefined;
-    const lngNum = longitude ? parseFloat(longitude) : undefined;
+    let latNum = latitude ? parseFloat(latitude) : undefined;
+    let lngNum = longitude ? parseFloat(longitude) : undefined;
+
+    // Direct fallback from googleMapsInput if available
+    if (googleMapsInput) {
+      const parsed = parseGoogleMapsInput(googleMapsInput);
+      if (parsed.success) {
+        latNum = parseFloat(parsed.lat);
+        lngNum = parseFloat(parsed.lng);
+      }
+    }
 
     let finalBranches: Branch[] = [];
     if (editingBranch) {
