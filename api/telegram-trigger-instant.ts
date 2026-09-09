@@ -31,6 +31,29 @@ export default async function handler(req: any, res: any) {
     chatId 
   } = req.body || {};
 
+  // 3-4 no need: Disable Daily Sales / Revenue (#3) and Low Stock / Inventory (#4) notifications
+  const cat = String(category || '').toLowerCase().trim();
+  const disabledCategories = [
+    'revenue', 
+    'sales', 
+    'daily-sales', 
+    'daily_sales', 
+    'daily_business', 
+    'dailysummary', 
+    'stock', 
+    'low_stock', 
+    'detergent', 
+    'softener', 
+    'inventory'
+  ];
+  if (disabledCategories.includes(cat)) {
+    return res.status(200).json({ 
+      success: true, 
+      dispatched: false, 
+      message: 'Notification category disabled (Sales & Stock alerts turned off)' 
+    });
+  }
+
   const bId = String(branchId || '').toLowerCase().trim();
   const bName = String(branchName || '').toLowerCase().trim();
   const isToto = bId === 'b1' || bId.includes('toto') || bId.includes('chichi') || bName.includes('toto') || bName.includes('chichi');

@@ -262,17 +262,84 @@ export default async function handler(req: any, res: any) {
   // Helper to save collection
   const saveCollection = async (id: string, list: any[]) => {
     if (!supabase) return false;
+    const item = { id, data: list, updated_at: new Date().toISOString() };
     try {
-      await supabase.from('clean24_collections').upsert({
-        id,
-        data: list,
-        updated_at: new Date().toISOString()
-      });
+      const res = await supabase.from('tc_collections').upsert(item);
+      if (res.error) {
+        await supabase.from('clean24_collections').upsert(item);
+      }
       return true;
     } catch {
-      return false;
+      try {
+        await supabase.from('clean24_collections').upsert(item);
+        return true;
+      } catch {
+        return false;
+      }
     }
   };
+
+  // Helper to resolve assigned admin chat ID for branch
+  const getAssignedAdminChatId = async (branchId?: string, branchName?: string): Promise<string | null> => {
+    try {
+      const allUsers = await getCollection('users');
+      const cfgRaw = await getCollection('telegramConfig');
+      const storedConfig = (Array.isArray(cfgRaw) && cfgRaw[0]) ? cfgRaw[0] : (cfgRaw || {});
+      const chatRegistry = await getCollection('telegram_chat_registry');
+      const bId = String(branchId || '').toLowerCase().trim();
+
+      // 1. Find Admin specifically assigned to this branch
+      if (Array.isArray(allUsers) && bId) {
+        const assignedAdmin = allUsers.find((u: any) => 
+          (u.role === 'Admin' || u.roleId === 'admin') &&
+          u.telegramChatId &&
+          /^-?\d+$/.test(String(u.telegramChatId)) &&
+          Array.isArray(u.assignedBranchIds) &&
+          (u.assignedBranchIds.includes(bId) || u.assignedBranchIds.includes('all'))
+        );
+        if (assignedAdmin) return String(assignedAdmin.telegramChatId);
+      }
+
+      // 2. Check branch-specific admin/manager chat in telegramConfig
+      if (bId && storedConfig?.chatIds?.branches?.[bId] && /^-?\d+$/.test(String(storedConfig.chatIds.branches[bId]))) {
+        return String(storedConfig.chatIds.branches[bId]);
+      }
+      if (bId && storedConfig?.chatIds?.manager?.[bId] && /^-?\d+$/.test(String(storedConfig.chatIds.manager[bId]))) {
+        return String(storedConfig.chatIds.manager[bId]);
+      }
+
+      // 3. Fallback to assigned Owner
+      if (Array.isArray(allUsers)) {
+        const ownerUser = allUsers.find((u: any) => 
+          (u.role === 'Owner' || u.id === 'usr_owner' || u.username === 'roth') &&
+          u.telegramChatId &&
+          /^-?\d+$/.test(String(u.telegramChatId))
+        );
+        if (ownerUser) return String(ownerUser.telegramChatId);
+      }
+
+      if (storedConfig?.chatIds?.owner && /^-?\d+$/.test(String(storedConfig.chatIds.owner))) {
+        return String(storedConfig.chatIds.owner);
+      }
+
+      if (storedConfig?.lastPrivateChatId && /^-?\d+$/.test(String(storedConfig.lastPrivateChatId))) {
+        return String(storedConfig.lastPrivateChatId);
+      }
+
+      if (Array.isArray(chatRegistry) && chatRegistry.length > 0) {
+        const ownerReg = chatRegistry.find((r: any) => r.isOwner || r.username === 'roth' || r.username === 'millerppc') || chatRegistry[chatRegistry.length - 1];
+        if (ownerReg?.chatId && /^-?\d+$/.test(String(ownerReg.chatId))) return String(ownerReg.chatId);
+      }
+
+      if (process.env.TELEGRAM_CHAT_ID && /^-?\d+$/.test(process.env.TELEGRAM_CHAT_ID)) {
+        return process.env.TELEGRAM_CHAT_ID;
+      }
+    } catch (e) {
+      console.error('Error resolving assigned admin chat ID:', e);
+    }
+    return null;
+  };
+
 
   // 1. FACE ENROLLMENT (POST /api/face/enroll)
   if (path === '/api/face/enroll' && req.method === 'POST') {
@@ -410,13 +477,13 @@ export default async function handler(req: any, res: any) {
           success: false,
           unlinked: true,
           user: tgUser,
-          error: 'គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិក Clean24 ណាម្នាក់ឡើយ។'
+          error: 'គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិក TC Staff ណាម្នាក់ឡើយ។'
         });
       }
 
       const branch = allBranches.find((b: any) => b.id === (matchedStaff.assignedBranchId || matchedStaff.branchId)) || {
         id: matchedStaff.branchId,
-        branchName: 'Clean24 Laundry',
+        branchName: 'TC Staff',
         locationVerificationEnabled: false,
         allowedRadius: 100
       };
@@ -545,31 +612,21 @@ export default async function handler(req: any, res: any) {
 
       await saveCollection('attendance', allAtt);
 
-      // 1. Staff Instant Confirmation Notification
-      const branchBotToken = getBotToken(staff.branchId, branch?.branchName);
-      if (branchBotToken && staff.telegramId) {
-        const staffMsg = `✅ <b>[Clean24 - ចុះឈ្មោះចូលជោគជ័យ]</b>\n\n👤 <b>បុគ្គលិក:</b> ${staff.fullName}\n🏢 <b>សាខា:</b> ${branch?.branchName || 'Clean24 Laundry'}\n⏰ <b>ម៉ោងចូល:</b> <code>${timeStr}</code>\n📅 <b>កាលបរិច្ឆេទ:</b> ${todayStr}\n\n✨ <i>សូមជូនពរឱ្យការងារថ្ងៃនេះទទួលបានជោគជ័យ!</i>`;
-        sendTelegramNotification(branchBotToken, String(staff.telegramId), staffMsg, photo || staff.photoUrl).catch(() => {});
-      }
-
-      // 2. Admin / Owner Alert Notification
+      // Dispatch Check-In Alert ONLY to Assigned Admin
+      const branchBotToken = getBotToken(staff.branchId, branch?.branchName) || allBotTokens[0] || botToken;
       if (branchBotToken) {
-        const adminChatIds: string[] = [];
-        if (process.env.TELEGRAM_CHAT_ID) adminChatIds.push(process.env.TELEGRAM_CHAT_ID);
-        try {
-          const allUsers = await getCollection('users');
-          const ownerUser = allUsers.find((u: any) => u.role === 'Owner' || u.id === 'usr_owner');
-          if (ownerUser?.telegramChatId && !ownerUser.telegramChatId.startsWith('@')) {
-            adminChatIds.push(ownerUser.telegramChatId);
-          }
-        } catch {}
+        const assignedAdminChatId = await getAssignedAdminChatId(staff.branchId || branch?.id, branch?.branchName);
+        if (assignedAdminChatId) {
+          const adminMsg = `🔔 <b>[TC Staff Management - ដំណឹងវត្តមានបុគ្គលិក]</b>\n\n` +
+            `📌 <b>សកម្មភាព:</b> ✅ ចុះឈ្មោះចូល (Check-In)\n` +
+            `👤 <b>បុគ្គលិក:</b> <b>${staff.fullName}</b> (${staff.position || 'Staff'})\n` +
+            `☕ <b>សាខា:</b> <b>${branch?.branchName || 'TC Staff'}</b>\n` +
+            `⏰ <b>ម៉ោងចូល:</b> <code>${timeStr}</code>\n` +
+            `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
+            (distance !== undefined ? `📍 <b>ចម្ងាយ GPS:</b> <code>${Math.round(distance)} ម៉ែត្រ</code>\n` : '') +
+            `🌐 <b>ប្រភព:</b> Telegram Mini App`;
 
-        const adminMsg = `🔔 <b>[Clean24 ដំណឹងវត្តមានបុគ្គលិក / Staff Check-In Alert]</b>\n\n📌 <b>សកម្មភាព:</b> ចុះឈ្មោះចូល (Check-In)\n👤 <b>បុគ្គលិក:</b> ${staff.fullName} (${staff.position || 'Staff'})\n🏢 <b>សាខា:</b> ${branch?.branchName || 'Clean24 Laundry'}\n⏰ <b>ម៉ោងចូល:</b> <code>${timeStr}</code>\n📅 <b>កាលបរិច្ឆេទ:</b> ${todayStr}\n🌐 <b>ប្រភព:</b> Telegram Mini App`;
-
-        for (const aChatId of Array.from(new Set(adminChatIds))) {
-          if (aChatId && String(aChatId) !== String(staff.telegramId)) {
-            sendTelegramNotification(botToken, aChatId, adminMsg, photo || staff.photoUrl).catch(() => {});
-          }
+          sendTelegramNotification(branchBotToken, assignedAdminChatId, adminMsg, photo || staff.photoUrl).catch(() => {});
         }
       }
 
@@ -579,7 +636,7 @@ export default async function handler(req: any, res: any) {
         employeeName: staff.fullName,
         time: timeStr,
         date: todayStr,
-        branchName: branch?.branchName || 'Clean24 Laundry',
+        branchName: branch?.branchName || 'TC Staff',
         attendance: newRecord
       });
     } catch (err: any) {
@@ -677,31 +734,23 @@ export default async function handler(req: any, res: any) {
 
       await saveCollection('attendance', allAtt);
 
-      // 1. Staff Instant Confirmation Notification
-      const branchBotToken = getBotToken(staff.branchId, branch?.branchName);
-      if (branchBotToken && staff.telegramId) {
-        const staffMsg = `🚪 <b>[Clean24 - ចុះឈ្មោះចេញជោគជ័យ]</b>\n\n👤 <b>បុគ្គលិក:</b> ${staff.fullName}\n🏢 <b>សាខា:</b> ${branch?.branchName || 'Clean24 Laundry'}\n⏰ <b>ម៉ោងចូល:</b> <code>${attRecord.checkIn}</code>\n⏰ <b>ម៉ោងចេញ:</b> <code>${timeStr}</code>\n⏱️ <b>ម៉ោងធ្វើការសរុប:</b> <b>${hoursStr}</b>\n📅 <b>កាលបរិច្ឆេទ:</b> ${todayStr}\n\n🙏 <i>សូមអរគុណសម្រាប់ការខិតខំបំពេញការងារថ្ងៃនេះ!</i>`;
-        sendTelegramNotification(branchBotToken, String(staff.telegramId), staffMsg, photo || attRecord.checkOutPhoto || staff.photoUrl).catch(() => {});
-      }
-
-      // 2. Admin / Owner Alert Notification
+      // Dispatch Check-Out Alert ONLY to Assigned Admin
+      const branchBotToken = getBotToken(staff.branchId, branch?.branchName) || allBotTokens[0] || botToken;
       if (branchBotToken) {
-        const adminChatIds: string[] = [];
-        if (process.env.TELEGRAM_CHAT_ID) adminChatIds.push(process.env.TELEGRAM_CHAT_ID);
-        try {
-          const allUsers = await getCollection('users');
-          const ownerUser = allUsers.find((u: any) => u.role === 'Owner' || u.id === 'usr_owner');
-          if (ownerUser?.telegramChatId && !ownerUser.telegramChatId.startsWith('@')) {
-            adminChatIds.push(ownerUser.telegramChatId);
-          }
-        } catch {}
+        const assignedAdminChatId = await getAssignedAdminChatId(staff.branchId || branch?.id, branch?.branchName);
+        if (assignedAdminChatId) {
+          const adminCheckOutMsg = `🔔 <b>[TC Staff Management - ដំណឹងវត្តមានបុគ្គលិក]</b>\n\n` +
+            `📌 <b>សកម្មភាព:</b> 🚪 ចុះឈ្មោះចេញ (Check-Out)\n` +
+            `👤 <b>បុគ្គលិក:</b> <b>${staff.fullName}</b> (${staff.position || 'Staff'})\n` +
+            `☕ <b>សាខា:</b> <b>${branch?.branchName || 'TC Staff'}</b>\n` +
+            `⏰ <b>ម៉ោងចូល:</b> <code>${attRecord.checkIn}</code>\n` +
+            `⏰ <b>ម៉ោងចេញ:</b> <code>${timeStr}</code>\n` +
+            `⏱️ <b>ម៉ោងធ្វើការសរុប:</b> <b>${hoursStr}</b>\n` +
+            `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
+            (distance !== undefined ? `📍 <b>ចម្ងាយ GPS:</b> <code>${Math.round(distance)} ម៉ែត្រ</code>\n` : '') +
+            `🌐 <b>ប្រភព:</b> Telegram Mini App`;
 
-        const adminCheckOutMsg = `🔔 <b>[Clean24 ដំណឹងវត្តមានបុគ្គលិក / Staff Check-Out Alert]</b>\n\n📌 <b>សកម្មភាព:</b> ចុះឈ្មោះចេញ (Check-Out)\n👤 <b>បុគ្គលិក:</b> ${staff.fullName} (${staff.position || 'Staff'})\n🏢 <b>សាខា:</b> ${branch?.branchName || 'Clean24 Laundry'}\n⏰ <b>ម៉ោងចូល:</b> <code>${attRecord.checkIn}</code>\n⏰ <b>ម៉ោងចេញ:</b> <code>${timeStr}</code>\n⏱️ <b>ម៉ោងធ្វើការសរុប:</b> <b>${hoursStr}</b>\n📅 <b>កាលបរិច្ឆេទ:</b> ${todayStr}\n🌐 <b>ប្រភព:</b> Telegram Mini App`;
-
-        for (const aChatId of Array.from(new Set(adminChatIds))) {
-          if (aChatId && String(aChatId) !== String(staff.telegramId)) {
-            sendTelegramNotification(botToken, aChatId, adminCheckOutMsg, photo || attRecord.checkOutPhoto || staff.photoUrl).catch(() => {});
-          }
+          sendTelegramNotification(branchBotToken, assignedAdminChatId, adminCheckOutMsg, photo || attRecord.checkOutPhoto || staff.photoUrl).catch(() => {});
         }
       }
 
@@ -712,7 +761,7 @@ export default async function handler(req: any, res: any) {
         checkIn: attRecord.checkIn,
         checkOut: timeStr,
         workHours: hoursStr,
-        branchName: branch?.branchName || 'Clean24 Laundry',
+        branchName: branch?.branchName || 'TC Staff',
         attendance: attRecord
       });
     } catch (err: any) {
@@ -872,38 +921,22 @@ export default async function handler(req: any, res: any) {
       let staffUsername = '';
       let staff: any = null;
 
-      if (target === 'staff') {
-        staff = allStaff.find((s: any) => s.id === staffId);
-        if (!staff) {
-          return res.status(404).json({ success: false, error: 'រកមិនឃើញទិន្នន័យបុគ្គលិកឡើយ' });
-        }
-        staffUsername = staff.telegramUsername ? staff.telegramUsername.replace(/^@/, '') : '';
-        destinationChatId = String(staff.telegramId || staff.telegramChatId || '').trim();
-
-        // Check matching user record if numeric ID not found
-        if (!destinationChatId || !/^-?\d+$/.test(destinationChatId)) {
-          const matchedUser = allUsers.find((u: any) => 
-            (staff.userId && u.id === staff.userId) ||
-            (staffUsername && u.username && u.username.toLowerCase() === staffUsername.toLowerCase()) ||
-            (staffUsername && u.telegramUsername && u.telegramUsername.replace(/^@/, '').toLowerCase() === staffUsername.toLowerCase()) ||
-            (u.fullName && staff.fullName && u.fullName.toLowerCase().trim() === staff.fullName.toLowerCase().trim())
-          );
-          if (matchedUser?.telegramChatId && /^-?\d+$/.test(matchedUser.telegramChatId)) {
-            destinationChatId = matchedUser.telegramChatId;
+      if (target === 'staff' || target === 'admin') {
+        if (staffId) staff = allStaff.find((s: any) => s.id === staffId);
+        const bId = staff?.assignedBranchId || staff?.branchId || req.body?.branchId;
+        const assignedAdminChat = await getAssignedAdminChatId(bId);
+        if (assignedAdminChat) {
+          destinationChatId = assignedAdminChat;
+          targetRecipientLabel = `Admin Assigned (${assignedAdminChat})`;
+        } else {
+          const ownerUser = allUsers.find((u: any) => u.role === 'Owner' || u.id === 'usr_owner');
+          if (ownerUser?.telegramChatId && /^-?\d+$/.test(ownerUser.telegramChatId)) {
+            destinationChatId = ownerUser.telegramChatId;
+          } else if (process.env.TELEGRAM_CHAT_ID) {
+            destinationChatId = process.env.TELEGRAM_CHAT_ID;
           }
+          targetRecipientLabel = `Admin / Owner (${destinationChatId || 'Default'})`;
         }
-
-        if (!destinationChatId && staff.telegramUsername) {
-          destinationChatId = staff.telegramUsername.startsWith('@') ? staff.telegramUsername : `@${staff.telegramUsername}`;
-        }
-        targetRecipientLabel = `${staff.fullName} (${destinationChatId || 'គ្មាន Telegram ID'})`;
-      } else if (target === 'admin') {
-        destinationChatId = process.env.TELEGRAM_CHAT_ID || '';
-        const ownerUser = allUsers.find((u: any) => u.role === 'Owner' || u.id === 'usr_owner');
-        if (ownerUser?.telegramChatId && !ownerUser.telegramChatId.startsWith('@')) {
-          destinationChatId = ownerUser.telegramChatId;
-        }
-        targetRecipientLabel = `Admin / Group Notification (${destinationChatId || 'Default'})`;
       } else if (target === 'custom') {
         destinationChatId = customChatId || '';
         targetRecipientLabel = `Custom Chat ID (${destinationChatId})`;
@@ -1039,6 +1072,29 @@ export default async function handler(req: any, res: any) {
         targetChatId,
         chatId 
       } = req.body || {};
+
+      // 3-4 no need: Disable Daily Sales / Revenue (#3) and Low Stock / Inventory (#4) notifications
+      const cat = String(category || '').toLowerCase().trim();
+      const disabledCategories = [
+        'revenue', 
+        'sales', 
+        'daily-sales', 
+        'daily_sales', 
+        'daily_business', 
+        'dailysummary', 
+        'stock', 
+        'low_stock', 
+        'detergent', 
+        'softener', 
+        'inventory'
+      ];
+      if (disabledCategories.includes(cat)) {
+        return res.status(200).json({ 
+          success: true, 
+          dispatched: false, 
+          message: 'Notification category disabled (Sales & Stock alerts turned off)' 
+        });
+      }
 
       let botToken = getBotToken(branchId, branchName);
 

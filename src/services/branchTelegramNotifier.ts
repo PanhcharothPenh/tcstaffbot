@@ -35,6 +35,12 @@ export function getBranchKhmerDisplayName(branchId: string, branchName?: string)
 }
 
 export async function sendBranchTelegramAlert(payload: BranchTelegramPayload): Promise<{ success: boolean; dispatched?: boolean; error?: string }> {
+  // 3-4 no need: Disable sales/revenue & stock/detergent notifications
+  const cat = String(payload.category || '').toLowerCase().trim();
+  if (['revenue', 'sales', 'stock', 'low_stock', 'detergent', 'softener', 'inventory'].includes(cat)) {
+    return { success: true, dispatched: false };
+  }
+
   try {
     const res = await fetch('/api/telegram-trigger-instant', {
       method: 'POST',

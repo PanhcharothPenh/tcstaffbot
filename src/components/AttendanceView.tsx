@@ -608,7 +608,7 @@ export default function AttendanceView({
           `━━━━━━━━━━━━━━━━━━\n` +
           `✨ <i>សូមពិនិត្យមើលទិន្នន័យវត្តមាន និងតារាងលម្អិតភ្ជាប់ជាមួយនេះ។ អរគុណសម្រាប់ការបំពេញការងារ!</i>`;
       } else {
-        msg = `📊 <b>[Cafe - របាយការណ៍សង្ខេបវត្តមានរួម / Master Attendance Report]</b>\n\n` +
+        msg = `📊 <b>[TC Staff Management - របាយការណ៍សង្ខេបវត្តមានរួម / Master Attendance Report]</b>\n\n` +
           `🏢 <b>សាខា:</b> ${targetBranch ? targetBranch.branchName : 'គ្រប់សាខាទាំងអស់'}\n` +
           `📅 <b>រយៈពេល:</b> ${periodStr}\n` +
           `👥 <b>ចំនួនបុគ្គលិក:</b> ${staffMonthlyStats.length} នាក់\n` +

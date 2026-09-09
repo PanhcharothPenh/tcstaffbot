@@ -16,20 +16,21 @@ export default async function handler(req: any, res: any) {
   }
 
   if (req.method !== 'POST') {
-    return res.status(200).json({ success: true, message: 'Clean24 Telegram Attendance Report Endpoint Active' });
+    return res.status(200).json({ success: true, message: 'TC Staff Telegram Attendance Report Endpoint Active' });
   }
 
   try {
     const { 
       target, // 'staff' | 'admin' | 'custom'
       staffId,
+      branchId,
       customChatId,
       messageText,
       photoBase64
     } = req.body || {};
 
     let botToken = '';
-    const reqBranchId = (req.body?.branchId || '').toLowerCase();
+    const reqBranchId = (branchId || req.body?.branchId || '').toLowerCase();
     if (reqBranchId === 'b1' || reqBranchId.includes('vs') || reqBranchId.includes('veng')) {
       botToken = process.env.TELEGRAM_BOT_TOKEN_VENG_SRENG || '';
     } else if (reqBranchId === 'b2' || reqBranchId.includes('cd') || reqBranchId.includes('chomka')) {
@@ -92,51 +93,45 @@ export default async function handler(req: any, res: any) {
     let targetRecipientLabel = '';
     let staffUsername = '';
 
-    if (target === 'staff') {
-      const staff = allStaff.find((s: any) => s.id === staffId);
-      if (staff) {
-        staffUsername = staff.telegramUsername ? staff.telegramUsername.replace(/^@/, '') : '';
-        destinationChatId = String(staff.telegramId || staff.telegramChatId || '').trim();
+    // Attendance Check-In / Check-Out alerts route ONLY to Assigned Admin
+    if (target === 'staff' || target === 'admin') {
+      const staff = staffId ? allStaff.find((s: any) => s.id === staffId) : null;
+      const bId = (staff?.assignedBranchId || staff?.branchId || reqBranchId || '').toLowerCase();
 
-        if (staff.branchId) {
-          const sBranch = String(staff.branchId).toLowerCase();
-          if ((sBranch === 'b1' || sBranch.includes('vs') || sBranch.includes('veng')) && process.env.TELEGRAM_BOT_TOKEN_VENG_SRENG) {
-            botToken = process.env.TELEGRAM_BOT_TOKEN_VENG_SRENG;
-          } else if ((sBranch === 'b2' || sBranch.includes('cd') || sBranch.includes('chomka')) && process.env.TELEGRAM_BOT_TOKEN_CHOMKA_DOUNG) {
-            botToken = process.env.TELEGRAM_BOT_TOKEN_CHOMKA_DOUNG;
-          }
+      // 1. Check for Admin specifically assigned to this branch
+      if (bId && allUsers.length > 0) {
+        const assignedAdmin = allUsers.find((u: any) => 
+          (u.role === 'Admin' || u.roleId === 'admin') &&
+          u.telegramChatId &&
+          /^-?\d+$/.test(String(u.telegramChatId)) &&
+          Array.isArray(u.assignedBranchIds) &&
+          (u.assignedBranchIds.includes(bId) || u.assignedBranchIds.includes('all'))
+        );
+        if (assignedAdmin) {
+          destinationChatId = String(assignedAdmin.telegramChatId);
+          targetRecipientLabel = `Assigned Admin: ${assignedAdmin.fullName || assignedAdmin.username} (${destinationChatId})`;
         }
-
-        if (!destinationChatId || !/^-?\d+$/.test(destinationChatId)) {
-          const matchedUser = allUsers.find((u: any) => 
-            (staff.userId && u.id === staff.userId) ||
-            (staffUsername && u.username && u.username.toLowerCase() === staffUsername.toLowerCase()) ||
-            (staffUsername && u.telegramUsername && u.telegramUsername.replace(/^@/, '').toLowerCase() === staffUsername.toLowerCase()) ||
-            (u.fullName && staff.fullName && u.fullName.toLowerCase().trim() === staff.fullName.toLowerCase().trim())
-          );
-          if (matchedUser?.telegramChatId && /^-?\d+$/.test(matchedUser.telegramChatId)) {
-            destinationChatId = matchedUser.telegramChatId;
-          }
-        }
-
-        if (!destinationChatId && staff.telegramUsername) {
-          destinationChatId = staff.telegramUsername.startsWith('@') ? staff.telegramUsername : `@${staff.telegramUsername}`;
-        }
-        targetRecipientLabel = `${staff.fullName} (${destinationChatId || 'Telegram'})`;
-      } else {
-        destinationChatId = '';
-        targetRecipientLabel = `Staff (${destinationChatId || 'គ្មាន Telegram'})`;
       }
-    } else if (target === 'admin') {
-      const ownerUser = allUsers.find((u: any) => u.role === 'Owner' || u.id === 'usr_owner');
-      if (ownerUser?.telegramChatId && /^-?\d+$/.test(ownerUser.telegramChatId)) {
-        destinationChatId = ownerUser.telegramChatId;
+
+      // 2. Check branch-specific chat ID in stored config
+      if (!destinationChatId && bId && storedConfig?.chatIds?.branches?.[bId]) {
+        destinationChatId = String(storedConfig.chatIds.branches[bId]);
+        targetRecipientLabel = `Branch Admin Chat (${destinationChatId})`;
+      }
+      if (!destinationChatId && bId && storedConfig?.chatIds?.manager?.[bId]) {
+        destinationChatId = String(storedConfig.chatIds.manager[bId]);
+        targetRecipientLabel = `Branch Manager Chat (${destinationChatId})`;
+      }
+
+      // 3. Fallback to Owner
+      if (!destinationChatId) {
+        const ownerUser = allUsers.find((u: any) => u.role === 'Owner' || u.id === 'usr_owner' || u.username === 'roth');
+        if (ownerUser?.telegramChatId && /^-?\d+$/.test(ownerUser.telegramChatId)) {
+          destinationChatId = ownerUser.telegramChatId;
+        }
       }
       if (!destinationChatId && storedConfig?.chatIds?.owner) {
         destinationChatId = String(storedConfig.chatIds.owner);
-      }
-      if (!destinationChatId && storedConfig?.lastPrivateChatId) {
-        destinationChatId = String(storedConfig.lastPrivateChatId);
       }
       if (!destinationChatId && chatRegistry.length > 0) {
         const ownerReg = chatRegistry.find((r: any) => r.isOwner || r.username === 'roth' || r.username === 'millerppc') || chatRegistry[chatRegistry.length - 1];
@@ -145,7 +140,9 @@ export default async function handler(req: any, res: any) {
       if (!destinationChatId) {
         destinationChatId = process.env.TELEGRAM_CHAT_ID || '';
       }
-      targetRecipientLabel = `Admin / TC Staff Bot (${destinationChatId || 'Default'})`;
+      if (!targetRecipientLabel) {
+        targetRecipientLabel = `Assigned Admin (${destinationChatId || 'Default'})`;
+      }
     } else if (target === 'custom') {
       destinationChatId = customChatId || '';
       targetRecipientLabel = `Custom Chat (${destinationChatId})`;
