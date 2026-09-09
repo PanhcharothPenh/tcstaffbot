@@ -136,11 +136,7 @@ export default async function handler(req: any, res: any) {
     });
   }
 
-  const message = `🔐 <b>[TC Staff Management - លេខកូដ 2FA]</b>\n\n` +
-    `លេខកូដផ្ទៀងផ្ទាត់សុវត្ថិភាពរបស់អ្នកគឺ៖ <code>${pin}</code>\n\n` +
-    `👤 គណនី៖ <b>${cleanUsername || 'Staff'}</b>\n` +
-    `⏱️ មានសុពលភាព៖ <b>15 នាទី</b>\n\n` +
-    `⚠️ <i>សូមកុំចែករំលែកលេខកូដនេះជាមួយនរណាម្នាក់ឡើយ។</i>`;
+  const message = `លេខកូដផ្ទៀងផ្ទាត់សុវត្ថិភាពរបស់អ្នកគឺ៖ <code>${pin}</code>`;
 
   let anySuccess = false;
   const dispatchResults: any[] = [];

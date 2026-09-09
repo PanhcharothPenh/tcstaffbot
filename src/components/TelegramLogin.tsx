@@ -560,18 +560,6 @@ export default function TelegramLogin({ onLoginSuccess, lang: propLang, setLang:
                     <span>{lang === 'en' ? 'Verify 2FA & Login' : 'ផ្ទៀងផ្ទាត់ និងចូលប្រើប្រាស់'}</span>
                   </button>
 
-                  {/* Open Telegram Bot Button */}
-                  <a
-                    href="https://t.me/TCStaffBot"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full py-2.5 px-3 bg-sky-50 hover:bg-sky-100/80 border border-sky-200/80 rounded-2xl text-xs font-bold text-sky-700 transition-all shadow-xs cursor-pointer"
-                  >
-                    <Send size={13} className="text-sky-600" />
-                    <span>{lang === 'en' ? 'Open Telegram Bot (@TCStaffBot)' : 'បើក Bot ក្នុង Telegram (@TCStaffBot)'}</span>
-                    <ExternalLink size={11} className="text-sky-400 ml-0.5" />
-                  </a>
-
                   {/* Resend and Back Buttons */}
                   <div className="flex items-center justify-between pt-1">
                     <button

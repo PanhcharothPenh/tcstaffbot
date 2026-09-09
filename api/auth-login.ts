@@ -214,11 +214,7 @@ export default async function handler(req: any, res: any) {
 
     // 7. Dispatch 2FA PIN via Telegram Bot
     if (botToken && resolvedChatId) {
-      const text = `🔐 <b>[TC Staff Management - លេខកូដ 2FA]</b>\n\n` +
-        `លេខកូដផ្ទៀងផ្ទាត់សុវត្ថិភាពរបស់អ្នកគឺ៖ <code>${otpCode}</code>\n\n` +
-        `👤 គណនី៖ <b>${cleanUsername}</b>\n` +
-        `⏱️ មានសុពលភាព៖ <b>15 នាទី</b>\n\n` +
-        `⚠️ <i>សូមកុំចែករំលែកលេខកូដនេះជាមួយនរណាម្នាក់ឡើយ។</i>`;
+      const text = `លេខកូដផ្ទៀងផ្ទាត់សុវត្ថិភាពរបស់អ្នកគឺ៖ <code>${otpCode}</code>`;
 
       try {
         const sendRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
