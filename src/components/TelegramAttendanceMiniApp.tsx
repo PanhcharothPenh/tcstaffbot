@@ -435,7 +435,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
           <img src="/logo.png" alt="TC Staff Management" className="h-16 w-auto object-contain" />
         </div>
         <Loader2 className="animate-spin text-blue-600 mb-2" size={32} />
-        <h2 className="text-base font-black text-slate-900">TC Staff Management</h2>
+        <h2 className="text-base font-black text-slate-900">ប្រព័ន្ធគ្រប់គ្រងបុគ្គលិក</h2>
         <p className="text-xs text-slate-500 mt-1">កំពុងផ្ទៀងផ្ទាត់គណនី Telegram...</p>
       </div>
     );
@@ -479,9 +479,9 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       {/* Top Mobile App Header */}
       <header className="bg-white border-b border-slate-200 px-4 py-2.5 sticky top-0 z-30 flex items-center justify-between shadow-2xs">
         <div className="flex items-center gap-2.5">
-          <img src="/logo.png" alt="TC Staff" className="h-9 w-auto object-contain shrink-0" />
+          <img src="/logo.png" alt="ប្រព័ន្ធគ្រប់គ្រងបុគ្គលិក" className="h-9 w-auto object-contain shrink-0" />
           <div className="border-l border-slate-200 pl-2">
-            <div className="text-[10px] font-black text-blue-700 uppercase leading-none">TC STAFF</div>
+            <div className="text-[10px] font-black text-blue-700 leading-none">ប្រព័ន្ធគ្រប់គ្រងបុគ្គលិក</div>
             <div className="text-xs font-bold text-slate-800 leading-tight mt-0.5">{staffInfo?.fullName || 'Staff Member'}</div>
           </div>
         </div>
