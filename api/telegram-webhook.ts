@@ -701,15 +701,12 @@ export default async function handler(req: any, res: any) {
         const totalWorkHours = monthRecords.reduce((acc: number, r: any) => acc + (Number(r.workHours || r.totalHours) || 0), 0);
         const totalOtHours = monthRecords.reduce((acc: number, r: any) => acc + (Number(r.otHours) || 0), 0);
 
-        const reportMsg = `📊 <b>[TC Staff - វត្តមានការងារប្រចាំខែ ${curMonth}/${curYear}]</b>\n\n` +
-          `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff ? matchedStaff.fullName : firstName}</b>\n` +
-          `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
-          `━━━━━━━━━━━━━━━━━━\n` +
-          `✅ <b>ថ្ងៃបំពេញការងារសរុប:</b> <b>${daysWorked} ថ្ងៃ</b>\n` +
-          `⏱️ <b>ម៉ោងបំពេញការងារសរុប:</b> <b>${formatWorkDuration(totalWorkHours)}</b>\n` +
-          `⚡ <b>ម៉ោងបន្ថែម OT សរុប:</b> <b>${totalOtHours} ម៉ោង</b>\n` +
-          `━━━━━━━━━━━━━━━━━━\n` +
-          `✨ <i>ចុចប៊ូតុងខាងក្រោមដើម្បីពិនិត្យតារាងវត្តមានលម្អិតក្នុង Mini App៖</i>`;
+        const reportMsg = `📊 <b>TC Staff | វត្តមានប្រចាំខែ ${curMonth}/${curYear}</b>\n\n` +
+          `👤 <b>បុគ្គលិក:</b> ${matchedStaff ? matchedStaff.fullName : firstName}\n` +
+          `🏢 <b>សាខា:</b> ${branchDisplay}\n\n` +
+          `📅 <b>ថ្ងៃធ្វើការសរុប:</b> ${daysWorked} ថ្ងៃ\n` +
+          `⏱️ <b>ម៉ោងធ្វើការសរុប:</b> ${formatWorkDuration(totalWorkHours)}\n` +
+          `⚡ <b>ម៉ោងបន្ថែម (OT):</b> ${totalOtHours} ម៉ោង`;
 
         const reportButtons = {
           inline_keyboard: [
