@@ -41,7 +41,11 @@ export default async function handler(req: any, res: any) {
     let users: any[] = [];
     if (supabase) {
       try {
-        const { data } = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
+        let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
+        if (error || !data) {
+          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
+          if (alt.data) data = alt.data;
+        }
         if (data && Array.isArray(data.data)) users = data.data;
       } catch (e) {}
     }

@@ -78,12 +78,12 @@ app.use(async (req, res, next) => {
   const isApi = req.path.startsWith('/api') || req.path.startsWith('/auth');
   if (supabase && !isDbPulled && isApi) {
     try {
-      console.log('[Clean24 Server] Request context activated. Awaiting Supabase database pull...');
+      console.log('[TC Staff Server] Request context activated. Awaiting Supabase database pull...');
       await pullCollectionsFromSupabase();
       isDbPulled = true;
-      console.log('[Clean24 Server] Supabase database pull completed successfully!');
+      console.log('[TC Staff Server] Supabase database pull completed successfully!');
     } catch (err) {
-      console.error('[Clean24 Server] Supabase database pull failed:', err.message || err);
+      console.error('[TC Staff Server] Supabase database pull failed:', err.message || err);
     }
   }
   next();
@@ -94,7 +94,7 @@ app.use((req, res, next) => {
   res.on('finish', () => {
     if (pendingSupabasePushes.length > 0) {
       Promise.all(pendingSupabasePushes).catch(err => {
-        console.error('[Clean24 Server] Error syncing database tasks before response:', err.message);
+        console.error('[TC Staff Server] Error syncing database tasks before response:', err.message);
       });
       pendingSupabasePushes = [];
     }
@@ -106,7 +106,7 @@ app.use(express.json({ limit: '50mb' }));
 app.get('/api/download-project', (req, res) => {
   const filePath = path.join(process.cwd(), 'project.tar.gz');
   if (fs.existsSync(filePath)) {
-    res.download(filePath, 'Clean24-Miller-project.tar.gz');
+    res.download(filePath, 'TC-Staff-Management-project.tar.gz');
   } else {
     res.status(404).send('Project archive not found. Please run tar manually or contact support.');
   }
@@ -128,20 +128,27 @@ try {
     supabase = createClient(supabaseUrl, supabaseKey);
   }
 } catch (e: any) {
-  console.error('[Clean24 Server] Failed to initialize Supabase client:', e.message);
+  console.error('[TC Staff Server] Failed to initialize Supabase client:', e.message);
 }
 
 if (supabase) {
-  console.log('[Clean24 Server] Supabase client initialized successfully.');
+  console.log('[TC Staff Server] Supabase client initialized successfully.');
 } else {
-  console.log('[Clean24 Server] Supabase keys missing. Running in local JSON-file fallback mode.');
+  console.log('[TC Staff Server] Supabase keys missing. Running in local JSON-file fallback mode.');
 }
 
 // Global pull/push helpers
 async function pullCollectionsFromSupabase() {
   if (!supabase) return;
   try {
-    const { data, error } = await supabase.from('clean24_collections').select('*');
+    let { data, error } = await supabase.from('tc_collections').select('*');
+    if (error) {
+      const alt = await supabase.from('clean24_collections').select('*');
+      if (!alt.error) {
+        data = alt.data;
+        error = null;
+      }
+    }
     if (error) throw error;
     
     const existingIds = new Set();
@@ -151,10 +158,10 @@ async function pullCollectionsFromSupabase() {
         lastPushedDbJson[row.id] = JSON.stringify(row.data);
         existingIds.add(row.id);
       });
-      console.log('[Clean24 Server] Database successfully synchronized from Supabase!');
+      console.log('[TC Staff Server] Database successfully synchronized from Supabase!');
     } else {
       // Supabase is empty (first run). Trigger seedUsersAndRoles to populate
-      console.log('[Clean24 Server] Supabase database is empty. Triggering self-healing database seeding...');
+      console.log('[TC Staff Server] Supabase database is empty. Triggering self-healing database seeding...');
       seedUsersAndRoles();
     }
 
@@ -166,13 +173,13 @@ async function pullCollectionsFromSupabase() {
         : Array.isArray(localDb[collId]) && localDb[collId].length > 0;
 
       if (!existingIds.has(collId) && hasData) {
-        console.log(`[Clean24 Server] Self-healing sync: pushing missing collection "${collId}" to Supabase...`);
+        console.log(`[TC Staff Server] Self-healing sync: pushing missing collection "${collId}" to Supabase...`);
         await pushCollectionToSupabase(collId);
         lastPushedDbJson[collId] = JSON.stringify(localDb[collId]);
       }
     }
   } catch (err: any) {
-    console.error('[Clean24 Server] Supabase pull failed:', err.message);
+    console.error('[TC Staff Server] Supabase pull failed:', err.message);
   }
 }
 
@@ -184,7 +191,7 @@ async function pushCollectionToSupabase(collectionId: string) {
       .upsert({ id: collectionId, data: localDb[collectionId], updated_at: new Date().toISOString() });
     if (error) throw error;
   } catch (err: any) {
-    console.error(`[Clean24 Server] Supabase push for ${collectionId} failed:`, err.message);
+    console.error(`[TC Staff Server] Supabase push for ${collectionId} failed:`, err.message);
   }
 }
 
@@ -203,7 +210,7 @@ let localDb: SyncPayload = {
   detergentRecords: [],
   softenerRecords: [],
   stockTransactions: [],
-  settings: { shopName: 'Clean24 Laundry' },
+  settings: { shopName: 'TC Staff Management' },
   users: [],
   roles: [],
   permissions: [],
@@ -219,7 +226,7 @@ if (fs.existsSync(SERVER_DB_PATH)) {
     localDb = JSON.parse(fs.readFileSync(SERVER_DB_PATH, 'utf8'));
     // Trigger initial background sync if running with Supabase
     if (supabase) {
-      pullCollectionsFromSupabase().catch(err => console.error('[Clean24 Server] Initial pull failed:', err));
+      pullCollectionsFromSupabase().catch(err => console.error('[TC Staff Server] Initial pull failed:', err));
     }
   } catch (e) {
     console.error('Failed to parse server-db.json:', e);
@@ -688,7 +695,7 @@ app.get('/auth/telegram/login', (req, res) => {
     <!DOCTYPE html>
     <html>
       <head>
-        <title>Clean24 Telegram Sign-On Gateway</title>
+        <title>TC Staff Telegram Sign-On Gateway</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #0f172a; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
           .card { background-color: #1e293b; border-radius: 16px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4); width: 380px; padding: 36px; border: 1px solid #334155; text-align: center;}
@@ -715,7 +722,7 @@ app.get('/auth/telegram/login', (req, res) => {
             </svg>
           </div>
           <h2>Verify identity</h2>
-          <p class="subtitle">Securely link your Telegram account to authorise your active user profile on Clean24 Laundry.</p>
+          <p class="subtitle">Securely link your Telegram account to authorise your active user profile on TC Staff Management.</p>
           
           <div class="widget-container">
             ${telegramConfig.botToken ? `
@@ -2433,8 +2440,8 @@ app.post('/api/telegram-test', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Chat ID is required' });
   }
 
-  const shopName = localDb.settings?.shopName || 'Clean24 Laundry';
-  const text = `<b>🎉 Clean24 Telegram Bot Test Connection</b>
+  const shopName = localDb.settings?.shopName || 'TC Staff Management';
+  const text = `<b>🎉 TC Staff Telegram Bot Test Connection</b>
 ━━━━━━━━━━━━━━━━━
 <b>Shop:</b> ${shopName}
 <b>Status:</b> Active 🟢
@@ -3103,7 +3110,7 @@ app.post('/api/telegram-recipients/test-send', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Could not resolve a valid Bot Token' });
     }
 
-    const testText = `<b>🎉 Clean24 Telegram Connection Validation</b>
+    const testText = `<b>🎉 TC Staff Telegram Connection Validation</b>
 ━━━━━━━━━━━━━━━━━
 <b>Recipient:</b> ${recipientName || 'Test Partner'}
 <b>Group/Channel:</b> ${groupName || 'Unspecified'}
@@ -3445,7 +3452,7 @@ app.post('/api/telegram-schedules/trigger-manual/:id', async (req, res) => {
 app.post('/api/telegram-trigger-mock', async (req, res) => {
   const { alertCategory, branchId } = req.body;
   const config = getTelegramConfig();
-  const shopName = localDb.settings?.shopName || 'Clean24 Laundry';
+  const shopName = localDb.settings?.shopName || 'TC Staff Management';
   const branchName = localDb.branches.find(b => b.id === branchId)?.branchName || 'Toul Kork';
 
   let alertType = '';
@@ -3550,7 +3557,7 @@ app.post('/api/telegram-trigger-instant', async (req, res) => {
     } = req.body;
 
     const config = getTelegramConfig();
-    const shopName = localDb.settings?.shopName || 'Clean24 Laundry';
+    const shopName = localDb.settings?.shopName || 'TC Staff Management';
     const branchName = localDb.branches.find(b => b.id === branchId)?.branchName || 'Toul Kork';
     const dateTimeStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
 
@@ -4352,7 +4359,7 @@ function runSchedules() {
 // Low Stock and broken machines automatic checker
 function checkOutstandingStockAndDevices() {
   const config = getTelegramConfig();
-  const shopName = localDb.settings?.shopName || 'Clean24 Laundry';
+  const shopName = localDb.settings?.shopName || 'TC Staff Management';
   const todayStr = new Date().toISOString().substring(0, 10);
 
   // Checks Gases, Detergents, Softeners, StockTransactions
@@ -4442,7 +4449,7 @@ function checkOutstandingStockAndDevices() {
 }
 
 function checkApproachingSalaries() {
-  const shopName = localDb.settings?.shopName || 'Clean24 Laundry';
+  const shopName = localDb.settings?.shopName || 'TC Staff Management';
   const todayStr = new Date().toISOString().substring(0, 10); // Yyyy-mm-dd
   const targetDate = new Date();
   targetDate.setDate(targetDate.getDate() + 2); // 2 days ahead
@@ -4473,7 +4480,7 @@ function checkApproachingSalaries() {
 }
 
 async function triggerDailyBusinessPerformance(targetDateStr: string) {
-  const shopName = localDb.settings?.shopName || 'Clean24 Laundry';
+  const shopName = localDb.settings?.shopName || 'TC Staff Management';
   const config = getTelegramConfig();
 
   // Aggregate stats across all branches or per branch dynamically
@@ -4665,7 +4672,7 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
         const checkInTime = todayAtt?.checkIn || '--';
         const checkOutTime = todayAtt?.checkOut || '--';
 
-        const replyText = `<b>Clean24 Staff Attendance</b>\n\nសួស្តី <b>${matchedStaff.fullName}</b>\n\n<b>ថ្ងៃនេះ</b>\nចូល: <code>${checkInTime}</code>\nចេញ: <code>${checkOutTime}</code>`;
+        const replyText = `<b>TC Staff Attendance</b>\n\nសួស្តី <b>${matchedStaff.fullName}</b>\n\n<b>ថ្ងៃនេះ</b>\nចូល: <code>${checkInTime}</code>\nចេញ: <code>${checkOutTime}</code>`;
 
         const keyboard = {
           inline_keyboard: [
@@ -4692,7 +4699,7 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
           });
         }
       } else {
-        const replyText = `<b>Clean24 Staff Attendance</b>\n\nសួស្តី <b>${firstName}</b>\n\n⚠️ គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយប្រព័ន្ធបុគ្គលិក Clean24 នៅឡើយទេ។\n\n👉 <b>Telegram ID:</b> <code>${telegramId}</code>\n👉 <b>Username:</b> <code>@${username || 'N/A'}</code>\n\nសូមផ្តល់លេខ ID នេះទៅកាន់ Admin / Manager របស់អ្នកដើម្បីភ្ជាប់គណនី។`;
+        const replyText = `<b>TC Staff Attendance</b>\n\nសួស្តី <b>${firstName}</b>\n\n⚠️ គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយប្រព័ន្ធបុគ្គលិក Clean24 នៅឡើយទេ។\n\n👉 <b>Telegram ID:</b> <code>${telegramId}</code>\n👉 <b>Username:</b> <code>@${username || 'N/A'}</code>\n\nសូមផ្តល់លេខ ID នេះទៅកាន់ Admin / Manager របស់អ្នកដើម្បីភ្ជាប់គណនី។`;
 
         if (botToken) {
           await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -4757,7 +4764,7 @@ async function pollTelegramAttendanceBot() {
           const checkInTime = todayAtt?.checkIn || '--';
           const checkOutTime = todayAtt?.checkOut || '--';
 
-          const replyText = `<b>Clean24 Staff Attendance</b>\n\nសួស្តី <b>${matchedStaff.fullName}</b>\n\n<b>ថ្ងៃនេះ</b>\nចូល: <code>${checkInTime}</code>\nចេញ: <code>${checkOutTime}</code>`;
+          const replyText = `<b>TC Staff Attendance</b>\n\nសួស្តី <b>${matchedStaff.fullName}</b>\n\n<b>ថ្ងៃនេះ</b>\nចូល: <code>${checkInTime}</code>\nចេញ: <code>${checkOutTime}</code>`;
 
           const keyboard = {
             inline_keyboard: [
@@ -4782,7 +4789,7 @@ async function pollTelegramAttendanceBot() {
             })
           }).catch(() => {});
         } else {
-          const replyText = `<b>Clean24 Staff Attendance</b>\n\nសួស្តី <b>${firstName}</b>\n\n⚠️ គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយប្រព័ន្ធបុគ្គលិក Clean24 នៅឡើយទេ។\n\n👉 <b>Telegram ID:</b> <code>${telegramId}</code>\n👉 <b>Username:</b> <code>@${username || 'N/A'}</code>\n\nសូមផ្តល់លេខ ID នេះទៅកាន់ Admin / Manager របស់អ្នកដើម្បីភ្ជាប់គណនី។`;
+          const replyText = `<b>TC Staff Attendance</b>\n\nសួស្តី <b>${firstName}</b>\n\n⚠️ គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយប្រព័ន្ធបុគ្គលិក Clean24 នៅឡើយទេ។\n\n👉 <b>Telegram ID:</b> <code>${telegramId}</code>\n👉 <b>Username:</b> <code>@${username || 'N/A'}</code>\n\nសូមផ្តល់លេខ ID នេះទៅកាន់ Admin / Manager របស់អ្នកដើម្បីភ្ជាប់គណនី។`;
 
           await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
             method: 'POST',
@@ -4846,7 +4853,7 @@ app.post('/api/telegram/validate-init-data', (req, res) => {
 
     const branch = (localDb.branches || []).find(b => b.id === (staff.assignedBranchId || staff.branchId)) || {
       id: staff.branchId,
-      branchName: 'Clean24 Laundry',
+      branchName: 'TC Staff Management',
       locationVerificationEnabled: false,
       allowedRadius: 100
     };
@@ -5105,7 +5112,7 @@ app.post('/api/attendance/check-in', async (req, res) => {
       employeeName: staff.fullName,
       time: timeStr,
       date: todayStr,
-      branchName: branch?.branchName || 'Clean24 Laundry',
+      branchName: branch?.branchName || 'TC Staff Management',
       attendance: newAttendance
     });
   } catch (err: any) {
@@ -5235,7 +5242,7 @@ app.post('/api/attendance/check-out', async (req, res) => {
       checkIn: attRecord.checkIn,
       checkOut: timeStr,
       workHours: hoursStr,
-      branchName: branch?.branchName || 'Clean24 Laundry',
+      branchName: branch?.branchName || 'TC Staff Management',
       attendance: attRecord
     });
   } catch (err: any) {

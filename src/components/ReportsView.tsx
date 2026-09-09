@@ -821,9 +821,9 @@ export default function ReportsView({
       const pdfHeight = isPortrait ? 297 : 210;
 
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
-      pdf.save(`Clean24_Official_${selectedReportId.toUpperCase()}_v1_${startDate}_${endDate}.pdf`);
+      pdf.save(`TC_Staff_Official_${selectedReportId.toUpperCase()}_v1_${startDate}_${endDate}.pdf`);
 
-      onAddLog(`Tied with iText-equivalent high-fidelity PDF compile. Saved Clean24_Official_${selectedReportId.toUpperCase()}.pdf successfully.`);
+      onAddLog(`Tied with iText-equivalent high-fidelity PDF compile. Saved TC_Staff_Official_${selectedReportId.toUpperCase()}.pdf successfully.`);
     } catch (error: any) {
       window.getComputedStyle = originalGetComputedStyle;
       console.error("PDF Generate failure:", error);
@@ -843,7 +843,7 @@ export default function ReportsView({
     }
     const headers = Object.keys(listRows[0]);
     const dataset = listRows.map(row => headers.map(h => row[h]));
-    exportToCSV(`Clean24_${selectedReportId}_export_ledger`, headers, dataset);
+    exportToCSV(`TC_Staff_${selectedReportId}_export_ledger`, headers, dataset);
     onAddLog(`Issued complete client-side administrative CSV spreadsheet dump for ${selectedReportId}`);
   };
 
@@ -1190,7 +1190,7 @@ export default function ReportsView({
               
               {/* Header watermarking or corporate badge */}
               <div className="absolute top-2.5 left-4 text-[7px] text-sky-700 tracking-widest font-mono font-bold">
-                CLEAN24 DIGITAL BUSINESS AUDIT SYSTEM v3.45 | LOCALIZATION PRE-SET ACTIVE
+                TC STAFF MANAGEMENT DIGITAL AUDIT SYSTEM v3.45 | LOCALIZATION PRE-SET ACTIVE
               </div>
 
               {/* MAIN PORTLAND HEADER DECK */}

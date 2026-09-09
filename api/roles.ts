@@ -31,7 +31,11 @@ export default async function handler(req: any, res: any) {
     let rolePerms: Record<string, string[]> = {};
     if (supabase) {
       try {
-        const { data } = await supabase.from('clean24_collections').select('data').eq('id', 'rolePermissions').maybeSingle();
+        let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'rolePermissions').maybeSingle();
+        if (error || !data) {
+          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'rolePermissions').maybeSingle();
+          if (alt.data) data = alt.data;
+        }
         if (data && data.data) rolePerms = data.data;
       } catch (e) {}
     }
@@ -42,7 +46,10 @@ export default async function handler(req: any, res: any) {
       const body = req.body || {};
       if (supabase) {
         try {
-          await supabase.from('clean24_collections').upsert({ id: 'rolePermissions', data: body, updated_at: new Date().toISOString() });
+          const { error } = await supabase.from('tc_collections').upsert({ id: 'rolePermissions', data: body, updated_at: new Date().toISOString() });
+          if (error) {
+            await supabase.from('clean24_collections').upsert({ id: 'rolePermissions', data: body, updated_at: new Date().toISOString() });
+          }
         } catch (e) {}
       }
       return res.status(200).json({ success: true, rolePermissions: body });
@@ -57,7 +64,11 @@ export default async function handler(req: any, res: any) {
   let roles = DEFAULT_ROLES;
   if (supabase) {
     try {
-      const { data } = await supabase.from('clean24_collections').select('data').eq('id', 'roles').maybeSingle();
+      let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'roles').maybeSingle();
+        if (error || !data) {
+          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'roles').maybeSingle();
+          if (alt.data) data = alt.data;
+        }
       if (data && Array.isArray(data.data) && data.data.length > 0) roles = data.data;
     } catch (e) {}
   }
@@ -78,7 +89,10 @@ export default async function handler(req: any, res: any) {
     roles.push(newRole);
     if (supabase) {
       try {
-        await supabase.from('clean24_collections').upsert({ id: 'roles', data: roles, updated_at: new Date().toISOString() });
+        const { error } = await supabase.from('tc_collections').upsert({ id: 'roles', data: roles, updated_at: new Date().toISOString() });
+        if (error) {
+          await supabase.from('clean24_collections').upsert({ id: 'roles', data: roles, updated_at: new Date().toISOString() });
+        }
       } catch (e) {}
     }
     return res.status(201).json({ success: true, role: newRole });

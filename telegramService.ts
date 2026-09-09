@@ -27,7 +27,7 @@ export interface TelegramConfig {
 }
 
 const CONFIG_PATH = path.join(process.cwd(), 'telegram-config.json');
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'clean24_secret_key_32_characters_!!'; // 32 characters
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'tc_staff_secret_key_32_characters_!!'; // 32 characters
 const IV_LENGTH = 16;
 
 const defaultConfig: TelegramConfig = {

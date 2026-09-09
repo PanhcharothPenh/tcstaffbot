@@ -28,7 +28,7 @@ function getTargetBots(): Array<{ token: string; branchId: string; name: string 
   ).trim();
 
   if (unifiedToken) {
-    bots.push({ token: unifiedToken, branchId: 'all', name: 'toto by Chichi & Coffee corner Cafe Bot' });
+    bots.push({ token: unifiedToken, branchId: 'all', name: 'TC Staff Management Bot' });
   }
   return bots;
 }
@@ -96,7 +96,7 @@ export default async function handler(req: any, res: any) {
           body: JSON.stringify({
             menu_button: {
               type: 'web_app',
-              text: '☕ Cafe App',
+              text: '🏢 TC Staff App',
               web_app: { url: `${baseUrl}` }
             }
           })
@@ -105,7 +105,7 @@ export default async function handler(req: any, res: any) {
         results.push({ bot: bot.name, webhookUrl, ok: setData.ok, description: setData.description });
       }
 
-      return res.status(200).json({ success: true, message: 'Cafe Bot webhook and menus registered', results });
+      return res.status(200).json({ success: true, message: 'TC Staff Bot webhook and menus registered', results });
     }
 
     if (action === 'delete') {

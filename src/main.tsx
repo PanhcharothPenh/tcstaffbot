@@ -82,7 +82,7 @@ class RootErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundar
           <div className="w-16 h-16 bg-red-500/20 text-red-400 rounded-full flex items-center justify-center mb-4 text-3xl font-black">
             !
           </div>
-          <h1 className="text-xl font-black mb-2">Coffee MGM System Notice</h1>
+          <h1 className="text-xl font-black mb-2">TC Staff Management Notice</h1>
           <p className="text-slate-400 text-sm max-w-md mb-6">
             A temporary display error occurred. Click below to reload the workspace safely.
           </p>

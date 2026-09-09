@@ -17,12 +17,21 @@ export default async function handler(req: any, res: any) {
   let latencyMs = 0;
   let collectionsFound: string[] = [];
   let errorMsg: string | null = null;
+  let tableInUse = 'tc_collections';
 
   if (configured) {
     try {
       const start = Date.now();
       const supabase = createClient(supabaseUrl, supabaseKey);
-      const { data, error } = await supabase.from('clean24_collections').select('id');
+      let { data, error } = await supabase.from('tc_collections').select('id');
+      if (error) {
+        const alt = await supabase.from('clean24_collections').select('id');
+        if (!alt.error) {
+          data = alt.data;
+          error = null;
+          tableInUse = 'clean24_collections';
+        }
+      }
       latencyMs = Date.now() - start;
 
       if (error) {
@@ -40,6 +49,7 @@ export default async function handler(req: any, res: any) {
     supabaseConfigured: configured,
     supabaseUrl: supabaseUrl ? supabaseUrl.replace(/\/\/([^@]+@)?/, '//***@') : null,
     collectionsFound,
+    activeTable: tableInUse || 'tc_collections',
     latencyMs,
     error: errorMsg,
     timestamp: new Date().toISOString()

@@ -161,7 +161,7 @@ export async function generateRevenuePdf({
     p.setFontSize(20);
     p.setTextColor('#00B2B1');
     p.setFont('NotoSansKhmer', 'normal');
-    p.text('CLEAN24', marginX + 15, 23.5);
+    p.text('TC STAFF', marginX + 15, 23.5);
 
     // Right header block (Branch & Month specifications)
     p.setFontSize(10);

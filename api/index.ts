@@ -248,7 +248,11 @@ export default async function handler(req: any, res: any) {
   const getCollection = async (id: string): Promise<any[]> => {
     if (!supabase) return [];
     try {
-      const { data } = await supabase.from('clean24_collections').select('data').eq('id', id).maybeSingle();
+      let { data, error } = await supabase.from('tc_collections').select('data').eq('id', id).maybeSingle();
+      if (error || !data) {
+        const alt = await supabase.from('clean24_collections').select('data').eq('id', id).maybeSingle();
+        if (alt.data) data = alt.data;
+      }
       return (data && Array.isArray(data.data)) ? data.data : [];
     } catch {
       return [];
@@ -1078,7 +1082,7 @@ export default async function handler(req: any, res: any) {
 
       let finalMessage = message;
       if (!finalMessage) {
-        const alertHeading = alertType || `[Clean24 Alert: ${category || 'System'}]`;
+        const alertHeading = alertType || `[TC Staff Alert: ${category || 'System'}]`;
         const detailsContent = details || 'Instant Notification Event';
         const actionContent = actionRequired ? `\n\n⚠️ <b>REQUIRED ACTION:</b>\n<u>${actionRequired}</u>` : '';
         finalMessage = `🚨 <b>${alertHeading}</b>\n\n${detailsContent}${actionContent}`;
@@ -1133,7 +1137,7 @@ export default async function handler(req: any, res: any) {
   // Fallback
   return res.status(200).json({
     success: true,
-    message: 'Clean24 Serverless Gateway active',
+    message: 'TC Staff Management Gateway active',
     path
   });
 }

@@ -142,7 +142,7 @@ export default function DailyIncomeView({
   };
 
   const triggerPrint = (inc: Income) => {
-    const title = `Clean24 Invoice #${inc.id.substring(4, 12)}`;
+    const title = `TC Staff Invoice #${inc.id.substring(4, 12)}`;
     
     const printWindow = window.open('', '_blank');
     if (printWindow) {

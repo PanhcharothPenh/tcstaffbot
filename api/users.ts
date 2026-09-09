@@ -29,7 +29,11 @@ async function loadUsers(): Promise<any[]> {
   const supabase = await getSupabase();
   if (supabase) {
     try {
-      const { data, error } = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
+      let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
+      if (error || !data) {
+        const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
+        if (alt.data) data = alt.data;
+      }
       if (!error && data && Array.isArray(data.data) && data.data.length > 0) {
         return data.data;
       }

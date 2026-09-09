@@ -22,11 +22,11 @@ export default function Clean24Logo({
       {showText && (
         <div className="flex flex-col text-left">
           <span className="text-sm font-black tracking-tight text-slate-900 leading-tight">
-            toto <span className="text-amber-700 font-extrabold text-xs">by Chichi</span>
+            TC <span className="text-amber-700 font-extrabold text-xs">Staff</span>
           </span>
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
-            Coffee corner
+            Staff Management
           </span>
         </div>
       )}

@@ -76,7 +76,7 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
   pdf.setTextColor(255, 255, 255);
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(16);
-  pdf.text('CLEAN24 LAUNDRY SYSTEM', 14, 11);
+  pdf.text('TC STAFF MANAGEMENT SYSTEM', 14, 11);
 
   pdf.setFontSize(9);
   pdf.setFont('helvetica', 'normal');
@@ -262,7 +262,7 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
       pdf.setFontSize(7);
       pdf.setTextColor(148, 163, 184);
       pdf.text(
-        `Clean24 Laundry Management System • Confidential Staff Attendance Report`,
+        `TC Staff Management System • Confidential Staff Attendance Report`,
         14,
         pageHeight - 8
       );
@@ -306,7 +306,7 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
   // 8. Output Filename
   const safeStaffName = staff ? staff.fullName.replace(/\s+/g, '_') : 'All_Staff';
   const safePeriod = periodType === 'month' ? `${monthString(month)}_${year}` : String(year);
-  const fileName = `Clean24_Attendance_${safeStaffName}_${safePeriod}.pdf`;
+  const fileName = `TC_Staff_Attendance_${safeStaffName}_${safePeriod}.pdf`;
 
   pdf.save(fileName);
 }

@@ -470,7 +470,7 @@ export default function SettingsView({
                       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupObj, null, 2));
                       const downloadAnchor = document.createElement('a');
                       downloadAnchor.setAttribute("href", dataStr);
-                      downloadAnchor.setAttribute("download", `clean24_backup_${new Date().toISOString().substring(0, 10)}.json`);
+                      downloadAnchor.setAttribute("download", `tc_staff_backup_${new Date().toISOString().substring(0, 10)}.json`);
                       document.body.appendChild(downloadAnchor);
                       downloadAnchor.click();
                       document.body.removeChild(downloadAnchor);
@@ -545,7 +545,7 @@ export default function SettingsView({
                   </div>
                   <a
                     href="/api/download-project"
-                    download="Clean24-Miller-project.tar.gz"
+                    download="TC-Staff-Management-project.tar.gz"
                     className="w-full py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-[10px] font-bold shadow-xs cursor-pointer flex items-center justify-center gap-1.5 text-center mt-auto"
                   >
                     Download Project (.tar.gz)
@@ -587,7 +587,7 @@ export default function SettingsView({
                   <strong>Strict Data Isolation:</strong> Sub-account profiles can only fetch, view, or mutate lists belonging strictly to their assigned branch.
                 </p>
                 <p>
-                  Your active role is <strong className="text-emerald-400 bg-emerald-950 border border-emerald-900/50 px-1.5 py-0.5 rounded text-[10px] tracking-wide font-mono uppercase">{currentRole}</strong>, representing the highest administration layer of Clean24 Laundry.
+                  Your active role is <strong className="text-emerald-400 bg-emerald-950 border border-emerald-900/50 px-1.5 py-0.5 rounded text-[10px] tracking-wide font-mono uppercase">{currentRole}</strong>, representing the highest administration layer of TC Staff Management.
                 </p>
               </div>
             </div>
@@ -598,7 +598,7 @@ export default function SettingsView({
                 <strong className="text-slate-750 font-bold">Cambodian Tax compliance</strong>
               </div>
               <p className="leading-relaxed text-[11px]">
-                Clean24 Laundry System satisfies the Ministry of Economy guidelines inside the Kingdom of Cambodia by compiling multi-currency invoices displaying USD ($) and Khmer Riel (៛) equivalents dynamically under standard flat conversion calculations.
+                TC Staff Management System satisfies the Ministry of Economy guidelines inside the Kingdom of Cambodia by compiling multi-currency invoices displaying USD ($) and Khmer Riel (៛) equivalents dynamically under standard flat conversion calculations.
               </p>
             </div>
           </div>

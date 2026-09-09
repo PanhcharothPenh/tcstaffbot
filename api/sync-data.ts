@@ -104,7 +104,14 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'GET') {
     try {
       if (supabase) {
-        const { data, error } = await supabase.from('clean24_collections').select('*');
+        let { data, error } = await supabase.from('tc_collections').select('*');
+      if (error || !data || data.length === 0) {
+        const alt = await supabase.from('clean24_collections').select('*');
+        if (!alt.error && alt.data && alt.data.length > 0) {
+          data = alt.data;
+          error = null;
+        }
+      }
         if (!error && Array.isArray(data) && data.length > 0) {
           const db: Record<string, any> = { ...DEFAULT_PAYLOAD };
           for (const row of data) {

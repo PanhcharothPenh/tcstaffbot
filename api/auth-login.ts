@@ -62,7 +62,11 @@ export default async function handler(req: any, res: any) {
     let users = DEFAULT_USERS;
     if (supabase) {
       try {
-        const { data } = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
+        let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
+        if (error || !data) {
+          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
+          if (alt.data) data = alt.data;
+        }
         if (data && Array.isArray(data.data) && data.data.length > 0) users = data.data;
       } catch (e) {}
     }
@@ -117,7 +121,11 @@ export default async function handler(req: any, res: any) {
     // 2. Also check staff collection if user has linked Telegram on staff roster
     if (!resolvedChatId && supabase && (userTgHandle || cleanUsername)) {
       try {
-        const { data: staffColl } = await supabase.from('clean24_collections').select('data').eq('id', 'staff').maybeSingle();
+        let { data: staffColl, error } = await supabase.from('tc_collections').select('data').eq('id', 'staff').maybeSingle();
+        if (error || !staffColl) {
+          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'staff').maybeSingle();
+          if (alt.data) staffColl = alt;
+        }
         if (staffColl && Array.isArray(staffColl.data)) {
           const matchedSt = staffColl.data.find((s: any) => {
             const sUser = (s.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();

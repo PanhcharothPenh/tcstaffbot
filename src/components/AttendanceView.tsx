@@ -464,7 +464,7 @@ export default function AttendanceView({
 
   // 1. Native High-Res Print / Save PDF
   const handlePrintLedger = () => {
-    printElement('attendance-printable-a4-ledger', `Clean24 Attendance - ${printableStaffObj ? printableStaffObj.fullName : 'All Staff'} - ${selectedMonth}/${selectedYear}`);
+    printElement('attendance-printable-a4-ledger', `TC Staff Attendance - ${printableStaffObj ? printableStaffObj.fullName : 'All Staff'} - ${selectedMonth}/${selectedYear}`);
     onAddLog(`Printed attendance ledger for ${printableStaffObj ? printableStaffObj.fullName : 'All Staff'}`);
   };
 
@@ -500,7 +500,7 @@ export default function AttendanceView({
       pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
 
       const safeName = printableStaffObj ? printableStaffObj.fullName.replace(/\s+/g, '_') : 'All_Staff';
-      pdf.save(`Clean24_Attendance_${safeName}_${selectedMonth}_${selectedYear}.pdf`);
+      pdf.save(`TC_Staff_Attendance_${safeName}_${selectedMonth}_${selectedYear}.pdf`);
       onAddLog(`Exported Attendance PDF for ${safeName}`);
     } catch (err: any) {
       alert('Error exporting PDF: ' + err.message);
@@ -544,7 +544,7 @@ export default function AttendanceView({
     XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Ledger");
 
     const safeName = printableStaffObj ? printableStaffObj.fullName.replace(/\s+/g, '_') : 'All_Staff';
-    XLSX.writeFile(workbook, `Clean24_Attendance_${safeName}_${selectedMonth}_${selectedYear}.xlsx`);
+    XLSX.writeFile(workbook, `TC_Staff_Attendance_${safeName}_${selectedMonth}_${selectedYear}.xlsx`);
     onAddLog(`Exported Attendance to Excel for ${safeName}`);
   };
 
@@ -1247,7 +1247,7 @@ export default function AttendanceView({
               <div className="border-b-2 border-[#003D9B] pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <h1 className="text-xl font-black text-[#003D9B] tracking-wide">
-                    CLEAN24 LAUNDRY SYSTEM
+                    TC STAFF MANAGEMENT SYSTEM
                   </h1>
                   <h2 className="text-sm font-bold text-slate-700 mt-0.5">
                     STAFF ATTENDANCE & WORKING HOURS LEDGER / សៀវភៅបញ្ជីវត្តមានបុគ្គលិក
