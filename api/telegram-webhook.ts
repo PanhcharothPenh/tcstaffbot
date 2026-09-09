@@ -552,11 +552,8 @@ export default async function handler(req: any, res: any) {
       const persistentReplyKeyboard = {
         keyboard: [
           [
-            { text: '📱 បើក TC Staff Mini App', web_app: { url: `${baseUrl}/attendance-app` } }
-          ],
-          [
-            { text: '📸 ចុះឈ្មោះចូល (Check In)', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
-            { text: '🚪 ចុះឈ្មោះចេញ (Check Out)', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+            { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
+            { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
           ],
           [
             { text: '📊 វត្តមានរបស់ខ្ញុំ', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
@@ -578,16 +575,16 @@ export default async function handler(req: any, res: any) {
         (userText.includes('ចូល') && !userText.includes('ចេញ'));
 
       if (isCheckInCmd) {
-        const checkinMsg = `📸 <b>[TC Staff - ចុះឈ្មោះចូលបំពេញការងារ / Check In]</b>\n\n` +
+        const checkinMsg = `📸 <b>[TC Staff - ចុះឈ្មោះចូលបំពេញការងារ]</b>\n\n` +
           `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff ? matchedStaff.fullName : firstName}</b>\n` +
           `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
           `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
-          `👇 <b>សូមចុចប៊ូតុងខាងក្រោមដើម្បីបើក Mini App ស្កេន Face ID និងផ្ទៀងផ្ទាត់ទីតាំង GPS៖</b>`;
+          `👇 <b>សូមចុចប៊ូតុងខាងក្រោមដើម្បីបើកស្កេន Face ID និងផ្ទៀងផ្ទាត់ទីតាំង GPS៖</b>`;
 
         const checkinInlineButtons = {
           inline_keyboard: [
             [
-              { text: '📸 ចុះឈ្មោះចូលឥឡូវនេះ (Open Check-In)', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } }
+              { text: '📸 ចុះឈ្មោះចូលឥឡូវនេះ', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } }
             ]
           ]
         };
@@ -616,16 +613,16 @@ export default async function handler(req: any, res: any) {
         userText.includes('ចេញ');
 
       if (isCheckOutCmd) {
-        const checkoutMsg = `🚪 <b>[TC Staff - ចុះឈ្មោះចេញពីការងារ / Check Out]</b>\n\n` +
+        const checkoutMsg = `🚪 <b>[TC Staff - ចុះឈ្មោះចេញពីការងារ]</b>\n\n` +
           `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff ? matchedStaff.fullName : firstName}</b>\n` +
           `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
           `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
-          `👇 <b>សូមចុចប៊ូតុងខាងក្រោមដើម្បីបើក Mini App បញ្ជាក់ការចេញ៖</b>`;
+          `👇 <b>សូមចុចប៊ូតុងខាងក្រោមដើម្បីបញ្ជាក់ការចេញ៖</b>`;
 
         const checkoutInlineButtons = {
           inline_keyboard: [
             [
-              { text: '🚪 ចុះឈ្មោះចេញ (Open Check-Out)', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+              { text: '🚪 ចុះឈ្មោះចេញឥឡូវនេះ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
             ]
           ]
         };
@@ -678,7 +675,7 @@ export default async function handler(req: any, res: any) {
         const reportButtons = {
           inline_keyboard: [
             [
-              { text: '📊 មើលប្រវត្តិវត្តមានក្នុង Mini App', web_app: { url: `${baseUrl}/attendance-app?action=history` } }
+              { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } }
             ]
           ]
         };
@@ -720,13 +717,13 @@ export default async function handler(req: any, res: any) {
           `🏢 <b>សាខា:</b> <b>${staffBranchName}</b>\n` +
           `📞 <b>លេខទូរស័ព្ទ:</b> <code>${staffPhone}</code>\n` +
           `🆔 <b>Telegram ID:</b> <code>${staffTgId}</code>\n` +
-          `🔗 <b>ស្ថានភាព:</b> ${linkStatus}\n\n` +
-          `📱 <i>ចុចប៊ូតុងខាងក្រោមដើម្បីបើកកម្មវិធី TC Staff Mini App៖</i>`;
+          `🔗 <b>ស្ថានភាព:</b> ${linkStatus}`;
 
         const profileButtons = {
           inline_keyboard: [
             [
-              { text: '📱 បើក TC Staff Mini App', web_app: { url: `${baseUrl}/attendance-app` } }
+              { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
+              { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
             ]
           ]
         };
@@ -757,15 +754,13 @@ export default async function handler(req: any, res: any) {
         userText.includes('របៀបប្រើ') ||
         userText.toLowerCase().includes('help')
       ) {
-        const helpMsg = `❓ <b>[ការណែនាំអំពីការប្រើប្រាស់ TC Staff Mini App]</b>\n\n` +
-          `🔹 <b>១. ចុះឈ្មោះចូល (Check In)៖</b>\n` +
-          `   ចុចប៊ូតុង <code>📸 ចុះឈ្មោះចូល</code> ដើម្បីបើក Mini App រួចស្កេន Face ID និងផ្ទៀងផ្ទាត់ទីតាំង GPS នៅសាខា។\n\n` +
-          `🔹 <b>២. ចុះឈ្មោះចេញ (Check Out)៖</b>\n` +
+        const helpMsg = `❓ <b>[ការណែនាំអំពីការប្រើប្រាស់ TC Staff]</b>\n\n` +
+          `🔹 <b>១. ចុះឈ្មោះចូល៖</b>\n` +
+          `   ចុចប៊ូតុង <code>📸 ចុះឈ្មោះចូល</code> ដើម្បីស្កេន Face ID និងផ្ទៀងផ្ទាត់ទីតាំង GPS នៅសាខា។\n\n` +
+          `🔹 <b>២. ចុះឈ្មោះចេញ៖</b>\n` +
           `   ចុចប៊ូតុង <code>🚪 ចុះឈ្មោះចេញ</code> នៅពេលបញ្ចប់ម៉ោងការងារ។\n\n` +
-          `🔹 <b>៣. ពិនិត្យវត្តមាន (Attendance History)៖</b>\n` +
+          `🔹 <b>៣. ពិនិត្យវត្តមាន៖</b>\n` +
           `   ចុចប៊ូតុង <code>📊 វត្តមានរបស់ខ្ញុំ</code> ដើម្បីមើលចំនួនថ្ងៃ និងម៉ោងការងារប្រចាំខែ។\n\n` +
-          `🔹 <b>៤. បើកកម្មវិធីពេញលេញ (Mini App)៖</b>\n` +
-          `   ចុចប៊ូតុង <code>📱 បើក TC Staff Mini App</code> ឬចុចប៊ូតុង Menu ជ្រុងខាងឆ្វេងក្រោមអេក្រង់ Telegram។\n\n` +
           `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
           `🆔 <b>Telegram ID របស់អ្នក:</b> <code>${telegramId}</code>`;
 
@@ -804,14 +799,11 @@ export default async function handler(req: any, res: any) {
       const interactiveMenuButtons = {
         inline_keyboard: [
           [
-            { text: '🚀 បើក TC Staff Mini App', web_app: { url: `${baseUrl}/attendance-app` } }
+            { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
+            { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
           ],
           [
-            { text: '📸 ចុះឈ្មោះចូល (Check In)', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
-            { text: '🚪 ចុះឈ្មោះចេញ (Check Out)', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
-          ],
-          [
-            { text: '📊 មើលប្រវត្តិវត្តមាន (Attendance)', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
             { text: '👤 ព័ត៌មានបុគ្គលិក', callback_data: 'profile' }
           ]
         ]

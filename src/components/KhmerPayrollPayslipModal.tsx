@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { X, Copy, Send, Image as ImageIcon, FileText, Printer, CheckCircle2, AlertCircle, ShieldCheck, Check, Loader2 } from 'lucide-react';
+import { X, Copy, Send, Image as ImageIcon, FileText, Printer, CheckCircle2, AlertCircle, ShieldCheck, Check, Loader2, Coffee } from 'lucide-react';
 import { generatePayslipText } from '../utils/khmerPayrollUtils';
 import { printElement, captureElementToCanvas } from '../utils';
 
@@ -299,11 +299,9 @@ export default function KhmerPayrollPayslipModal({
           {/* Header: System Branding & Payslip Title */}
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 pb-3 border-b-2 border-slate-800">
             <div className="flex items-center gap-3">
-              <img 
-                src="/logo.png" 
-                alt="TC Staff Management" 
-                className="h-12 w-auto max-h-14 object-contain shrink-0" 
-              />
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-600 to-amber-900 text-white flex items-center justify-center shadow-md shadow-amber-900/20 shrink-0">
+                <Coffee size={24} className="stroke-[2.5]" />
+              </div>
               <div>
                 <div className="text-xs font-black text-[#003D9B] uppercase tracking-wide">
                   TC STAFF MANAGEMENT | {branchName}

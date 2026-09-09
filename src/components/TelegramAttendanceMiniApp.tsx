@@ -20,7 +20,8 @@ import {
   X, 
   Loader2,
   ShieldCheck,
-  Smartphone
+  Smartphone,
+  Coffee
 } from 'lucide-react';
 
 interface TelegramAttendanceMiniAppProps {
@@ -384,7 +385,9 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       {/* Top Mobile App Header */}
       <header className="bg-white border-b border-slate-200 px-4 py-3.5 sticky top-0 z-30 flex items-center justify-between shadow-2xs">
         <div className="flex items-center gap-2.5">
-          <img src="/logo.png" alt="TC Staff" className="h-8 w-auto object-contain" />
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-600 to-amber-900 text-white flex items-center justify-center shadow-xs shrink-0">
+            <Coffee size={18} className="stroke-[2.5]" />
+          </div>
           <div>
             <div className="text-[11px] font-black text-[#003D9B] uppercase leading-none">TC STAFF MANAGEMENT</div>
             <div className="text-xs font-bold text-slate-800 leading-tight mt-0.5">{staffInfo?.fullName || 'Staff Member'}</div>
@@ -460,7 +463,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                   }`}
                 >
                   <CheckCircle2 size={14} />
-                  <span>ចុះឈ្មោះចូល (Check In)</span>
+                  <span>ចុះឈ្មោះចូល</span>
                 </button>
 
                 <button
@@ -475,7 +478,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                   }`}
                 >
                   <Clock size={14} />
-                  <span>ចុះឈ្មោះចេញ (Check Out)</span>
+                  <span>ចុះឈ្មោះចេញ</span>
                 </button>
               </div>
             )}
@@ -527,7 +530,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     onClick={closeMiniApp}
                     className="flex-1 py-2.5 bg-[#003D9B] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
                   >
-                    បិទ (Close)
+                    បិទ
                   </button>
                 </div>
               </div>
@@ -536,7 +539,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
               <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs space-y-4 text-center">
                 <div className="space-y-1">
                   <h3 className="text-base font-black text-slate-900">
-                    {currentAction === 'checkin' ? 'ចុះឈ្មោះចូល (Check In)' : 'ចុះឈ្មោះចេញ (Check Out)'}
+                    {currentAction === 'checkin' ? 'ចុះឈ្មោះចូល' : 'ចុះឈ្មោះចេញ'}
                   </h3>
                   <p className="text-xs text-slate-500">សូមថតរូបមុខរបស់អ្នកដើម្បីផ្ទៀងផ្ទាត់វត្តមាន</p>
                 </div>
@@ -610,7 +613,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     className="w-full py-3 bg-[#003D9B] hover:bg-blue-800 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-blue-900/10"
                   >
                     <Camera size={16} />
-                    <span>បើក Camera (Open Camera)</span>
+                    <span>បើក Camera</span>
                   </button>
                 ) : (
                   <div className="flex gap-2">
@@ -626,7 +629,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                       className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-emerald-900/10"
                     >
                       <Camera size={16} />
-                      <span>ថតរូបផ្ទៀងផ្ទាត់ (Capture & Verify)</span>
+                      <span>ថតរូបផ្ទៀងផ្ទាត់</span>
                     </button>
                   </div>
                 )}

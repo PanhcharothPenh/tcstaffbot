@@ -258,6 +258,11 @@ export default function TelegramLogin({ onLoginSuccess, lang: propLang, setLang:
       {/* MAIN CONTAINER: AUTHENTICATION FORM CARD */}
       <div className="w-full max-w-[430px] my-auto z-10 flex flex-col items-center text-center space-y-6">
         
+        {/* TC Staff Brand Logo */}
+        <div className="flex flex-col items-center justify-center">
+          <Clean24Logo className="h-16" showText={true} lightMode={true} />
+        </div>
+
         {/* AUTHENTICATION CARD */}
         <div className="w-full bg-white/90 backdrop-blur-xl rounded-3xl p-7 sm:p-9 shadow-[0_20px_50px_rgba(30,80,180,0.06)] border border-white/80 space-y-5">
           
