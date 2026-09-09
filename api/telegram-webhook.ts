@@ -586,6 +586,18 @@ export default async function handler(req: any, res: any) {
       };
 
       // =================================================================================
+      // NOTICE: ⚠️ គណនីមិនទាន់បានភ្ជាប់ (Item 1 ខ)
+      // =================================================================================
+      const cleanUsername = cleanTgHandle ? `@${cleanTgHandle}` : 'គ្មាន';
+      const unlinkedStaffNotice = `👋 <b>សួស្តី ${firstName}!</b>\n\n` +
+        `⚠️ <b>គណនីមិនទាន់បានភ្ជាប់</b>\n\n` +
+        `គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយព័ត៌មានបុគ្គលិកក្នុងប្រព័ន្ធនៅឡើយទេ។\n\n` +
+        `🆔 <b>Telegram ID:</b> <code>${telegramId}</code>\n` +
+        `💬 <b>Chat ID:</b> <code>${chatId}</code>\n` +
+        `👤 <b>Username:</b> ${cleanUsername}\n\n` +
+        `👉 សូមផ្ញើ <b>Telegram ID</b> ខាងលើទៅកាន់ <b>ម្ចាស់ហាង</b> ដើម្បីភ្ជាប់គណនី និងចាប់ផ្តើមប្រើប្រាស់ប្រព័ន្ធ។`;
+
+      // =================================================================================
       // ACTION: 📸 ចុះឈ្មោះចូល (CHECK IN)
       // =================================================================================
       const isCheckInCmd = 
@@ -596,14 +608,34 @@ export default async function handler(req: any, res: any) {
 
       if (isCheckInCmd) {
         if (!matchedStaff) {
-          const unlinkedMsg = `⚠️ <b>[TC Staff - គណនីមិនទាន់បានភ្ជាប់ / Unlinked Account]</b>\n\n` +
-            `សួស្តី <b>${firstName}</b>!\n` +
-            `គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិក TC Staff ណាម្នាក់នៅឡើយទេ។\n\n` +
-            `🆔 <b>Telegram ID របស់អ្នក:</b> <code>${telegramId}</code>\n` +
-            `👤 <b>Username:</b> ${cleanTgHandle ? '@' + cleanTgHandle : 'គ្មាន'}\n\n` +
-            `👉 <b>សូមទាក់ទង Admin ឬ Manager</b> ដើម្បីចុះឈ្មោះ និងភ្ជាប់ Telegram ID នេះទៅកាន់គណនីបុគ្គលិករបស់អ្នកក្នុងប្រព័ន្ធ TC Staff ជាមុនសិន ទើបអាចចុះវត្តមានបាន!`;
+          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML' });
+        }
 
-          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedMsg, parse_mode: 'HTML' });
+        // If staff already checked in today, show started confirmation (Item 2 ក)
+        if (todayAttendance?.checkIn) {
+          const startedMsg = `✅ <b>បានចាប់ផ្តើមការងារសម្រាប់ថ្ងៃនេះ</b>\n\n` +
+            `👤 <b>បុគ្គលិក:</b> ${matchedStaff.fullName}\n` +
+            `💼 <b>តួនាទី:</b> ${matchedStaff.position || 'Staff'}\n` +
+            `🏢 <b>សាខា:</b> ${branchDisplay}\n` +
+            `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n` +
+            `🕒 <b>ម៉ោងចូល:</b> <code>${todayAttendance.checkIn}</code>\n\n` +
+            `✨ <i>សូមជូនពរឱ្យការងារថ្ងៃនេះប្រព្រឹត្តទៅដោយរលូន។</i>`;
+
+          const startedButtons = {
+            inline_keyboard: [
+              [
+                { text: '🚪 ចុះឈ្មោះចេញ (Check Out)', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } },
+                { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } }
+              ]
+            ]
+          };
+
+          return sendOrReply(res, botToken, {
+            chat_id: chatId,
+            text: startedMsg,
+            parse_mode: 'HTML',
+            reply_markup: startedButtons
+          });
         }
 
         const checkinMsg = `📸 <b>[TC Staff - ចុះឈ្មោះចូលបំពេញការងារ]</b>\n\n` +
@@ -639,14 +671,33 @@ export default async function handler(req: any, res: any) {
 
       if (isCheckOutCmd) {
         if (!matchedStaff) {
-          const unlinkedMsg = `⚠️ <b>[TC Staff - គណនីមិនទាន់បានភ្ជាប់ / Unlinked Account]</b>\n\n` +
-            `សួស្តី <b>${firstName}</b>!\n` +
-            `គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិក TC Staff ណាម្នាក់នៅឡើយទេ។\n\n` +
-            `🆔 <b>Telegram ID របស់អ្នក:</b> <code>${telegramId}</code>\n` +
-            `👤 <b>Username:</b> ${cleanTgHandle ? '@' + cleanTgHandle : 'គ្មាន'}\n\n` +
-            `👉 <b>សូមទាក់ទង Admin ឬ Manager</b> ដើម្បីចុះឈ្មោះ និងភ្ជាប់ Telegram ID នេះទៅកាន់គណនីបុគ្គលិករបស់អ្នកក្នុងប្រព័ន្ធ TC Staff ជាមុនសិន ទើបអាចចុះវត្តមានបាន!`;
+          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML' });
+        }
 
-          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedMsg, parse_mode: 'HTML' });
+        // If staff already checked out today, show completion confirmation
+        if (todayAttendance?.checkOut) {
+          const completedMsg = `✅ <b>បានបញ្ចប់ការងារសម្រាប់ថ្ងៃនេះ</b>\n\n` +
+            `👤 <b>បុគ្គលិក:</b> ${matchedStaff.fullName}\n` +
+            `💼 <b>តួនាទី:</b> ${matchedStaff.position || 'Staff'}\n` +
+            `🏢 <b>សាខា:</b> ${branchDisplay}\n` +
+            `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n` +
+            `🕒 <b>ម៉ោងចេញ:</b> <code>${todayAttendance.checkOut}</code>\n\n` +
+            `🙏 <i>សូមអរគុណសម្រាប់ការបំពេញការងារថ្ងៃនេះ។</i>`;
+
+          const completedButtons = {
+            inline_keyboard: [
+              [
+                { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } }
+              ]
+            ]
+          };
+
+          return sendOrReply(res, botToken, {
+            chat_id: chatId,
+            text: completedMsg,
+            parse_mode: 'HTML',
+            reply_markup: completedButtons
+          });
         }
 
         const checkoutMsg = `🚪 <b>[TC Staff - ចុះឈ្មោះចេញពីការងារ]</b>\n\n` +
@@ -683,13 +734,7 @@ export default async function handler(req: any, res: any) {
         userText.toLowerCase().includes('report')
       ) {
         if (!matchedStaff) {
-          const unlinkedMsg = `⚠️ <b>[TC Staff - គណនីមិនទាន់បានភ្ជាប់ / Unlinked Account]</b>\n\n` +
-            `សួស្តី <b>${firstName}</b>!\n` +
-            `គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិក TC Staff ណាម្នាក់នៅឡើយទេ។\n\n` +
-            `🆔 <b>Telegram ID របស់អ្នក:</b> <code>${telegramId}</code>\n` +
-            `👉 សូមទាក់ទង Admin ឬ Manager ដើម្បីភ្ជាប់ Telegram ID នេះជាមុនសិន។`;
-
-          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedMsg, parse_mode: 'HTML' });
+          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML' });
         }
         const monthRecords = allAtt.filter((a: any) => {
           if (!a.date) return false;
@@ -800,15 +845,6 @@ export default async function handler(req: any, res: any) {
       // DEFAULT: 🌟 MAIN MENU / START GREETING (/start or /menu)
       // =================================================================================
       if (!matchedStaff) {
-        const unlinkedWelcome = `👋 <b>សួស្តី ${firstName}!</b>\n\n` +
-          `សូមស្វាគមន៍មកកាន់ <b>TC Staff Management Bot</b> 📱\n\n` +
-          `⚠️ <b>ស្ថានភាពគណនី:</b> <code>មិនទាន់បានភ្ជាប់ (Unlinked)</code>\n` +
-          `គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយទិន្នន័យបុគ្គលិកណាមួយនៅក្នុងប្រព័ន្ធនៅឡើយទេ។\n\n` +
-          `🆔 <b>Telegram ID របស់អ្នក:</b> <code>${telegramId}</code>\n` +
-          `💬 <b>Chat ID:</b> <code>${chatId}</code>\n` +
-          `👤 <b>Username:</b> ${cleanTgHandle ? '@' + cleanTgHandle : 'គ្មាន'}\n\n` +
-          `👉 <b>ដើម្បីចុះវត្តមានបាន:</b> សូមផ្ញើលេខ <b>Telegram ID (<code>${telegramId}</code>)</b> នេះទៅកាន់ Admin ឬ Manager របស់អ្នក ដើម្បីភ្ជាប់គណនីជាមុនសិន។`;
-
         const unlinkedMenuButtons = {
           inline_keyboard: [
             [
@@ -819,7 +855,7 @@ export default async function handler(req: any, res: any) {
 
         return sendOrReply(res, botToken, {
             chat_id: chatId,
-            text: unlinkedWelcome,
+            text: unlinkedStaffNotice,
             parse_mode: 'HTML',
             reply_markup: unlinkedMenuButtons
           });
@@ -831,14 +867,10 @@ export default async function handler(req: any, res: any) {
       const staffPos = matchedStaff.position || 'Staff';
 
       const welcomeText = `👋 <b>សួស្តី ${greetingName}!</b>\n\n` +
-        `សូមស្វាគមន៍មកកាន់ <b>TC Staff Mini App</b> 📱\n` +
-        `ប្រព័ន្ធគ្រប់គ្រងវត្តមានបុគ្គលិក TC Staff Management\n\n` +
-        `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
-        `💼 <b>តួនាទី:</b> <code>${staffPos}</code>\n` +
-        `📅 <b>ថ្ងៃនេះ:</b> <code>${phnomPenhDateStr}</code>\n` +
-        `⏰ <b>វត្តមាន:</b> ចូល: <code>${checkInTime}</code> | ចេញ: <code>${checkOutTime}</code>\n` +
-        `🆔 <b>Chat ID:</b> <code>${chatId}</code>\n\n` +
-        `👇 <b>សូមចុចប៊ូតុងខាងក្រោមដើម្បីបើក Mini App ចុះវត្តមានភ្លាមៗ៖</b>`;
+        `🏢 <b>សាខា:</b> ${branchDisplay}\n` +
+        `💼 <b>តួនាទី:</b> ${staffPos}\n` +
+        `📅 <b>ថ្ងៃនេះ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
+        `⏱️ <b>វត្តមាន:</b> 🟢 <code>${checkInTime}</code> → 🔴 <code>${checkOutTime}</code>`;
 
       const interactiveMenuButtons = {
         inline_keyboard: [
