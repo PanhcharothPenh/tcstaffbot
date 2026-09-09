@@ -264,10 +264,10 @@ export default async function handler(req: any, res: any) {
       },
       dispatched: dispatchSuccess,
       telegramNotice: dispatchSuccess 
-        ? `លេខកូដសុវត្ថិភាព 2FA ត្រូវបានផ្ញើទៅកាន់ Telegram របស់អ្នករួចរាល់ហើយ។`
+        ? `លេខកូដសុវត្ថិភាព 2FA ត្រូវបានផ្ញើទៅកាន់ Telegram (@TCStaffBot) របស់អ្នករួចរាល់ហើយ។`
         : (resolvedChatId 
-            ? `មិនអាចផ្ញើលេខកូដទៅ Telegram បានទេ (${tgErrorDetail || 'Unknown Error'})។ សូមចុច /start លើ Bot ក្នុង Telegram។`
-            : `រកមិនឃើញគណនី Telegram របស់អ្នកឡើយ។ សូមបើក Telegram រួចចុច /start លើ Bot ជាមុនសិន។`)
+            ? `មិនអាចផ្ញើលេខកូដទៅ Telegram បានទេ (${tgErrorDetail || 'Unknown Error'})។ សូមចុច /start លើ Bot @TCStaffBot ក្នុង Telegram។`
+            : `រកមិនឃើញគណនី Telegram របស់អ្នកឡើយ។ សូមបើក Telegram រួចចុច /start លើ Bot @TCStaffBot ជាមុនសិន។`)
     });
   } catch (err: any) {
     return res.status(400).json({ error: err?.message || 'Login failed' });
