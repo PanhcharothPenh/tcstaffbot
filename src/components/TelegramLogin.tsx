@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Languages, Loader2, User, Lock, Check, Send, ExternalLink, Eye, EyeOff, Globe, ChevronDown, Shield, KeyRound, Sparkles } from 'lucide-react';
 import { saveSession, authApi } from '../utils/api';
-import Clean24Logo from './Clean24Logo';
+import TCLogo from './TCLogo';
 
 interface TelegramLoginProps {
   onLoginSuccess: (user: any) => void;
@@ -260,7 +260,7 @@ export default function TelegramLogin({ onLoginSuccess, lang: propLang, setLang:
         
         {/* TC Staff Brand Logo */}
         <div className="flex flex-col items-center justify-center">
-          <Clean24Logo className="h-24 sm:h-28" showText={true} lightMode={true} />
+          <TCLogo className="h-24 sm:h-28" showText={true} lightMode={true} />
         </div>
 
         {/* AUTHENTICATION CARD */}

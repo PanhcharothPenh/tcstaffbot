@@ -41,7 +41,7 @@ import {
 } from '../types';
 import { translations } from '../mockData';
 import { formatCurrency, formatDualCurrency, exportToCSV, formatCasesAndPackets } from '../utils';
-import Clean24Logo from './Clean24Logo';
+import TCLogo from './TCLogo';
 
 interface ReportsViewProps {
   currentRole: Role;
@@ -1199,7 +1199,7 @@ export default function ReportsView({
                 {/* letterhead header */}
                 <div className="flex justify-between items-start border-b border-sky-600/35 pb-3">
                   <div className="flex gap-4 items-center">
-                    <Clean24Logo className="h-10 cursor-pointer" lightMode={true} />
+                    <TCLogo className="h-10 cursor-pointer" lightMode={true} />
                     <div className="h-8 w-px bg-slate-300 self-center" />
                     <div>
                       <span className="text-[10px] text-sky-700 font-extrabold tracking-widest block uppercase">Multi-Branch Operations</span>

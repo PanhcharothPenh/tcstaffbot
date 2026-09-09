@@ -54,7 +54,7 @@ import { db, translations } from './mockData';
 
 // Subcomponents import
 import Sidebar from './components/Sidebar';
-import Clean24Logo from './components/Clean24Logo';
+import TCLogo from './components/TCLogo';
 import DashboardView from './components/DashboardView';
 import BranchManagementView from './components/BranchManagementView';
 import StaffManagementView from './components/StaffManagementView';

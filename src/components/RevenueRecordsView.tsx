@@ -28,7 +28,7 @@ import {
 import * as XLSX from 'xlsx';
 import { RevenueRecord, Role, Branch } from '../types';
 import { printElement } from '../utils';
-import Clean24Logo from './Clean24Logo';
+import TCLogo from './TCLogo';
 import { notifyRevenueRecordSaved, notifyBatchSaveCompleted } from '../services/branchTelegramNotifier';
 
 interface RevenueRecordsViewProps {

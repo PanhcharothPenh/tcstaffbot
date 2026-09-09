@@ -44,7 +44,7 @@ import {
 } from 'lucide-react';
 import { Role, User, Branch } from '../types';
 import { translations } from '../mockData';
-import Clean24Logo from './Clean24Logo';
+import TCLogo from './TCLogo';
 
 interface SidebarProps {
   currentRole: Role;
@@ -224,7 +224,7 @@ export default function Sidebar({
           <>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0 bg-white px-3 py-1.5 rounded-2xl shadow-sm border border-slate-700/40">
-                <Clean24Logo className="h-10 sm:h-12 cursor-pointer shrink-0" lightMode={false} />
+                <TCLogo className="h-10 sm:h-12 cursor-pointer shrink-0" lightMode={false} />
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
