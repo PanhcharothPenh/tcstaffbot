@@ -308,3 +308,17 @@ export function getProratedDaysAndSalary(
     dueSalary
   };
 }
+
+/**
+ * Returns the current date formatted as YYYY-MM-DD in Asia/Phnom_Penh (UTC+7) time
+ */
+export function getPhnomPenhDateStr(): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Phnom_Penh' }).format(new Date());
+  } catch {
+    const d = new Date();
+    d.setHours(d.getHours() + 7);
+    return d.toISOString().substring(0, 10);
+  }
+}
+

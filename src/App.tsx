@@ -1197,7 +1197,7 @@ export default function App() {
       <div className="flex-1 min-w-0 h-screen flex flex-col overflow-hidden">
         
         {/* Top Header Segment bar */}
-        <header className="bg-white/85 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between sticky top-0 z-30 shadow-xs" id="header_saas_bar">
+        <header className="bg-[#FAF8F5]/95 backdrop-blur-md border-b border-[#EAE3D9] px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between sticky top-0 z-30 shadow-xs" id="header_saas_bar">
           
           {/* Menu Trigger and Title details */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -1210,7 +1210,7 @@ export default function App() {
             </button>
             
             <div className="flex flex-col text-left min-w-0">
-              <h1 className="text-sm sm:text-2xl font-black text-[#111827] tracking-tight leading-tight truncate max-w-[140px] xs:max-w-[200px] sm:max-w-none">
+              <h1 className="text-sm sm:text-2xl font-black text-[#2A1810] tracking-tight leading-tight truncate max-w-[140px] xs:max-w-[200px] sm:max-w-none">
                 {activeTab === 'staff' ? (lang === 'en' ? 'Staff & Barista' : 'បុគ្គលិក & Barista') :
                  activeTab === 'shifts' ? (lang === 'en' ? 'Shift Calendar' : 'ប្រតិទិនវេនការងារ') :
                  activeTab === 'attendance' ? (lang === 'en' ? 'Staff Attendance' : 'វត្តមានបុគ្គលិក') :
@@ -1219,7 +1219,7 @@ export default function App() {
               </h1>
               <p className="text-[11px] text-slate-500 font-bold leading-none mt-1 hidden sm:flex items-center gap-1.5">
                 <span>👥 TC Staff Management Suite</span>
-                <span className="text-[9px] bg-blue-100 text-blue-800 font-extrabold px-1.5 py-0.5 rounded-full">TC Staff</span>
+                <span className="text-[9px] bg-amber-100 text-[#78350F] border border-amber-300 font-extrabold px-1.5 py-0.5 rounded-full">TC Staff</span>
               </p>
             </div>
           </div>
@@ -1377,10 +1377,10 @@ export default function App() {
         </header>
 
         {/* 3. Primary Workspace rendering and Audit Log trails panels */}
-        <main className="flex-1 min-w-0 max-w-full p-3 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto overflow-x-hidden scroll-smooth" id="workspace_viewport">
+        <main className="flex-1 min-w-0 max-w-full p-3 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto overflow-x-hidden scroll-smooth bg-[#FBF9F5]" id="workspace_viewport">
           
           {/* Active branch indicator banner with interactive Quick Branch Switcher */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-4 border-b border-slate-100/80">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-4 border-b border-[#EAE3D9]">
             <div className="flex items-center gap-2 text-xs flex-wrap">
               <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
               <span className="text-[11px] sm:text-xs text-slate-500 font-medium">

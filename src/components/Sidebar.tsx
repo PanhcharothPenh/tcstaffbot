@@ -215,10 +215,10 @@ export default function Sidebar({
   const favoritesExpanded = isGroupExpanded('clean24_favorites_group');
 
   return (
-    <aside className={`h-full bg-[#0F172A] text-slate-100 border-r border-slate-800 flex flex-col justify-between overflow-hidden shadow-2xl transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-72'}`}>
+    <aside className={`h-full bg-[#18110D] text-slate-100 border-r border-[#2C1910] flex flex-col justify-between overflow-hidden shadow-2xl transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-72'}`}>
       
       {/* 1. TOP HEADER BRANDING BLOCK */}
-      <div className="p-3.5 border-b border-slate-800 bg-[#0B1120] shrink-0">
+      <div className="p-3.5 border-b border-[#2C1910] bg-[#120B07] shrink-0">
         
         {!isCollapsed ? (
           <>
@@ -242,10 +242,10 @@ export default function Sidebar({
             </div>
 
             {/* Active Branch Select Form */}
-            <div className="mt-3 bg-[#1E293B] p-2.5 rounded-2xl border border-slate-700/60 shadow-inner">
+            <div className="mt-3 bg-[#22140D] p-2.5 rounded-2xl border border-[#382015] shadow-inner">
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[9px] text-slate-300/70 uppercase tracking-widest block font-extrabold flex items-center gap-1">
-                  <Building2 size={11} className="text-blue-500" />
+                <label className="text-[9px] text-amber-300/80 uppercase tracking-widest block font-extrabold flex items-center gap-1">
+                  <Building2 size={11} className="text-amber-400" />
                   {t.activeBranch}
                 </label>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
@@ -253,7 +253,7 @@ export default function Sidebar({
               <select
                 value={activeBranchId}
                 onChange={(e) => setActiveBranchId(e.target.value)}
-                className="w-full bg-[#0F172A] border border-slate-700/60 text-xs text-slate-100 rounded-xl p-2 focus:outline-none focus:border-amber-500 font-sans cursor-pointer transition-colors font-bold"
+                className="w-full bg-[#18110D] border border-[#382015] text-xs text-amber-100 rounded-xl p-2 focus:outline-none focus:border-amber-500 font-sans cursor-pointer transition-colors font-bold"
               >
                 {(currentRole === 'Owner' || currentRole === 'Admin') && (!currentUser?.assignedBranchIds || currentUser.assignedBranchIds.length === 0) && (
                   <option value="all">🏢 {t.allBranches}</option>
@@ -283,20 +283,20 @@ export default function Sidebar({
 
       {/* 2. SEARCH MENU FILTER BAR (When expanded) */}
       {!isCollapsed && (
-        <div className="px-3.5 py-2.5 bg-[#0B1120] border-b border-slate-800 shrink-0">
+        <div className="px-3.5 py-2.5 bg-[#120B07] border-b border-[#2C1910] shrink-0">
           <div className="relative">
-            <Search size={13} className="absolute left-3 top-2.5 text-slate-300/50" />
+            <Search size={13} className="absolute left-3 top-2.5 text-amber-400/50" />
             <input
               type="text"
               placeholder={lang === 'en' ? "Search staff modules..." : "ស្វែងរកមុខងារបុគ្គលិក..."}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full bg-[#1E293B] border border-slate-800 text-xs text-slate-100 placeholder-amber-200/40 rounded-xl pl-8.5 pr-3 py-1.5 focus:outline-none focus:border-amber-500 font-sans transition-all"
+              className="w-full bg-[#22140D] border border-[#382015] text-xs text-amber-100 placeholder-amber-200/40 rounded-xl pl-8.5 pr-3 py-1.5 focus:outline-none focus:border-amber-500 font-sans transition-all"
             />
             {searchQuery && (
               <button 
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-2 text-[10px] text-slate-300/60 hover:text-slate-100 cursor-pointer"
+                className="absolute right-2.5 top-2 text-[10px] text-amber-300/60 hover:text-amber-100 cursor-pointer"
               >
                 Clear
               </button>
