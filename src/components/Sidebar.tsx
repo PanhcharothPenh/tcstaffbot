@@ -37,7 +37,9 @@ import {
   Send,
   Bot,
   CalendarDays,
-  Coffee
+  Coffee,
+  MapPin,
+  Building2
 } from 'lucide-react';
 import { Role, User, Branch } from '../types';
 import { translations } from '../mockData';
@@ -119,14 +121,15 @@ export default function Sidebar({
     { id: 'staff', label: lang === 'en' ? 'Barista & Staff' : 'បុគ្គលិក & Barista', icon: Users, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
     { id: 'shifts', label: lang === 'en' ? 'Shift Roster Calendar' : 'ប្រតិទិនវេនការងារ', icon: CalendarDays, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
     { id: 'attendance', label: t.attendance, icon: Calendar, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
-    { id: 'salary', label: t.salary, icon: DollarSign, roles: ['Owner', 'Admin', 'Manager', 'Staff'] }
+    { id: 'salary', label: t.salary, icon: DollarSign, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
+    { id: 'branches', label: lang === 'en' ? 'Branch & GPS Setup' : 'សាខា & ទីតាំងស្កេន GPS', icon: MapPin, roles: ['Owner', 'Admin'] }
   ];
 
   const navGroups = [
     {
       title: lang === 'en' ? 'Staff & Payroll' : 'បុគ្គលិក និងប្រាក់ខែ',
       icon: Users,
-      items: ['staff', 'shifts', 'attendance', 'salary']
+      items: ['staff', 'shifts', 'attendance', 'salary', 'branches']
     }
   ];
 

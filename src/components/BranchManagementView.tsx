@@ -224,7 +224,7 @@ export default function BranchManagementView({
         updatedAt: new Date().toISOString()
       };
       setBranches([...branches, newB]);
-      onAddLog(`Created new laundry branch "${name.trim()}" with code ${code.trim()}`);
+      onAddLog(`Created new branch "${name.trim()}" with code ${code.trim()}`);
     }
 
     // Reset Form
