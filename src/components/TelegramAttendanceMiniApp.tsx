@@ -36,7 +36,15 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   const [activeView, setActiveView] = useState<'action' | 'history'>(actionParam === 'history' ? 'history' : 'action');
   const [currentAction, setCurrentAction] = useState<'checkin' | 'checkout'>(actionParam === 'checkout' ? 'checkout' : 'checkin');
 
-  // Camera State (Always un-mirrored / normal true orientation)
+  // Camera State & Mirror Settings (Default to natural mirror view with ZERO flipping on capture)
+  const [isMirrored, setIsMirrored] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('tc_camera_mirrored');
+      return saved !== null ? saved === 'true' : true; // Default true (mirror preview & capture match 100%)
+    } catch {
+      return true;
+    }
+  });
   const cameraFacingMode = 'user';
 
   // Telegram WebApp & Auth State
@@ -245,13 +253,26 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 640;
+    const vWidth = video.videoWidth || 640;
+    const vHeight = video.videoHeight || 640;
+
+    // Crop center square to match circular frame exactly (prevents any stretching or facial distortion)
+    const minDim = Math.min(vWidth, vHeight);
+    const startX = (vWidth - minDim) / 2;
+    const startY = (vHeight - minDim) / 2;
+
+    canvas.width = minDim;
+    canvas.height = minDim;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Draw frame (normal true orientation, no mirror)
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    // If mirrored, mirror canvas so captured photo matches preview pixel-for-pixel with ZERO surprise flip!
+    if (isMirrored) {
+      ctx.translate(minDim, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(video, startX, startY, minDim, minDim, 0, 0, minDim, minDim);
+
     const photoDataUrl = canvas.toDataURL('image/jpeg', 0.85);
     const vector = generateFaceDescriptorFromCanvas(canvas);
 
@@ -591,7 +612,8 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                         autoPlay
                         playsInline 
                         muted 
-                        className="w-full h-full object-cover" 
+                        className="w-full h-full object-cover transition-transform duration-150"
+                        style={{ transform: isMirrored ? 'scaleX(-1)' : 'none' }}
                       />
                       {/* Face positioning oval overlay */}
                       <div className="absolute inset-4 border-2 border-dashed border-white/60 rounded-full pointer-events-none" />
@@ -619,6 +641,28 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     </div>
                   )}
                 </div>
+
+                {/* Mirror / Orientation Control Toggle */}
+                {isCameraActive && (
+                  <div className="flex items-center justify-center pt-1 pb-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !isMirrored;
+                        setIsMirrored(next);
+                        try { localStorage.setItem('tc_camera_mirrored', String(next)); } catch (_) {}
+                      }}
+                      className={`px-3.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer border shadow-xs ${
+                        isMirrored 
+                          ? 'bg-amber-50 border-amber-300 text-amber-900' 
+                          : 'bg-slate-100 border-slate-300 text-slate-700'
+                      }`}
+                      title="ត្រឡប់រូបភាព / Toggle Mirror"
+                    >
+                      <span>{isMirrored ? '🪞 កញ្ចក់ឆ្លុះ (Mirror): បើក' : '📷 រូបភាពធម្មតា (Normal)'}</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Camera Buttons */}
                 {!isCameraActive ? (

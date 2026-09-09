@@ -145,6 +145,21 @@ function getTargetBots(): Array<{ token: string; branchId: string; name: string 
   return bots;
 }
 
+
+// Fast Webhook Response helper: Uses direct HTTP 200 JSON return for 0ms roundtrip to Telegram!
+function sendOrReply(res: any, botToken: string, payload: any) {
+  const method = payload.method || 'sendMessage';
+  const fullPayload = { method, ...payload };
+  if (res && !res.headersSent) {
+    return res.status(200).json(fullPayload);
+  }
+  return fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).catch(() => {});
+}
+
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -317,89 +332,24 @@ export default async function handler(req: any, res: any) {
             userText === '/start' ||
             userText === '/menu';
 
-          // Single Batch SQL Query (0ms cached, ~300ms uncached)
-          const neededIds = ['telegramConfig', 'telegramRecipients', 'staff', 'branches', 'users', 'telegram_chat_registry'];
-          if (isAttRelated) neededIds.push('attendance');
+          // Ultra-Fast Targeted Loading (Only load what is needed for this request)
+          const neededIds = ['staff', 'branches'];
+          const isBind = userText.startsWith('/bind') || userText === '/id' || userText === '/chatid';
+          if (isBind) {
+            neededIds.push('telegramConfig');
+            neededIds.push('telegramRecipients');
+          }
+          if (isAttRelated) {
+            neededIds.push('attendance');
+          }
 
-          const batch = await loadMultipleCollections(supabase, neededIds, 45000);
+          const batch = await loadMultipleCollections(supabase, neededIds, 60000);
 
-          storedConfig = batch['telegramConfig'] || { chatIds: { branches: {} } };
-          storedRecipients = Array.isArray(batch['telegramRecipients']) ? batch['telegramRecipients'] : [];
           allStaff = Array.isArray(batch['staff']) ? batch['staff'] : [];
           allBranches = Array.isArray(batch['branches']) ? batch['branches'] : [];
           allAtt = Array.isArray(batch['attendance']) ? batch['attendance'] : [];
-          allUsers = Array.isArray(batch['users']) && batch['users'].length > 0 ? batch['users'] : [
-            {
-              id: 'usr_owner',
-              username: 'roth',
-              email: 'roth@p2bkh.tech',
-              fullName: 'Roth (Executive Owner)',
-              role: 'Owner',
-              roleId: 'owner',
-              status: 'Active',
-              assignedBranchIds: [],
-              telegramUsername: '',
-              telegramChatId: '',
-              twoFactorMethod: 'telegram'
-            }
-          ];
-          chatRegistry = Array.isArray(batch['telegram_chat_registry']) ? batch['telegram_chat_registry'] : [];
-          if (!Array.isArray(chatRegistry)) chatRegistry = [];
-
-          // If this is a private chat, auto-register this user and link to Owner/Staff!
-          if (isPrivateChat) {
-            const isOwnerSender = cleanTgHandle === 'roth' || cleanTgHandle === 'millerppc' || userText.toLowerCase().includes('roth');
-            
-            // 7a. Update Chat Registry
-            const regIdx = chatRegistry.findIndex((c: any) => String(c.chatId) === chatId);
-            const regEntry = {
-              chatId,
-              telegramId,
-              username: cleanTgHandle,
-              firstName,
-              lastSeen: new Date().toISOString(),
-              isOwner: isOwnerSender || chatRegistry.length === 0
-            };
-            if (regIdx >= 0) {
-              chatRegistry[regIdx] = { ...chatRegistry[regIdx], ...regEntry };
-            } else {
-              chatRegistry.push(regEntry);
-            }
-            saveDbCollectionAsync(supabase, 'telegram_chat_registry', chatRegistry);
-
-            // 7b. Update telegramConfig
-            storedConfig.chatIds = storedConfig.chatIds || {};
-            storedConfig.lastPrivateChatId = chatId;
-            storedConfig.lastChatId = chatId;
-            if (!storedConfig.chatIds.owner || isOwnerSender) {
-              storedConfig.chatIds.owner = chatId;
-              storedConfig.chatIds.admin = chatId;
-            }
-            saveDbCollectionAsync(supabase, 'telegramConfig', storedConfig);
-
-            // 7c. Auto-bind Chat ID in users table
-            let userModified = false;
-            for (const u of allUsers) {
-              const uName = String(u.username || '').toLowerCase().trim();
-              const uTg = String(u.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
-              const isRothOwner = u.id === 'usr_owner' || uName === 'roth';
-
-              if (
-                (cleanTgHandle && (uTg === cleanTgHandle || uName === cleanTgHandle)) ||
-                ((cleanTgHandle === 'millerppc' || cleanTgHandle === 'roth') && isRothOwner) ||
-                (userText.startsWith('/link') && userText.toLowerCase().includes(uName)) ||
-                (userText.startsWith('/start') && userText.toLowerCase().includes(uName)) ||
-                (isRothOwner && isOwnerSender && !u.telegramChatId)
-              ) {
-                u.telegramChatId = chatId;
-                if (cleanTgHandle && !u.telegramUsername) u.telegramUsername = `@${cleanTgHandle}`;
-                userModified = true;
-              }
-            }
-            if (userModified) {
-              saveDbCollectionAsync(supabase, 'users', allUsers);
-            }
-          }
+          storedConfig = batch['telegramConfig'] || { chatIds: { branches: {} } };
+          storedRecipients = Array.isArray(batch['telegramRecipients']) ? batch['telegramRecipients'] : [];
 
           // 8. Find matching staff by Telegram ID or Username (Must be Active)
           matchedStaff = allStaff.find((s: any) => {
@@ -562,12 +512,7 @@ export default async function handler(req: any, res: any) {
             `🆔 <b>Chat ID:</b> <code>${chatId}</code>\n\n` +
             `🔔 <b>ប្រព័ន្ធបានកត់ត្រាជោគជ័យ៖</b> ចាប់ពីពេលនេះតទៅ រាល់កំណត់ត្រា <b>ការលក់កាហ្វេប្រចាំថ្ងៃ</b>, <b>ស្តុកគ្រាប់កាហ្វេ & វត្ថុធាតុដើម</b>, <b>វត្តមាន Barista</b>, និង <b>ថ្ងៃបើកប្រាក់ខែ</b> របស់ <b>${boundName}</b> នឹងត្រូវបញ្ជូនមកកាន់ Group នេះដោយស្វ័យប្រវត្តិ (ដាច់ដោយឡែកពីសាខាផ្សេង)!`;
 
-          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, text: successMsg, parse_mode: 'HTML' })
-          });
-          return res.status(200).json({ ok: true });
+          return sendOrReply(res, botToken, { chat_id: chatId, text: successMsg, parse_mode: 'HTML' });
         }
 
         // If no target branch specified, present interactive selection buttons
@@ -584,12 +529,7 @@ export default async function handler(req: any, res: any) {
           ]
         };
 
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text: promptMsg, parse_mode: 'HTML', reply_markup: bindButtons })
-        });
-        return res.status(200).json({ ok: true });
+        return sendOrReply(res, botToken, { chat_id: chatId, text: promptMsg, parse_mode: 'HTML', reply_markup: bindButtons });
       }
 
       // =================================================================================
@@ -618,18 +558,12 @@ export default async function handler(req: any, res: any) {
           ]
         } : undefined;
 
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
+        return sendOrReply(res, botToken, { 
             chat_id: chatId, 
             text: idMsg, 
             parse_mode: 'HTML',
             reply_markup: idButtons 
-          })
-        });
-
-        return res.status(200).json({ ok: true });
+          });
       }
 
       // ---------------------------------------------------------------------------------
@@ -669,12 +603,7 @@ export default async function handler(req: any, res: any) {
             `👤 <b>Username:</b> ${cleanTgHandle ? '@' + cleanTgHandle : 'គ្មាន'}\n\n` +
             `👉 <b>សូមទាក់ទង Admin ឬ Manager</b> ដើម្បីចុះឈ្មោះ និងភ្ជាប់ Telegram ID នេះទៅកាន់គណនីបុគ្គលិករបស់អ្នកក្នុងប្រព័ន្ធ TC Staff ជាមុនសិន ទើបអាចចុះវត្តមានបាន!`;
 
-          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, text: unlinkedMsg, parse_mode: 'HTML' })
-          });
-          return res.status(200).json({ ok: true });
+          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedMsg, parse_mode: 'HTML' });
         }
 
         const checkinMsg = `📸 <b>[TC Staff - ចុះឈ្មោះចូលបំពេញការងារ]</b>\n\n` +
@@ -691,18 +620,12 @@ export default async function handler(req: any, res: any) {
           ]
         };
 
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        return sendOrReply(res, botToken, {
             chat_id: chatId,
             text: checkinMsg,
             parse_mode: 'HTML',
             reply_markup: checkinInlineButtons
-          })
-        });
-
-        return res.status(200).json({ ok: true });
+          });
       }
 
       // =================================================================================
@@ -723,12 +646,7 @@ export default async function handler(req: any, res: any) {
             `👤 <b>Username:</b> ${cleanTgHandle ? '@' + cleanTgHandle : 'គ្មាន'}\n\n` +
             `👉 <b>សូមទាក់ទង Admin ឬ Manager</b> ដើម្បីចុះឈ្មោះ និងភ្ជាប់ Telegram ID នេះទៅកាន់គណនីបុគ្គលិករបស់អ្នកក្នុងប្រព័ន្ធ TC Staff ជាមុនសិន ទើបអាចចុះវត្តមានបាន!`;
 
-          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, text: unlinkedMsg, parse_mode: 'HTML' })
-          });
-          return res.status(200).json({ ok: true });
+          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedMsg, parse_mode: 'HTML' });
         }
 
         const checkoutMsg = `🚪 <b>[TC Staff - ចុះឈ្មោះចេញពីការងារ]</b>\n\n` +
@@ -745,18 +663,12 @@ export default async function handler(req: any, res: any) {
           ]
         };
 
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        return sendOrReply(res, botToken, {
             chat_id: chatId,
             text: checkoutMsg,
             parse_mode: 'HTML',
             reply_markup: checkoutInlineButtons
-          })
-        });
-
-        return res.status(200).json({ ok: true });
+          });
       }
 
       // =================================================================================
@@ -777,12 +689,7 @@ export default async function handler(req: any, res: any) {
             `🆔 <b>Telegram ID របស់អ្នក:</b> <code>${telegramId}</code>\n` +
             `👉 សូមទាក់ទង Admin ឬ Manager ដើម្បីភ្ជាប់ Telegram ID នេះជាមុនសិន។`;
 
-          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, text: unlinkedMsg, parse_mode: 'HTML' })
-          });
-          return res.status(200).json({ ok: true });
+          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedMsg, parse_mode: 'HTML' });
         }
         const monthRecords = allAtt.filter((a: any) => {
           if (!a.date) return false;
@@ -812,18 +719,12 @@ export default async function handler(req: any, res: any) {
           ]
         };
 
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        return sendOrReply(res, botToken, {
             chat_id: chatId,
             text: reportMsg,
             parse_mode: 'HTML',
             reply_markup: reportButtons
-          })
-        });
-
-        return res.status(200).json({ ok: true });
+          });
       }
 
       // =================================================================================
@@ -860,18 +761,12 @@ export default async function handler(req: any, res: any) {
           ]
         };
 
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        return sendOrReply(res, botToken, {
             chat_id: chatId,
             text: profileMsg,
             parse_mode: 'HTML',
             reply_markup: profileButtons
-          })
-        });
-
-        return res.status(200).json({ ok: true });
+          });
       }
 
       // =================================================================================
@@ -896,18 +791,12 @@ export default async function handler(req: any, res: any) {
           `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
           `🆔 <b>Telegram ID របស់អ្នក:</b> <code>${telegramId}</code>`;
 
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        return sendOrReply(res, botToken, {
             chat_id: chatId,
             text: helpMsg,
             parse_mode: 'HTML',
             reply_markup: persistentReplyKeyboard
-          })
-        });
-
-        return res.status(200).json({ ok: true });
+          });
       }
 
       // =================================================================================
@@ -931,18 +820,12 @@ export default async function handler(req: any, res: any) {
           ]
         };
 
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        return sendOrReply(res, botToken, {
             chat_id: chatId,
             text: unlinkedWelcome,
             parse_mode: 'HTML',
             reply_markup: unlinkedMenuButtons
-          })
-        });
-
-        return res.status(200).json({ ok: true });
+          });
       }
 
       const greetingName = matchedStaff.fullName;
@@ -974,18 +857,12 @@ export default async function handler(req: any, res: any) {
       };
 
       // Send unified instant greeting with interactive action buttons in ONE request
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      return sendOrReply(res, botToken, {
           chat_id: chatId,
           text: welcomeText,
           parse_mode: 'HTML',
           reply_markup: interactiveMenuButtons
-        })
-      });
-
-      return res.status(200).json({ ok: true });
+        });
     } catch (e: any) {
       return res.status(200).json({ ok: true, error: e?.message });
     }
