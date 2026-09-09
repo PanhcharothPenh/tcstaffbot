@@ -97,8 +97,8 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'លេខកូដសុវត្ថិភាព 2FA មិនត្រឹមត្រូវឡើយ (Incorrect 2FA passcode)' });
     }
 
-    const targetUsername = record.username || 'roth';
-    const targetUserId = record.userId || 'usr_owner';
+    const targetUsername = record.username;
+    const targetUserId = record.userId;
 
     // Load registered users from Supabase Cloud Database
     const supabase = getSupabase();
@@ -106,33 +106,26 @@ export default async function handler(req: any, res: any) {
     if (supabase) {
       try {
         let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
-        if (error || !data) {
+        if (error || !data || !data.data || (Array.isArray(data.data) && data.data.length === 0)) {
           const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
-          if (alt.data) data = alt.data;
+          if (alt && alt.data) data = alt.data;
         }
-        if (data && Array.isArray(data.data) && data.data.length > 0) users = data.data;
+        const parsed = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+        if (parsed.length > 0) users = parsed;
       } catch (e) {}
     }
 
     let resolvedUser = users.find(u => 
       u.id === targetUserId || 
-      u.username?.toLowerCase() === targetUsername.toLowerCase()
+      (targetUsername && u.username?.toLowerCase() === targetUsername.toLowerCase())
     );
 
+    if (!resolvedUser && (targetUserId === 'usr_owner' || targetUsername === 'roth')) {
+      resolvedUser = DEFAULT_USERS[0];
+    }
+
     if (!resolvedUser) {
-      resolvedUser = {
-        id: targetUserId || 'usr_owner',
-        username: targetUsername || 'roth',
-        email: `${targetUsername || 'roth'}@p2bkh.tech`,
-        fullName: targetUsername === 'roth' ? 'Roth (Executive Owner)' : targetUsername,
-        role: targetUsername === 'roth' ? 'Owner' : 'Staff',
-        roleId: targetUsername === 'roth' ? 'owner' : 'staff',
-        status: 'Active',
-        assignedBranchIds: [],
-        telegramUsername: '',
-        telegramChatId: '',
-        twoFactorMethod: 'telegram'
-      };
+      return res.status(401).json({ error: 'រកមិនឃើញព័ត៌មានគណនីរបស់អ្នកប្រើប្រាស់ឡើយ (User account not found)' });
     }
 
     const accessToken = createSessionToken(resolvedUser);
@@ -150,16 +143,19 @@ export default async function handler(req: any, res: any) {
       ).trim();
 
       let notifyChatId = String(resolvedUser.telegramChatId || '').trim();
-      if ((!notifyChatId || !/^-?\d+$/.test(notifyChatId)) && supabase) {
+      const isPrimaryRoth = resolvedUser.id === 'usr_owner' || resolvedUser.username === 'roth';
+
+      // Only fall back to owner chat ID if the user logging in is Roth
+      if ((!notifyChatId || !/^-?\d+$/.test(notifyChatId)) && supabase && isPrimaryRoth) {
         let { data: cfgRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
         if (!cfgRow || !cfgRow.data) {
           const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
-          if (alt.data) cfgRow = alt;
+          if (alt?.data) cfgRow = alt;
         }
         if (cfgRow?.data?.chatIds?.owner) notifyChatId = String(cfgRow.data.chatIds.owner);
         if (!notifyChatId && cfgRow?.data?.lastPrivateChatId) notifyChatId = String(cfgRow.data.lastPrivateChatId);
       }
-      if (!notifyChatId && process.env.TELEGRAM_CHAT_ID && /^-?\d+$/.test(process.env.TELEGRAM_CHAT_ID)) {
+      if ((!notifyChatId || !/^-?\d+$/.test(notifyChatId)) && isPrimaryRoth && process.env.TELEGRAM_CHAT_ID && /^-?\d+$/.test(process.env.TELEGRAM_CHAT_ID)) {
         notifyChatId = process.env.TELEGRAM_CHAT_ID;
       }
 

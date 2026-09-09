@@ -756,20 +756,20 @@ export default function DashboardView({
                   </span>
                 </div>
                 <div className="space-y-3 text-xs">
-                  <div className="flex items-center justify-between p-2.5 bg-blue-50/60 border border-blue-200/60 rounded-xl">
-                    <span className="font-semibold text-[#111827] flex items-center gap-2">
-                      <Droplets size={14} className="text-[#0052CC]" /> {lang === 'en' ? 'Detergent (កញ្ចប់)' : 'សាប៊ូ (កញ្ចប់)'}
-                    </span>
-                    <span className="bg-blue-100 text-[#0052CC] px-2 py-0.5 rounded-md font-black text-[11px]">
-                      {soapPacksRemaining} {lang === 'en' ? 'Packs' : 'កញ្ចប់'}
-                    </span>
-                  </div>
                   <div className="flex items-center justify-between p-2.5 bg-amber-50/60 border border-amber-200/60 rounded-xl">
                     <span className="font-semibold text-[#111827] flex items-center gap-2">
-                      <Sparkles size={14} className="text-[#92400E]" /> {lang === 'en' ? 'Softener (កញ្ចប់)' : 'ទឹកក្រអូប (កញ្ចប់)'}
+                      <Package size={14} className="text-amber-700" /> {lang === 'en' ? 'Coffee Beans & Milk' : 'គ្រាប់កាហ្វេ & ទឹកដោះគោ'}
                     </span>
-                    <span className="bg-amber-100 text-[#92400E] px-2 py-0.5 rounded-md font-black text-[11px]">
-                      {softenerPacksRemaining} {lang === 'en' ? 'Packs' : 'កញ្ចប់'}
+                    <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md font-black text-[11px]">
+                      {lang === 'en' ? 'In Stock' : 'មានក្នុងស្តុក'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between p-2.5 bg-blue-50/60 border border-blue-200/60 rounded-xl">
+                    <span className="font-semibold text-[#111827] flex items-center gap-2">
+                      <Droplets size={14} className="text-blue-600" /> {lang === 'en' ? 'Cups, Syrups & Ice' : 'កែវ ទឹកស៊ីរ៉ូ & ទឹកកក'}
+                    </span>
+                    <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md font-black text-[11px]">
+                      {lang === 'en' ? 'Available' : 'គ្រប់គ្រាន់'}
                     </span>
                   </div>
                   {inventoryList.filter(i => isInBranch(i.branchId) && i.remainingStock <= i.minimumStockAlert).slice(0, 2).map((item, i) => (
@@ -981,8 +981,8 @@ export default function DashboardView({
                 </h4>
                 <p className="text-xs text-slate-700 mt-1 leading-relaxed">
                   {lang === 'en'
-                    ? `Peak customer activity is concentrated around ${hourlyTrafficData.bestWindow.start}:00 - ${hourlyTrafficData.bestWindow.end}:00. Ensure full-strength staff coverage on the evening shift and ensure all detergent and softener reservoirs are refilled prior to ${hourlyTrafficData.bestWindow.start}:00.`
-                    : `ចរាចរណ៍ភ្ញៀវចូលបោកគក់ច្រើនបំផុតគឺនៅចន្លោះម៉ោង ${hourlyTrafficData.bestWindow.start}:00 ដល់ ${hourlyTrafficData.bestWindow.end}:00។ សូមចាត់ចែងបុគ្គលិកវេនល្ងាចឱ្យបានគ្រប់គ្រាន់ និងត្រួតពិនិត្យបំពេញសាប៊ូ ទឹកក្រអូប និងដូរកាក់ឱ្យរួចរាល់មុនម៉ោង ${hourlyTrafficData.bestWindow.start}:00 ដើម្បីផ្តល់សេវាកម្មរលូនជូនអតិថិជន។`}
+                    ? `Peak customer activity is concentrated around ${hourlyTrafficData.bestWindow.start}:00 - ${hourlyTrafficData.bestWindow.end}:00. Ensure full-strength staff coverage on shift and ensure coffee beans, milk, and ice reserves are refilled prior to ${hourlyTrafficData.bestWindow.start}:00.`
+                    : `ចរាចរណ៍ភ្ញៀវចូលច្រើនបំផុតគឺនៅចន្លោះម៉ោង ${hourlyTrafficData.bestWindow.start}:00 ដល់ ${hourlyTrafficData.bestWindow.end}:00។ សូមចាត់ចែងបុគ្គលិកឱ្យបានគ្រប់គ្រាន់ និងត្រួតពិនិត្យបំពេញស្តុកគ្រាប់កាហ្វេ ទឹកដោះគោ និងទឹកកកឱ្យរួចរាល់មុនម៉ោង ${hourlyTrafficData.bestWindow.start}:00 ដើម្បីផ្តល់សេវាកម្មរលូនជូនអតិថិជន។`}
                 </p>
               </div>
             </div>
@@ -1147,7 +1147,7 @@ export default function DashboardView({
             <div className="space-y-4 text-xs">
               <div>
                 <div className="flex justify-between font-bold text-slate-700 mb-1">
-                  <span>🧴 {lang === 'en' ? 'Detergent & Soap Refills' : 'ថ្លៃសាប៊ូបោកគក់'}</span>
+                  <span>☕ {lang === 'en' ? 'Store & Supplies' : 'ចំណាយសម្ភារៈ និងស្តុកហាង'}</span>
                   <span className="font-mono text-slate-900">${netProfitBreakdown.detergentCost.toFixed(2)} ({netProfitBreakdown.totalCosts > 0 ? ((netProfitBreakdown.detergentCost / netProfitBreakdown.totalCosts) * 100).toFixed(1) : 0}%)</span>
                 </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">

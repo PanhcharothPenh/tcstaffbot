@@ -333,7 +333,8 @@ export default function UserManagementView({
     setUsername(user.username || '');
     setEmail(user.email || '');
     setPhone(user.phone || '');
-    setTelegramUsername(user.telegramUsername || user.telegramChatId || '');
+    setTelegramUsername(user.telegramUsername || (user.telegramChatId && !/^-?\d+$/.test(user.telegramChatId) ? user.telegramChatId : ''));
+    setDetectedChatId(user.telegramChatId && /^-?\d+$/.test(String(user.telegramChatId)) ? String(user.telegramChatId) : '');
     setTwoFactorMethod(user.twoFactorMethod === 'telegram' ? 'telegram' : 'disabled');
     setPassword('');
     const rawRoleId = (user.roleId || user.role?.toLowerCase() || 'staff') as 'owner' | 'admin' | 'manager' | 'staff';
@@ -368,6 +369,21 @@ export default function UserManagementView({
       const finalRole = isEditingPrimaryOwner ? 'Owner' : (roleMap[selectedRoleId] || 'Staff');
 
       const cleanTelegram = telegramUsername.trim();
+      const isCleanNumeric = /^-?\d+$/.test(cleanTelegram);
+      let finalTgChatId = detectedChatId ? String(detectedChatId).trim() : '';
+      let finalTgUser = '';
+
+      if (isCleanNumeric) {
+        finalTgChatId = cleanTelegram;
+        finalTgUser = editUser?.telegramUsername || '';
+      } else if (cleanTelegram) {
+        finalTgUser = cleanTelegram.startsWith('@') ? cleanTelegram : `@${cleanTelegram}`;
+      }
+
+      if (!finalTgChatId && editUser?.telegramChatId && /^-?\d+$/.test(String(editUser.telegramChatId))) {
+        finalTgChatId = String(editUser.telegramChatId);
+      }
+
       const payload: any = {
         fullName: fullName.trim(),
         username: username.trim().toLowerCase(),
@@ -376,8 +392,8 @@ export default function UserManagementView({
         roleId: finalRoleId,
         role: finalRole,
         twoFactorMethod,
-        telegramUsername: cleanTelegram.startsWith('@') ? cleanTelegram : (cleanTelegram ? `@${cleanTelegram}` : ''),
-        telegramChatId: detectedChatId || cleanTelegram,
+        telegramUsername: finalTgUser,
+        telegramChatId: finalTgChatId,
         assignedBranchIds: assignedBranchIds
       };
 
@@ -1184,6 +1200,12 @@ export default function UserManagementView({
                       placeholder="@username ឬ Chat ID លេខ"
                       className="w-full px-3 py-2 bg-white border border-sky-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-sky-600 transition-all"
                     />
+                    {(detectedChatId || (editUser?.telegramChatId && /^-?\d+$/.test(String(editUser.telegramChatId)))) && (
+                      <div className="flex items-center justify-between text-[11px] px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl font-sans text-emerald-800">
+                        <span className="font-bold">✅ Telegram Chat ID:</span>
+                        <span className="font-mono font-bold">{detectedChatId || editUser?.telegramChatId}</span>
+                      </div>
+                    )}
                     <p className="text-[10px] text-slate-500 leading-relaxed">
                       💡 <b>ចំណាំ៖</b> បុគ្គលិកត្រូវបើក Telegram រួចចុច <b>/start</b> លើ Bot Telegram របស់ក្រុមហ៊ុនជាមុនសិន ទើប Bot អាចផ្ញើលេខកូដ 2FA ទៅកាន់ Telegram ផ្ទាល់ខ្លួនរបស់គាត់បាន។
                     </p>

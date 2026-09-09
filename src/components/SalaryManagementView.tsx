@@ -387,7 +387,7 @@ export default function SalaryManagementView({
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [expStaffId, setExpStaffId] = useState('');
   const [expDate, setExpDate] = useState(() => new Date().toISOString().substring(0, 10));
-  const [expCategory, setExpCategory] = useState('សាប៊ូ (Detergent)');
+  const [expCategory, setExpCategory] = useState('សម្ភារៈហាង (Shop supplies)');
   const [expCustomCategory, setExpCustomCategory] = useState('');
   const [expDesc, setExpDesc] = useState('');
   const [expCurrency, setExpCurrency] = useState<'USD' | 'KHR'>('USD');
@@ -1858,7 +1858,7 @@ export default function SalaryManagementView({
                 {lang === 'kh' ? 'ចំណាយបុគ្គលិក / បុគ្គលិកចេញលុយផ្ទាល់ខ្លួនមុន (Staff Expense Reimbursement)' : 'Staff Expense Reimbursements'}
               </h3>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                {lang === 'kh' ? 'ទិញសាប៊ូ ទឹកក្រអូប ថង់ ឬជួសជុលហាង • មិនមែនជាការកាត់ប្រាក់ទេ គឺជាប្រាក់ដែលហាងជំពាក់បុគ្គលិក' : 'Money the store owes the employee for purchases made.'}
+                {lang === 'kh' ? 'ទិញទឹកដោះគោ គ្រាប់កាហ្វេ កែវ ទឹកកក សម្ភារៈហាង ឬជួសជុល • មិនមែនជាការកាត់ប្រាក់ទេ គឺជាប្រាក់ដែលហាងជំពាក់បុគ្គលិក' : 'Money the store owes the employee for purchases made.'}
               </p>
             </div>
 
@@ -2718,11 +2718,13 @@ export default function SalaryManagementView({
                     onChange={e => setExpCategory(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-blue-500"
                   >
-                    <option value="សាប៊ូ (Detergent)">សាប៊ូ (Detergent)</option>
-                    <option value="ទឹកក្រអូប (Perfume)">ទឹកក្រអូប (Perfume)</option>
-                    <option value="ថង់ (Bags)">ថង់ (Bags)</option>
+                    <option value="គ្រាប់កាហ្វេ (Coffee Beans)">គ្រាប់កាហ្វេ (Coffee Beans)</option>
+                    <option value="ទឹកដោះគោ & ក្រែម (Milk & Cream)">ទឹកដោះគោ & ក្រែម (Milk & Cream)</option>
+                    <option value="ទឹកស៊ីរ៉ូ & ស្ករ (Syrup & Sugar)">ទឹកស៊ីរ៉ូ & ស្ករ (Syrup & Sugar)</option>
+                    <option value="កែវ គម្រប ទុយោ & ថង់ (Cups, Lids, Straws & Bags)">កែវ គម្រប ទុយោ & ថង់ (Cups, Lids, Straws & Bags)</option>
+                    <option value="ទឹកកក & ទឹកបរិសុទ្ធ (Ice & Pure Water)">ទឹកកក & ទឹកបរិសុទ្ធ (Ice & Pure Water)</option>
                     <option value="សម្ភារៈបោសសម្អាត (Cleaning)">សម្ភារៈបោសសម្អាត (Cleaning)</option>
-                    <option value="ជួសជុលហាង (Repairs)">ជួសជុលហាង (Repairs)</option>
+                    <option value="ជួសជុល & គ្រឿងម៉ាស៊ីន (Repairs & Maintenance)">ជួសជុល & គ្រឿងម៉ាស៊ីន (Repairs & Maintenance)</option>
                     <option value="សម្ភារៈហាង (Shop supplies)">សម្ភារៈហាង (Shop supplies)</option>
                     <option value="ផ្សេងៗ (Other)">ផ្សេងៗ (Other)</option>
                   </select>
@@ -2834,7 +2836,7 @@ export default function SalaryManagementView({
                   type="text"
                   value={expDesc}
                   onChange={e => setExpDesc(e.target.value)}
-                  placeholder={lang === 'kh' ? 'ឧទាហរណ៍៖ ទិញសាប៊ូ ២ កាន និងថង់ធំ...' : 'e.g. Bought detergent...'}
+                  placeholder={lang === 'kh' ? 'ឧទាហរណ៍៖ ទិញទឹកដោះគោ ២ កេស ឬកែវកាហ្វេ...' : 'e.g. Bought milk, cups, coffee beans...'}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:bg-white focus:border-blue-500"
                 />
               </div>

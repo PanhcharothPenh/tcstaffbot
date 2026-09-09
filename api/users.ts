@@ -105,17 +105,24 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Username already exists' });
     }
 
+    const rawTg = String(body.telegramChatId || body.telegramUsername || '').trim();
+    const isTgNumeric = /^-?\d+$/.test(rawTg);
+    const tgChatId = /^-?\d+$/.test(String(body.telegramChatId || '').trim())
+      ? String(body.telegramChatId).trim()
+      : (isTgNumeric ? rawTg : '');
+
     const newUser = {
       id: body.id || ('usr_' + Date.now()),
       username: newUsername,
+      password: body.password ? String(body.password).trim() : '',
       email: body.email || `${newUsername}@p2bkh.tech`,
       fullName: body.fullName || newUsername,
       phone: body.phone || '',
       role: body.role || 'Staff',
       roleId: body.roleId || 'staff',
       status: 'Active',
-      telegramUsername: body.telegramUsername || '',
-      telegramChatId: body.telegramChatId || '',
+      telegramUsername: isTgNumeric ? '' : (body.telegramUsername || ''),
+      telegramChatId: tgChatId,
       twoFactorMethod: body.twoFactorMethod || 'disabled',
       assignedBranchIds: body.assignedBranchIds || [],
       createdAt: new Date().toISOString()
@@ -131,7 +138,23 @@ export default async function handler(req: any, res: any) {
     const idx = users.findIndex(u => u.id === targetId);
     if (idx === -1) return res.status(404).json({ error: 'User not found' });
 
-    users[idx] = { ...users[idx], ...body, id: targetId, updatedAt: new Date().toISOString() };
+    const rawTg = String(body.telegramChatId || body.telegramUsername || '').trim();
+    const isTgNumeric = /^-?\d+$/.test(rawTg);
+    const tgChatId = /^-?\d+$/.test(String(body.telegramChatId || '').trim())
+      ? String(body.telegramChatId).trim()
+      : (isTgNumeric ? rawTg : (users[idx].telegramChatId || ''));
+
+    const updatedUser = {
+      ...users[idx],
+      ...body,
+      id: targetId,
+      telegramChatId: tgChatId,
+      updatedAt: new Date().toISOString()
+    };
+    if (!body.password && users[idx].password) {
+      updatedUser.password = users[idx].password;
+    }
+    users[idx] = updatedUser;
     await saveUsers(users);
     return res.status(200).json({ success: true, user: users[idx] });
   }

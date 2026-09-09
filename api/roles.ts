@@ -2,10 +2,24 @@ import { createClient } from '@supabase/supabase-js';
 
 const DEFAULT_ROLES = [
   { id: 'owner', name: 'Owner', permissions: ['all'], isSystem: true },
-  { id: 'admin', name: 'Admin', permissions: ['manage_branches', 'manage_staff', 'manage_machines', 'view_reports'], isSystem: true },
-  { id: 'manager', name: 'Manager', permissions: ['manage_staff', 'view_reports', 'manage_inventory'], isSystem: true },
-  { id: 'staff', name: 'Staff', permissions: ['view_dashboard', 'operate_machines'], isSystem: true }
+  { id: 'admin', name: 'Admin', permissions: ['manage_branches', 'manage_staff', 'manage_salary', 'manage_inventory', 'view_reports'], isSystem: true },
+  { id: 'manager', name: 'Manager', permissions: ['manage_staff', 'view_attendance', 'manage_inventory', 'view_reports'], isSystem: true },
+  { id: 'staff', name: 'Staff', permissions: ['view_dashboard', 'attendance_checkin', 'view_shift'], isSystem: true }
 ];
+
+const COFFEE_MODULES = [
+  'Dashboard', 'Branch', 'User', 'Role', 'Staff', 'Shift Roster', 'Attendance', 'Salary', 
+  'Revenue', 'Expense', 'Inventory', 'Supplier', 'Debt & Payable', 'Cash Drawer', 
+  'Month-End Closing', 'Telegram Settings', 'Audit Log', 'Backup & Restore', 'Reports'
+];
+const ACTIONS = ['View', 'Create', 'Edit', 'Delete', 'Export PDF', 'Export Excel', 'Print', 'Approve', 'Configure'];
+const GENERATED_PERMISSIONS: any[] = [];
+let pid = 1;
+COFFEE_MODULES.forEach(mod => {
+  ACTIONS.forEach(act => {
+    GENERATED_PERMISSIONS.push({ id: `perm_${pid++}`, module: mod, action: act });
+  });
+});
 
 function getSupabase() {
   const url = (process.env.SUPABASE_URL || '').replace(/['"]/g, '').trim();
@@ -57,7 +71,7 @@ export default async function handler(req: any, res: any) {
   }
 
   if (isPermissions) {
-    return res.status(200).json({ success: true, permissions: [] });
+    return res.status(200).json({ success: true, permissions: GENERATED_PERMISSIONS });
   }
 
   // Roles CRUD
@@ -65,10 +79,10 @@ export default async function handler(req: any, res: any) {
   if (supabase) {
     try {
       let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'roles').maybeSingle();
-        if (error || !data) {
-          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'roles').maybeSingle();
-          if (alt.data) data = alt.data;
-        }
+      if (error || !data) {
+        const alt = await supabase.from('clean24_collections').select('data').eq('id', 'roles').maybeSingle();
+        if (alt.data) data = alt.data;
+      }
       if (data && Array.isArray(data.data) && data.data.length > 0) roles = data.data;
     } catch (e) {}
   }

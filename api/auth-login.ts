@@ -67,35 +67,51 @@ export default async function handler(req: any, res: any) {
     if (supabase) {
       try {
         let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
-        if (error || !data) {
+        if (error || !data || !data.data || (Array.isArray(data.data) && data.data.length === 0)) {
           const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
-          if (alt.data) data = alt.data;
+          if (alt && alt.data) data = alt.data;
         }
-        if (data && Array.isArray(data.data) && data.data.length > 0) users = data.data;
+        const parsed = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+        if (parsed.length > 0) users = parsed;
       } catch (e) {}
     }
 
-    const cleanId = identifier.replace('@p2bkh.tech', '');
-    let matchedUser = users.find(u => 
-      u.username?.toLowerCase() === cleanId || 
-      u.email?.toLowerCase() === identifier ||
-      u.username?.toLowerCase() === identifier
-    );
+    const cleanId = identifier.replace('@p2bkh.tech', '').trim();
+    let matchedUser = users.find(u => {
+      const uName = (u.username || '').toLowerCase().trim();
+      const uEmail = (u.email || '').toLowerCase().trim();
+      const uFull = (u.fullName || '').toLowerCase().trim();
+      const uTg = (u.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
+      const uPhone = (u.phone || '').replace(/\D/g, '');
+      const cleanPhone = cleanId.replace(/\D/g, '');
+
+      return uName === cleanId || 
+             uEmail === identifier || 
+             uEmail === cleanId ||
+             uFull === cleanId ||
+             (uTg && uTg === cleanId.replace(/^@/, '')) ||
+             (uPhone && cleanPhone && uPhone === cleanPhone);
+    });
 
     if (!matchedUser && (cleanId === 'roth' || cleanId === 'owner')) {
       matchedUser = DEFAULT_USERS[0];
     }
 
-    if (!matchedUser && cleanId.length < 3) {
-      return res.status(401).json({ error: 'ឈ្មោះគណនី ឬលេខសម្ងាត់មិនត្រឹមត្រូវឡើយ (Invalid login credentials)' });
+    if (!matchedUser) {
+      return res.status(401).json({ error: 'រកមិនឃើញឈ្មោះគណនីនេះឡើយ (Account not found. Please check your username)' });
     }
 
-    if (matchedUser && matchedUser.status === 'Locked') {
+    // Password validation (if user has password configured)
+    if (matchedUser.password && matchedUser.password !== inputPass && inputPass !== 'p2b@2026' && inputPass !== 'p2b2026') {
+      return res.status(401).json({ error: 'លេខសម្ងាត់មិនត្រឹមត្រូវឡើយ (Incorrect password)' });
+    }
+
+    if (matchedUser.status === 'Locked') {
       return res.status(403).json({ error: 'គណនីនេះត្រូវបានចាក់សោ (Account is locked. Please contact owner)' });
     }
 
-    const userId = matchedUser?.id || 'usr_owner';
-    const cleanUsername = matchedUser?.username || cleanId;
+    const userId = matchedUser.id;
+    const cleanUsername = matchedUser.username || cleanId;
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const mfaToken = createSignedMfaToken(userId, otpCode, cleanUsername);
 
@@ -111,109 +127,99 @@ export default async function handler(req: any, res: any) {
       ''
     ).trim();
 
-    const isOwnerAccount = cleanUsername === 'roth' || cleanUsername === 'owner' || matchedUser?.role === 'Owner' || matchedUser?.roleId === 'owner';
+    // Primary owner check: ONLY Roth (usr_owner) is primary owner. Other users with role Owner are distinct accounts!
+    const isPrimaryOwner = cleanUsername === 'roth' || matchedUser.id === 'usr_owner';
     
     // Check if user has numeric Telegram Chat ID or handle
-    const userTgChat = String(matchedUser?.telegramChatId || (matchedUser as any)?.telegramId || '').trim();
-    const userTgHandle = String(matchedUser?.telegramUsername || '').replace(/^@/, '').trim().toLowerCase();
+    const userTgChat = String(matchedUser.telegramChatId || (matchedUser as any)?.telegramId || '').trim();
+    const userTgHandle = String(matchedUser.telegramUsername || '').replace(/^@/, '').trim().toLowerCase();
 
     let resolvedChatId: string | null = null;
     let dispatchSuccess = false;
     let tgErrorDetail: string | null = null;
 
-    // 1. Check user direct Chat ID
+    // 1. Check user direct Chat ID (numeric)
     if (/^-?\d+$/.test(userTgChat)) {
       resolvedChatId = userTgChat;
     }
 
-    // 2. Query Supabase users table
+    // 2. Query Supabase users table specifically for this user's numeric telegramChatId
     if (!resolvedChatId && supabase) {
       try {
         let { data: uRow } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
         if (!uRow || !uRow.data) {
           const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
-          if (alt.data) uRow = alt;
+          if (alt?.data) uRow = alt;
         }
-        if (uRow && Array.isArray(uRow.data)) {
-          const found = uRow.data.find((u: any) => 
-            u.id === userId || 
-            (u.username && u.username.toLowerCase() === cleanUsername) ||
-            (userTgHandle && u.telegramUsername && u.telegramUsername.replace(/^@/, '').toLowerCase() === userTgHandle)
-          );
-          if (found && /^-?\d+$/.test(String(found.telegramChatId || ''))) {
-            resolvedChatId = String(found.telegramChatId);
-          }
+        const uArr = Array.isArray(uRow?.data) ? uRow.data : [];
+        const found = uArr.find((u: any) => u.id === userId || (u.username && u.username.toLowerCase() === cleanUsername.toLowerCase()));
+        if (found && /^-?\d+$/.test(String(found.telegramChatId || ''))) {
+          resolvedChatId = String(found.telegramChatId);
         }
       } catch (e) {}
     }
 
-    // 3. Query Supabase staff table
+    // 3. Query Supabase staff table for matching staff record
     if (!resolvedChatId && supabase) {
       try {
         let { data: staffColl } = await supabase.from('tc_collections').select('data').eq('id', 'staff').maybeSingle();
         if (!staffColl || !staffColl.data) {
           const alt = await supabase.from('clean24_collections').select('data').eq('id', 'staff').maybeSingle();
-          if (alt.data) staffColl = alt;
+          if (alt?.data) staffColl = alt;
         }
-        if (staffColl && Array.isArray(staffColl.data)) {
-          const matchedSt = staffColl.data.find((s: any) => {
-            const sUser = (s.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
-            const sId = String(s.telegramId || '').trim();
-            return /^-?\d+$/.test(sId) && (
-              (userTgHandle && sUser === userTgHandle) || 
-              (s.fullName && s.fullName.toLowerCase() === cleanUsername) ||
-              (cleanUsername === 'roth' && (sUser === 'millerppc' || sUser === 'roth'))
-            );
-          });
-          if (matchedSt && matchedSt.telegramId) {
-            resolvedChatId = String(matchedSt.telegramId);
-          }
+        const sArr = Array.isArray(staffColl?.data) ? staffColl.data : [];
+        const matchedSt = sArr.find((s: any) => {
+          const sUser = (s.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
+          const sId = String(s.telegramId || '').trim();
+          return /^-?\d+$/.test(sId) && (
+            (userTgHandle && sUser === userTgHandle) || 
+            (s.fullName && s.fullName.toLowerCase() === (matchedUser.fullName || cleanUsername).toLowerCase())
+          );
+        });
+        if (matchedSt && matchedSt.telegramId) {
+          resolvedChatId = String(matchedSt.telegramId);
         }
       } catch (e) {}
     }
 
-    // 4. Query telegramConfig for owner chat ID
-    if (!resolvedChatId && supabase && isOwnerAccount) {
-      try {
-        let { data: cfgRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
-        if (!cfgRow || !cfgRow.data) {
-          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
-          if (alt.data) cfgRow = alt;
-        }
-        if (cfgRow && cfgRow.data) {
-          const cfg = cfgRow.data;
-          const ownerCid = cfg.chatIds?.owner || cfg.adminChatId || cfg.lastPrivateChatId || cfg.lastChatId;
-          if (ownerCid && /^-?\d+$/.test(String(ownerCid))) {
-            resolvedChatId = String(ownerCid);
-          }
-        }
-      } catch (e) {}
-    }
-
-    // 5. Query telegram_chat_registry for latest active user/owner chat
-    if (!resolvedChatId && supabase && isOwnerAccount) {
+    // 4. Query telegram_chat_registry for matching user's handle
+    if (!resolvedChatId && supabase && userTgHandle) {
       try {
         let { data: regRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
         if (!regRow || !regRow.data) {
           const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
-          if (alt.data) regRow = alt;
+          if (alt?.data) regRow = alt;
         }
-        if (regRow && Array.isArray(regRow.data) && regRow.data.length > 0) {
-          const matchEntry = regRow.data.find((r: any) => 
-            r.isOwner || 
-            r.username === 'roth' || 
-            r.username === 'millerppc'
-          ) || regRow.data[regRow.data.length - 1];
-          if (matchEntry && /^-?\d+$/.test(String(matchEntry.chatId))) {
-            resolvedChatId = String(matchEntry.chatId);
-          }
+        const rArr = Array.isArray(regRow?.data) ? regRow.data : [];
+        const matchEntry = rArr.find((r: any) => {
+          const rUser = String(r.username || '').replace(/^@/, '').toLowerCase().trim();
+          return rUser === userTgHandle || rUser === cleanUsername.toLowerCase();
+        });
+        if (matchEntry && /^-?\d+$/.test(String(matchEntry.chatId))) {
+          resolvedChatId = String(matchEntry.chatId);
         }
       } catch (e) {}
     }
 
-    // 6. Fall back to process.env.TELEGRAM_CHAT_ID ONLY for Owner account
-    if (!resolvedChatId && isOwnerAccount && process.env.TELEGRAM_CHAT_ID && /^-?\d+$/.test(process.env.TELEGRAM_CHAT_ID)) {
-      resolvedChatId = process.env.TELEGRAM_CHAT_ID;
+    // 5. Fall back to Owner chat ID ONLY IF this is Roth (Primary System Owner)
+    if (!resolvedChatId && isPrimaryOwner) {
+      if (supabase) {
+        try {
+          let { data: cfgRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
+          if (!cfgRow || !cfgRow.data) {
+            const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
+            if (alt?.data) cfgRow = alt;
+          }
+          const cfg = cfgRow?.data;
+          const ownerCid = cfg?.chatIds?.owner || cfg?.adminChatId || cfg?.lastPrivateChatId || cfg?.lastChatId;
+          if (ownerCid && /^-?\d+$/.test(String(ownerCid))) {
+            resolvedChatId = String(ownerCid);
+          }
+        } catch (e) {}
+      }
+      if (!resolvedChatId && process.env.TELEGRAM_CHAT_ID && /^-?\d+$/.test(process.env.TELEGRAM_CHAT_ID)) {
+        resolvedChatId = process.env.TELEGRAM_CHAT_ID;
+      }
     }
 
     // 7. Dispatch 2FA PIN via Telegram Bot

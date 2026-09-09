@@ -299,17 +299,17 @@ export default async function handler(req: any, res: any) {
             for (const u of allUsers) {
               const uName = String(u.username || '').toLowerCase().trim();
               const uTg = String(u.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
-              const isTargetOwner = u.id === 'usr_owner' || uName === 'roth' || u.role === 'Owner' || u.roleId === 'owner';
+              const isRothOwner = u.id === 'usr_owner' || uName === 'roth';
 
               if (
                 (cleanTgHandle && (uTg === cleanTgHandle || uName === cleanTgHandle)) ||
-                (cleanTgHandle === 'millerppc' && isTargetOwner) ||
-                (cleanTgHandle === 'roth' && isTargetOwner) ||
+                ((cleanTgHandle === 'millerppc' || cleanTgHandle === 'roth') && isRothOwner) ||
                 (userText.startsWith('/link') && userText.toLowerCase().includes(uName)) ||
-                (isTargetOwner && !u.telegramChatId) // Auto-bind owner if empty!
+                (userText.startsWith('/start') && userText.toLowerCase().includes(uName)) ||
+                (isRothOwner && isOwnerSender && !u.telegramChatId)
               ) {
                 u.telegramChatId = chatId;
-                if (cleanTgHandle) u.telegramUsername = cleanTgHandle;
+                if (cleanTgHandle && !u.telegramUsername) u.telegramUsername = `@${cleanTgHandle}`;
                 userModified = true;
               }
             }
