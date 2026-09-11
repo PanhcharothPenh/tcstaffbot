@@ -470,6 +470,47 @@ export default async function handler(req: any, res: any) {
             )
           );
 
+          // Check User Management accounts (Owner, Admin, Manager)
+          if (!matchedStaff) {
+            const allUsers = await getCollection('users');
+            const matchedUser = allUsers.find((u: any) => {
+              const uTgId = String(u.telegramChatId || u.telegramId || '').trim();
+              const uTgUser = (u.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
+              return u.status === 'Active' && (
+                (tgId && uTgId === tgId) || 
+                (tgName && uTgUser === tgName)
+              );
+            });
+
+            if (matchedUser) {
+              const userRole = matchedUser.role || 'Admin';
+              const roleTitle = 
+                userRole === 'Owner' ? 'ម្ចាស់ហាង (Store Owner)' :
+                userRole === 'Admin' ? 'អ្នកគ្រប់គ្រងជាន់ខ្ពស់ (Admin)' :
+                userRole === 'Manager' ? 'អ្នកគ្រប់គ្រងសាខា (Manager)' : userRole;
+
+              matchedStaff = {
+                id: 'staff_usr_' + (matchedUser.id || Date.now()),
+                fullName: matchedUser.fullName || matchedUser.username,
+                position: roleTitle,
+                role: userRole,
+                gender: 'Other',
+                phone: matchedUser.phone || '012 888 999',
+                branchId: matchedUser.assignedBranchIds?.[0] || 'b1',
+                assignedBranchIds: matchedUser.assignedBranchIds || ['b1', 'b2'],
+                status: 'Active',
+                telegramId: tgId,
+                telegramUsername: tgName ? `@${tgName}` : undefined,
+                telegramLinked: true,
+                faceEnrolled: false,
+                attendanceEnabled: true,
+                createdAt: new Date().toISOString()
+              };
+              allStaff.unshift(matchedStaff);
+              await saveCollection('staff', allStaff);
+            }
+          }
+
           // Assign Clean24 as Owner
           const isClean24Owner = (tgId === '8412569939' || tgName === 'clean24vengsreng');
           if (isClean24Owner) {

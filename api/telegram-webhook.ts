@@ -333,7 +333,7 @@ export default async function handler(req: any, res: any) {
             userText === '/menu';
 
           // Ultra-Fast Targeted Loading (Only load what is needed for this request)
-          const neededIds = ['staff', 'branches'];
+          const neededIds = ['staff', 'branches', 'users'];
           const isBind = userText.startsWith('/bind') || userText === '/id' || userText === '/chatid';
           if (isBind) {
             neededIds.push('telegramConfig');
@@ -348,6 +348,7 @@ export default async function handler(req: any, res: any) {
           allStaff = Array.isArray(batch['staff']) ? batch['staff'] : [];
           allBranches = Array.isArray(batch['branches']) ? batch['branches'] : [];
           allAtt = Array.isArray(batch['attendance']) ? batch['attendance'] : [];
+          const allUsers = Array.isArray(batch['users']) ? batch['users'] : [];
           storedConfig = batch['telegramConfig'] || { chatIds: { branches: {} } };
           storedRecipients = Array.isArray(batch['telegramRecipients']) ? batch['telegramRecipients'] : [];
 
@@ -360,6 +361,77 @@ export default async function handler(req: any, res: any) {
               (cleanTgHandle && sUser === cleanTgHandle)
             );
           });
+
+          // 8b. Also check User Management accounts (Owner, Admin, Manager)
+          const matchedUser = allUsers.find((u: any) => {
+            const uTgId = String(u.telegramChatId || u.telegramId || '').trim();
+            const uTgUser = (u.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
+            return u.status === 'Active' && (
+              (telegramId && uTgId === telegramId) || 
+              (cleanTgHandle && uTgUser === cleanTgHandle)
+            );
+          });
+
+          if (!matchedStaff && matchedUser) {
+            const userRole = matchedUser.role || 'Admin';
+            const roleTitle = 
+              userRole === 'Owner' ? 'ម្ចាស់ហាង (Store Owner)' :
+              userRole === 'Admin' ? 'អ្នកគ្រប់គ្រងជាន់ខ្ពស់ (Admin)' :
+              userRole === 'Manager' ? 'អ្នកគ្រប់គ្រងសាខា (Manager)' : userRole;
+
+            matchedStaff = {
+              id: 'staff_usr_' + (matchedUser.id || Date.now()),
+              fullName: matchedUser.fullName || matchedUser.username,
+              position: roleTitle,
+              role: userRole,
+              gender: 'Other',
+              phone: matchedUser.phone || '012 888 999',
+              branchId: matchedUser.assignedBranchIds?.[0] || 'b1',
+              assignedBranchIds: matchedUser.assignedBranchIds || ['b1', 'b2'],
+              status: 'Active',
+              telegramId: telegramId,
+              telegramUsername: cleanTgHandle ? `@${cleanTgHandle}` : undefined,
+              telegramLinked: true,
+              faceEnrolled: false,
+              attendanceEnabled: true,
+              createdAt: new Date().toISOString()
+            };
+            allStaff.unshift(matchedStaff);
+            saveDbCollectionAsync(supabase, 'staff', allStaff);
+
+            if (!matchedUser.telegramChatId || matchedUser.telegramChatId !== telegramId) {
+              matchedUser.telegramChatId = telegramId;
+              matchedUser.telegramId = telegramId;
+              if (cleanTgHandle && !matchedUser.telegramUsername) {
+                matchedUser.telegramUsername = `@${cleanTgHandle}`;
+              }
+              saveDbCollectionAsync(supabase, 'users', allUsers);
+            }
+          }
+
+          // Ensure any Owner, Admin, Manager is in storedRecipients
+          if (matchedStaff && ['Owner', 'Admin', 'Manager'].includes(matchedStaff.role) && telegramId) {
+            if (storedRecipients && Array.isArray(storedRecipients)) {
+              let recIdx = storedRecipients.findIndex((r: any) => String(r.chatId) === telegramId);
+              if (recIdx >= 0) {
+                storedRecipients[recIdx].role = matchedStaff.role;
+                storedRecipients[recIdx].branchId = 'all';
+                storedRecipients[recIdx].isActive = true;
+              } else {
+                storedRecipients.push({
+                  id: 'rec_' + telegramId,
+                  name: matchedStaff.fullName,
+                  chatId: telegramId,
+                  role: matchedStaff.role,
+                  branchId: 'all',
+                  isActive: true,
+                  categories: ['all', 'sales', 'stock', 'salary', 'attendance', 'leave'],
+                  createdAt: new Date().toISOString()
+                });
+                saveDbCollectionAsync(supabase, 'telegramRecipients', storedRecipients);
+              }
+            }
+          }
 
           // Assign Clean24 (@clean24vengsreng / ID: 8412569939) as Branch Owner
           const isClean24Owner = (telegramId === '8412569939' || cleanTgHandle === 'clean24vengsreng');

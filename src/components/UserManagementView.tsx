@@ -1180,37 +1180,35 @@ export default function UserManagementView({
                   </label>
                 </div>
 
-                {twoFactorMethod === 'telegram' && (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10.5px] font-bold text-slate-700 block">{t.telegramLabel}</label>
-                      <button
-                        type="button"
-                        onClick={handleAutoDetectTelegram}
-                        disabled={isDetectingTg}
-                        className="text-[10px] font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1 bg-sky-50 px-2 py-0.5 rounded-md hover:bg-sky-100 transition-all cursor-pointer"
-                      >
-                        {isDetectingTg ? 'កំពុងស្វែងរក...' : '🔍 ស្វែងរក / Auto-detect'}
-                      </button>
-                    </div>
-                    <input
-                      type="text"
-                      value={telegramUsername}
-                      onChange={e => setTelegramUsername(e.target.value)}
-                      placeholder="@username ឬ Chat ID លេខ"
-                      className="w-full px-3 py-2 bg-white border border-sky-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-sky-600 transition-all"
-                    />
-                    {(detectedChatId || (editUser?.telegramChatId && /^-?\d+$/.test(String(editUser.telegramChatId)))) && (
-                      <div className="flex items-center justify-between text-[11px] px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl font-sans text-emerald-800">
-                        <span className="font-bold">✅ Telegram Chat ID:</span>
-                        <span className="font-mono font-bold">{detectedChatId || editUser?.telegramChatId}</span>
-                      </div>
-                    )}
-                    <p className="text-[10px] text-slate-500 leading-relaxed">
-                      💡 <b>ចំណាំ៖</b> បុគ្គលិកត្រូវបើក Telegram រួចចុច <b>/start</b> លើ Bot Telegram របស់ក្រុមហ៊ុនជាមុនសិន ទើប Bot អាចផ្ញើលេខកូដ 2FA ទៅកាន់ Telegram ផ្ទាល់ខ្លួនរបស់គាត់បាន។
-                    </p>
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10.5px] font-bold text-slate-700 block">Telegram Username ឬ Chat ID (សម្រាប់ Bot & វត្តមាន)</label>
+                    <button
+                      type="button"
+                      onClick={handleAutoDetectTelegram}
+                      disabled={isDetectingTg}
+                      className="text-[10px] font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1 bg-sky-50 px-2 py-0.5 rounded-md hover:bg-sky-100 transition-all cursor-pointer"
+                    >
+                      {isDetectingTg ? 'កំពុងស្វែងរក...' : '🔍 ស្វែងរក / Auto-detect'}
+                    </button>
                   </div>
-                )}
+                  <input
+                    type="text"
+                    value={telegramUsername}
+                    onChange={e => setTelegramUsername(e.target.value)}
+                    placeholder="@username ឬ Chat ID លេខ (ឧ. @username)"
+                    className="w-full px-3 py-2 bg-white border border-sky-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-sky-600 transition-all"
+                  />
+                  {(detectedChatId || (editUser?.telegramChatId && /^-?\d+$/.test(String(editUser.telegramChatId)))) && (
+                    <div className="flex items-center justify-between text-[11px] px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl font-sans text-emerald-800">
+                      <span className="font-bold">✅ Telegram Chat ID:</span>
+                      <span className="font-mono font-bold">{detectedChatId || editUser?.telegramChatId}</span>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-slate-500 leading-relaxed">
+                    💡 <b>ចំណាំ៖</b> បំពេញ Telegram Username (@username) ឬ Telegram ID របស់គាត់ ដើម្បីឱ្យ Bot និង Mini App ស្គាល់សិទ្ធិ (Owner, Admin, Manager) របស់គាត់ដោយស្វ័យប្រវត្តិ។
+                  </p>
+                </div>
               </div>
 
               {/* Email & Phone */}
