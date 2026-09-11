@@ -71,6 +71,7 @@ export default function AttendanceView({
   const [filterBranchId, setFilterBranchId] = useState(activeBranchId);
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   // Leave Requests State
   const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
   const [isLoadingLeaves, setIsLoadingLeaves] = useState(false);
