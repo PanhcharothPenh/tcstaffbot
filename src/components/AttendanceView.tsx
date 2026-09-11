@@ -543,7 +543,7 @@ export default function AttendanceView({
 
   // Monthly aggregated stats per staff
   const staffMonthlyStats = useMemo(() => {
-    let list = staffList;
+    let list = staffList.filter(s => s && s.role !== 'Owner' && s.roleId !== 'owner' && !String(s.position || '').toLowerCase().includes('owner') && s.id !== 'staff_owner_clean24');
     if (summaryBranchId !== 'all') {
       list = list.filter(s => s.branchId === summaryBranchId || s.assignedBranchId === summaryBranchId);
     }
@@ -1401,23 +1401,27 @@ export default function AttendanceView({
 
                         {/* Check In */}
                         <td className="py-3 px-3 text-center font-mono font-bold">
-                          {rec.status === 'Permission' ? (
+                          {rec.checkIn && rec.checkIn !== '--' ? (
+                            <span className="text-emerald-700">{rec.checkIn}</span>
+                          ) : rec.status === 'Permission' ? (
                             <span className="text-[10.5px] font-black text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md border border-rose-200">
                               សុំច្បាប់
                             </span>
                           ) : (
-                            <span className="text-emerald-700">{rec.checkIn || '--'}</span>
+                            <span className="text-slate-400">--</span>
                           )}
                         </td>
 
                         {/* Check Out */}
                         <td className="py-3 px-3 text-center font-mono font-bold">
-                          {rec.status === 'Permission' ? (
+                          {rec.checkOut && rec.checkOut !== '--' ? (
+                            <span className="text-rose-700">{rec.checkOut}</span>
+                          ) : rec.status === 'Permission' ? (
                             <span className="text-[10.5px] font-black text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md border border-rose-200">
                               សុំច្បាប់
                             </span>
                           ) : (
-                            <span className="text-rose-700">{rec.checkOut || '--'}</span>
+                            <span className="text-slate-400">--</span>
                           )}
                         </td>
 

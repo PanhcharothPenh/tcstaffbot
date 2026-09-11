@@ -315,6 +315,7 @@ export default function SalaryManagementView({
   const availableStaff = useMemo(() => {
     let list = (staffList || []).filter(s => {
       if (!s) return false;
+      if (s.role === 'Owner' || s.roleId === 'owner' || String(s.position || '').toLowerCase().includes('owner') || s.id === 'staff_owner_clean24') return false;
 
       // 1. Check startDate: if staff joined after the selected month/year, exclude them
       if (s.startDate) {

@@ -4685,39 +4685,6 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
       (cleanTgHandle && s.telegramUsername && s.telegramUsername.replace(/^@/, '').toLowerCase() === cleanTgHandle)
     );
 
-    const isClean24Owner = (telegramId === '8412569939' || cleanTgHandle === 'clean24vengsreng');
-    if (isClean24Owner) {
-      if (!matchedStaff) {
-        matchedStaff = {
-          id: 'staff_owner_clean24',
-          fullName: 'Clean24 (Owner)',
-          position: 'ម្ចាស់ហាង (Store Owner)',
-          role: 'Owner',
-          gender: 'Other',
-          phone: '012 888 999',
-          branchId: 'b1',
-          assignedBranchIds: ['b1', 'b2'],
-          status: 'Active',
-          telegramId: '8412569939',
-          telegramUsername: '@clean24vengsreng',
-          telegramLinked: true,
-          faceEnrolled: false,
-          attendanceEnabled: true,
-          createdAt: new Date().toISOString()
-        };
-        if (!localDb.staff) localDb.staff = [];
-        localDb.staff.unshift(matchedStaff);
-        saveLocalDb();
-      } else {
-        matchedStaff.position = 'ម្ចាស់ហាង (Store Owner)';
-        matchedStaff.role = 'Owner';
-        matchedStaff.telegramId = '8412569939';
-        matchedStaff.telegramUsername = '@clean24vengsreng';
-        matchedStaff.telegramLinked = true;
-        matchedStaff.status = 'Active';
-        saveLocalDb();
-      }
-    }
 
     // Check if user is linked via User Management
     const matchedUser = (localDb.users || []).find((u: any) =>
@@ -5243,10 +5210,9 @@ app.post('/api/telegram/validate-init-data', (req, res) => {
           isStaffNotInactive(u) && isMatchingTg(u.telegramChatId || u.telegramId, u.telegramUsername)
         );
 
-        if (matchedUser) {
-          const userRole = matchedUser.role || 'Admin';
+        if (matchedUser && matchedUser.role !== 'Owner' && matchedUser.roleId !== 'owner') {
+          const userRole = matchedUser.role || 'Staff';
           const roleTitle = 
-            userRole === 'Owner' ? 'ម្ចាស់ហាង (Store Owner)' :
             userRole === 'Admin' ? 'អ្នកគ្រប់គ្រងជាន់ខ្ពស់ (Admin)' :
             userRole === 'Manager' ? 'អ្នកគ្រប់គ្រងសាខា (Manager)' :
             userRole === 'Staff' ? 'បុគ្គលិក (Staff)' : userRole;
@@ -5270,41 +5236,6 @@ app.post('/api/telegram/validate-init-data', (req, res) => {
           };
           if (!localDb.staff) localDb.staff = [];
           localDb.staff.unshift(staff);
-          saveLocalDb();
-        }
-      }
-
-      // 3. Clean24 Owner auto-bridge
-      const isClean24Owner = (cleanTgId === '8412569939' || cleanTgName === 'clean24vengsreng');
-      if (isClean24Owner) {
-        if (!staff) {
-          staff = {
-            id: 'staff_owner_clean24',
-            fullName: 'Clean24 (Owner)',
-            position: 'ម្ចាស់ហាង (Store Owner)',
-            role: 'Owner',
-            gender: 'Other',
-            phone: '012 888 999',
-            branchId: 'b1',
-            assignedBranchIds: ['b1', 'b2'],
-            status: 'Active',
-            telegramId: '8412569939',
-            telegramUsername: '@clean24vengsreng',
-            telegramLinked: true,
-            faceEnrolled: false,
-            attendanceEnabled: true,
-            createdAt: new Date().toISOString()
-          };
-          if (!localDb.staff) localDb.staff = [];
-          localDb.staff.unshift(staff);
-          saveLocalDb();
-        } else {
-          staff.position = 'ម្ចាស់ហាង (Store Owner)';
-          staff.role = 'Owner';
-          staff.telegramId = '8412569939';
-          staff.telegramUsername = '@clean24vengsreng';
-          staff.telegramLinked = true;
-          staff.status = 'Active';
           saveLocalDb();
         }
       }

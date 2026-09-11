@@ -27,28 +27,40 @@ export default async function handler(req: any, res: any) {
 
   const supabase = getSupabase();
 
-  // Helper to load collection
+  // Helper to load collection from production Supabase (reconciling tc_collections and clean24_collections)
   const loadCollection = async (id: string): Promise<any[]> => {
     if (!supabase) return [];
     try {
-      let { data, error } = await supabase.from('tc_collections').select('data').eq('id', id).maybeSingle();
-      if (error || !data) {
-        const alt = await supabase.from('clean24_collections').select('data').eq('id', id).maybeSingle();
-        if (alt.data) data = alt.data;
+      const [{ data: tcRow }, { data: c24Row }] = await Promise.all([
+        supabase.from('tc_collections').select('data, updated_at').eq('id', id).maybeSingle().catch(() => ({ data: null })),
+        supabase.from('clean24_collections').select('data, updated_at').eq('id', id).maybeSingle().catch(() => ({ data: null }))
+      ]);
+
+      const tcList = Array.isArray(tcRow?.data) ? tcRow.data : null;
+      const c24List = Array.isArray(c24Row?.data) ? c24Row.data : null;
+
+      if (tcList && c24List) {
+        if (tcList.length > 0 && c24List.length === 0) return tcList;
+        if (c24List.length > 0 && tcList.length === 0) return c24List;
+        const tcTime = tcRow?.updated_at ? new Date(tcRow.updated_at).getTime() : 0;
+        const c24Time = c24Row?.updated_at ? new Date(c24Row.updated_at).getTime() : 0;
+        return tcTime >= c24Time ? tcList : c24List;
       }
-      return (data && Array.isArray(data.data)) ? data.data : [];
+      return tcList || c24List || [];
     } catch {
       return [];
     }
   };
 
-  // Helper to save collection
+  // Helper to save collection to both production Supabase tables
   const saveCollection = async (id: string, list: any[]) => {
     if (!supabase) return false;
     const item = { id, data: list, updated_at: new Date().toISOString() };
     try {
-      await supabase.from('tc_collections').upsert(item);
-      await supabase.from('clean24_collections').upsert(item);
+      await Promise.allSettled([
+        supabase.from('tc_collections').upsert(item),
+        supabase.from('clean24_collections').upsert(item)
+      ]);
       return true;
     } catch {
       return false;
@@ -95,6 +107,7 @@ export default async function handler(req: any, res: any) {
             staffId: leave.staffId,
             staffName: leave.staffName,
             branchId: leave.branchId || 'b1',
+            branchName: leave.branchName || 'Toto By Chi Chi MC Park',
             date: leaveDate,
             checkIn: '--',
             checkOut: '--',

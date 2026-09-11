@@ -9,12 +9,24 @@ function getSupabase() {
 async function loadDbCollection(supabase: any, id: string): Promise<any> {
   if (!supabase) return null;
   try {
-    let { data, error } = await supabase.from('tc_collections').select('data').eq('id', id).maybeSingle();
-    if (error || !data) {
-      const alt = await supabase.from('clean24_collections').select('data').eq('id', id).maybeSingle();
-      if (alt.data) data = alt;
+    const [{ data: tcRow }, { data: c24Row }] = await Promise.all([
+      supabase.from('tc_collections').select('data, updated_at').eq('id', id).maybeSingle().catch(() => ({ data: null })),
+      supabase.from('clean24_collections').select('data, updated_at').eq('id', id).maybeSingle().catch(() => ({ data: null }))
+    ]);
+
+    const tcData = tcRow?.data;
+    const c24Data = c24Row?.data;
+
+    if (Array.isArray(tcData) && Array.isArray(c24Data)) {
+      if (tcData.length > 0 && c24Data.length === 0) return tcData;
+      if (c24Data.length > 0 && tcData.length === 0) return c24Data;
+      const tcTime = tcRow?.updated_at ? new Date(tcRow.updated_at).getTime() : 0;
+      const c24Time = c24Row?.updated_at ? new Date(c24Row.updated_at).getTime() : 0;
+      return tcTime >= c24Time ? tcData : c24Data;
     }
-    return data?.data ?? null;
+    if (Array.isArray(tcData) && tcData.length > 0) return tcData;
+    if (Array.isArray(c24Data) && c24Data.length > 0) return c24Data;
+    return (tcData !== undefined && tcData !== null) ? tcData : (c24Data ?? null);
   } catch (e) {
     return null;
   }
@@ -24,15 +36,11 @@ async function saveDbCollection(supabase: any, id: string, payload: any): Promis
   if (!supabase) return;
   const item = { id, data: payload, updated_at: new Date().toISOString() };
   try {
-    const res = await supabase.from('tc_collections').upsert(item);
-    if (res.error) {
-      await supabase.from('clean24_collections').upsert(item);
-    }
-  } catch (e) {
-    try {
-      await supabase.from('clean24_collections').upsert(item);
-    } catch (_) {}
-  }
+    await Promise.allSettled([
+      supabase.from('tc_collections').upsert(item),
+      supabase.from('clean24_collections').upsert(item)
+    ]);
+  } catch (_) {}
 }
 
 interface CacheEntry {
@@ -41,7 +49,7 @@ interface CacheEntry {
 }
 const MEM_CACHE: Record<string, CacheEntry> = {};
 
-async function loadDbCollectionCached(supabase: any, id: string, ttlMs = 45000): Promise<any> {
+async function loadDbCollectionCached(supabase: any, id: string, ttlMs = 30000): Promise<any> {
   const now = Date.now();
   if (MEM_CACHE[id] && MEM_CACHE[id].expires > now) {
     return MEM_CACHE[id].data;
@@ -53,7 +61,7 @@ async function loadDbCollectionCached(supabase: any, id: string, ttlMs = 45000):
   return fresh;
 }
 
-function updateMemCache(id: string, data: any, ttlMs = 45000) {
+function updateMemCache(id: string, data: any, ttlMs = 30000) {
   MEM_CACHE[id] = { data, expires: Date.now() + ttlMs };
 }
 
@@ -62,7 +70,7 @@ function saveDbCollectionAsync(supabase: any, id: string, payload: any): void {
   saveDbCollection(supabase, id, payload).catch(() => {});
 }
 
-async function loadMultipleCollections(supabase: any, ids: string[], ttlMs = 45000): Promise<Record<string, any>> {
+async function loadMultipleCollections(supabase: any, ids: string[], ttlMs = 30000): Promise<Record<string, any>> {
   const result: Record<string, any> = {};
   if (!supabase || ids.length === 0) return result;
   const now = Date.now();
@@ -79,36 +87,48 @@ async function loadMultipleCollections(supabase: any, ids: string[], ttlMs = 450
   if (missingIds.length === 0) return result;
 
   try {
-    const { data: rows } = await supabase
-      .from('tc_collections')
-      .select('id, data')
-      .in('id', missingIds);
+    const [{ data: tcRows }, { data: c24Rows }] = await Promise.all([
+      supabase.from('tc_collections').select('id, data, updated_at').in('id', missingIds).catch(() => ({ data: null })),
+      supabase.from('clean24_collections').select('id, data, updated_at').in('id', missingIds).catch(() => ({ data: null }))
+    ]);
 
-    const foundSet = new Set<string>();
-    if (Array.isArray(rows)) {
-      for (const r of rows) {
-        if (r && r.id) {
-          result[r.id] = r.data;
-          MEM_CACHE[r.id] = { data: r.data, expires: now + ttlMs };
-          foundSet.add(r.id);
-        }
-      }
+    const tcMap: Record<string, any> = {};
+    if (Array.isArray(tcRows)) {
+      for (const r of tcRows) if (r && r.id) tcMap[r.id] = r;
+    }
+    const c24Map: Record<string, any> = {};
+    if (Array.isArray(c24Rows)) {
+      for (const r of c24Rows) if (r && r.id) c24Map[r.id] = r;
     }
 
-    const stillMissing = missingIds.filter(id => !foundSet.has(id));
-    if (stillMissing.length > 0) {
-      const { data: altRows } = await supabase
-        .from('clean24_collections')
-        .select('id, data')
-        .in('id', stillMissing);
+    for (const id of missingIds) {
+      const tc = tcMap[id];
+      const c24 = c24Map[id];
+      let chosenData: any = null;
 
-      if (Array.isArray(altRows)) {
-        for (const r of altRows) {
-          if (r && r.id && !result[r.id]) {
-            result[r.id] = r.data;
-            MEM_CACHE[r.id] = { data: r.data, expires: now + ttlMs };
+      if (tc && c24) {
+        const tcArr = Array.isArray(tc.data) ? tc.data : null;
+        const c24Arr = Array.isArray(c24.data) ? c24.data : null;
+        if (tcArr && c24Arr) {
+          if (tcArr.length > 0 && c24Arr.length === 0) chosenData = tcArr;
+          else if (c24Arr.length > 0 && tcArr.length === 0) chosenData = c24Arr;
+          else {
+            const tcT = tc.updated_at ? new Date(tc.updated_at).getTime() : 0;
+            const c24T = c24.updated_at ? new Date(c24.updated_at).getTime() : 0;
+            chosenData = tcT >= c24T ? tcArr : c24Arr;
           }
+        } else {
+          chosenData = tc.data ?? c24.data;
         }
+      } else if (tc) {
+        chosenData = tc.data;
+      } else if (c24) {
+        chosenData = c24.data;
+      }
+
+      if (chosenData !== null && chosenData !== undefined) {
+        result[id] = chosenData;
+        MEM_CACHE[id] = { data: chosenData, expires: now + ttlMs };
       }
     }
   } catch (e) {
@@ -355,7 +375,7 @@ export default async function handler(req: any, res: any) {
 
           const batch = await loadMultipleCollections(supabase, neededIds, 60000);
 
-          allStaff = Array.isArray(batch['staff']) ? batch['staff'] : [];
+          allStaff = (Array.isArray(batch['staff']) ? batch['staff'] : []).filter((s: any) => s && s.role !== 'Owner' && s.roleId !== 'owner' && !String(s.position || '').toLowerCase().includes('owner') && s.id !== 'staff_owner_clean24');
           allBranches = Array.isArray(batch['branches']) ? batch['branches'] : [];
           allAtt = Array.isArray(batch['attendance']) ? batch['attendance'] : [];
           const allUsers = Array.isArray(batch['users']) ? batch['users'] : [];
@@ -395,12 +415,12 @@ export default async function handler(req: any, res: any) {
               userRole === 'Staff' ? 'បុគ្គលិក (Staff)' : userRole;
 
             matchedStaff = {
-              id: 'staff_usr_' + (matchedUser.id || Date.now()),
+              id: 'usr_' + (matchedUser.id || telegramId),
               fullName: matchedUser.fullName || matchedUser.username,
               position: roleTitle,
               role: userRole,
               gender: 'Other',
-              phone: matchedUser.phone || '012 888 999',
+              phone: matchedUser.phone || '',
               branchId: matchedUser.assignedBranchIds?.[0] || 'b1',
               assignedBranchIds: matchedUser.assignedBranchIds || ['b1', 'b2'],
               status: 'Active',
@@ -408,11 +428,14 @@ export default async function handler(req: any, res: any) {
               telegramUsername: cleanTgHandle ? `@${cleanTgHandle}` : undefined,
               telegramLinked: true,
               faceEnrolled: false,
-              attendanceEnabled: true,
-              createdAt: new Date().toISOString()
+              attendanceEnabled: false
             };
-            allStaff.unshift(matchedStaff);
-            saveDbCollectionAsync(supabase, 'staff', allStaff);
+
+            // Only actual staff roles are added to the employee staff roster; system users remain system users
+            if (userRole === 'Staff') {
+              allStaff.unshift(matchedStaff);
+              saveDbCollectionAsync(supabase, 'staff', allStaff);
+            }
 
             if (!matchedUser.telegramChatId || matchedUser.telegramChatId !== telegramId) {
               matchedUser.telegramChatId = telegramId;
@@ -445,62 +468,6 @@ export default async function handler(req: any, res: any) {
                 });
                 saveDbCollectionAsync(supabase, 'telegramRecipients', storedRecipients);
               }
-            }
-          }
-
-          // Assign Clean24 (@clean24vengsreng / ID: 8412569939) as Branch Owner
-          const isClean24Owner = (telegramId === '8412569939' || cleanTgHandle === 'clean24vengsreng');
-          if (isClean24Owner) {
-            if (!matchedStaff) {
-              matchedStaff = {
-                id: 'staff_owner_clean24',
-                fullName: 'Clean24 (Owner)',
-                position: 'ម្ចាស់ហាង (Store Owner)',
-                role: 'Owner',
-                gender: 'Other',
-                phone: '012 888 999',
-                branchId: 'b1',
-                assignedBranchIds: ['b1', 'b2'],
-                status: 'Active',
-                telegramId: '8412569939',
-                telegramUsername: '@clean24vengsreng',
-                telegramLinked: true,
-                faceEnrolled: false,
-                attendanceEnabled: true,
-                createdAt: new Date().toISOString()
-              };
-              allStaff.unshift(matchedStaff);
-              saveDbCollectionAsync(supabase, 'staff', allStaff);
-            } else {
-              matchedStaff.position = 'ម្ចាស់ហាង (Store Owner)';
-              matchedStaff.role = 'Owner';
-              matchedStaff.telegramId = '8412569939';
-              matchedStaff.telegramUsername = '@clean24vengsreng';
-              matchedStaff.telegramLinked = true;
-              matchedStaff.status = 'Active';
-              saveDbCollectionAsync(supabase, 'staff', allStaff);
-            }
-
-            // Ensure Clean24 receives all alerts & reports as Owner
-            if (storedRecipients && Array.isArray(storedRecipients)) {
-              let recIdx = storedRecipients.findIndex((r: any) => String(r.chatId) === '8412569939');
-              if (recIdx >= 0) {
-                storedRecipients[recIdx].role = 'Owner / Executive';
-                storedRecipients[recIdx].branchId = 'all';
-                storedRecipients[recIdx].isActive = true;
-              } else {
-                storedRecipients.push({
-                  id: 'rec_owner_clean24',
-                  name: 'Clean24 (Store Owner)',
-                  chatId: '8412569939',
-                  role: 'Owner / Executive',
-                  branchId: 'all',
-                  isActive: true,
-                  categories: ['all', 'sales', 'stock', 'salary', 'attendance', 'leave'],
-                  createdAt: new Date().toISOString()
-                });
-              }
-              saveDbCollectionAsync(supabase, 'telegramRecipients', storedRecipients);
             }
           }
 
@@ -645,12 +612,7 @@ export default async function handler(req: any, res: any) {
 
         let leaveList: any[] = [];
         try {
-          const { data: row } = await supabase.from('clean24_collections').select('data').eq('id', 'leaveRequests').maybeSingle();
-          leaveList = Array.isArray(row?.data) ? row.data : [];
-          if (leaveList.length === 0) {
-            const { data: tcRow } = await supabase.from('tc_collections').select('data').eq('id', 'leaveRequests').maybeSingle();
-            leaveList = Array.isArray(tcRow?.data) ? tcRow.data : [];
-          }
+          leaveList = (await loadDbCollection(supabase, 'leaveRequests')) || [];
         } catch (_) {}
 
         const leaveIndex = leaveList.findIndex((l: any) => l.id === leaveId);
@@ -661,8 +623,7 @@ export default async function handler(req: any, res: any) {
           targetLeave.rejectedAt = new Date().toISOString();
           targetLeave.reviewNote = rejectReason;
 
-          await supabase.from('clean24_collections').upsert({ id: 'leaveRequests', data: leaveList, updated_at: new Date().toISOString() });
-          await supabase.from('tc_collections').upsert({ id: 'leaveRequests', data: leaveList, updated_at: new Date().toISOString() });
+          await saveDbCollection(supabase, 'leaveRequests', leaveList);
 
           // 1. Notify the staff member who requested leave DIRECTLY back on Telegram
           const staffObj = (allStaff || []).find((s: any) => s.id === targetLeave.staffId) || { fullName: targetLeave.staffName };
@@ -1077,8 +1038,16 @@ export default async function handler(req: any, res: any) {
       // =================================================================================
       if (userText.includes('វត្តមានបុគ្គលិកទាំងអស់') || (userText.includes('វត្តមានបុគ្គលិក') && isOwnerRole)) {
         const todayRecords = allAtt.filter((a: any) => a.date === phnomPenhDateStr);
-        const presentStaff = todayRecords.filter((a: any) => a.checkIn);
-        const absentStaff = allStaff.filter((s: any) => s.status === 'Active' && !todayRecords.some((a: any) => a.staffId === s.id && a.checkIn));
+        const presentStaff = todayRecords.filter((a: any) => a.checkIn && a.checkIn !== '--' && a.status !== 'Permission' && a.status !== 'Absent');
+        const permissionStaff = todayRecords.filter((a: any) => a.status === 'Permission');
+        const absentStaff = allStaff.filter((s: any) => 
+          s.status === 'Active' && 
+          s.role !== 'Owner' && 
+          s.roleId !== 'owner' && 
+          !String(s.position || '').toLowerCase().includes('owner') && 
+          s.id !== 'staff_owner_clean24' &&
+          !todayRecords.some((a: any) => a.staffId === s.id && (a.checkIn && a.checkIn !== '--' || a.status === 'Permission'))
+        );
 
         let summaryText = `👥 <b>[របាយការណ៍វត្តមានបុគ្គលិកថ្ងៃនេះ]</b>\n` +
           `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
@@ -1091,7 +1060,16 @@ export default async function handler(req: any, res: any) {
             const st = allStaff.find((s: any) => s.id === r.staffId);
             const name = st?.fullName || r.staffName || 'Staff';
             const bName = allBranches.find((b: any) => b.id === (st?.branchId || r.branchId))?.branchName || '';
-            summaryText += `${idx + 1}. <b>${name}</b> ${bName ? `(${bName})` : ''}: ចូល <code>${r.checkIn}</code> ${r.checkOut ? `→ ចេញ <code>${r.checkOut}</code>` : ''}\n`;
+            summaryText += `${idx + 1}. <b>${name}</b> ${bName ? `(${bName})` : ''}: ចូល <code>${r.checkIn}</code> ${r.checkOut && r.checkOut !== '--' ? `→ ចេញ <code>${r.checkOut}</code>` : ''}\n`;
+          });
+        }
+
+        if (permissionStaff.length > 0) {
+          summaryText += `\n🟡 <b>ច្បាប់ឈប់សម្រាក (${permissionStaff.length} នាក់)៖</b>\n`;
+          permissionStaff.forEach((r: any) => {
+            const st = allStaff.find((s: any) => s.id === r.staffId);
+            const name = st?.fullName || r.staffName || 'Staff';
+            summaryText += `- ${name}: ${r.notes || 'សុំច្បាប់'}\n`;
           });
         }
 
@@ -1139,12 +1117,7 @@ export default async function handler(req: any, res: any) {
         let leaveList: any[] = [];
         if (supabase) {
           try {
-            const { data: row } = await supabase.from('clean24_collections').select('data').eq('id', 'leaveRequests').maybeSingle();
-            leaveList = Array.isArray(row?.data) ? row.data : [];
-            if (leaveList.length === 0) {
-              const { data: tcRow } = await supabase.from('tc_collections').select('data').eq('id', 'leaveRequests').maybeSingle();
-              leaveList = Array.isArray(tcRow?.data) ? tcRow.data : [];
-            }
+            leaveList = (await loadDbCollection(supabase, 'leaveRequests')) || [];
           } catch (e) {}
         }
 
@@ -1176,12 +1149,12 @@ export default async function handler(req: any, res: any) {
           // Auto record into attendance as 'Permission'
           if (supabase) {
             try {
-              const { data: attRow } = await supabase.from('clean24_collections').select('data').eq('id', 'attendance').maybeSingle();
-              let attList = Array.isArray(attRow?.data) ? attRow.data : [];
+              let attList: any[] = (await loadDbCollection(supabase, 'attendance')) || [];
               const leaveDate = targetLeave.date || phnomPenhDateStr;
               const existAttIdx = attList.findIndex((a: any) => a.staffId === targetLeave.staffId && a.date === leaveDate);
               
               if (existAttIdx >= 0) {
+                // Keep existing check-in, check-out, workHours, photos, etc.!
                 attList[existAttIdx].status = 'Permission';
                 attList[existAttIdx].notes = `ច្បាប់ឈប់សម្រាក (${targetLeave.details || 'Approved by Admin'})`;
               } else {
@@ -1203,16 +1176,7 @@ export default async function handler(req: any, res: any) {
                 });
               }
 
-              await supabase.from('clean24_collections').upsert({
-                id: 'attendance',
-                data: attList,
-                updated_at: new Date().toISOString()
-              });
-              await supabase.from('tc_collections').upsert({
-                id: 'attendance',
-                data: attList,
-                updated_at: new Date().toISOString()
-              });
+              await saveDbCollection(supabase, 'attendance', attList);
             } catch (err) {
               console.error('Failed to sync attendance for approved leave:', err);
             }
@@ -1221,16 +1185,7 @@ export default async function handler(req: any, res: any) {
           // Save leaveRequests
           if (supabase) {
             try {
-              await supabase.from('clean24_collections').upsert({
-                id: 'leaveRequests',
-                data: leaveList,
-                updated_at: new Date().toISOString()
-              });
-              await supabase.from('tc_collections').upsert({
-                id: 'leaveRequests',
-                data: leaveList,
-                updated_at: new Date().toISOString()
-              });
+              await saveDbCollection(supabase, 'leaveRequests', leaveList);
             } catch (err) {}
           }
 
@@ -1381,16 +1336,7 @@ export default async function handler(req: any, res: any) {
                 originalAlertChatId = pRow.data.originalChatId;
               }
               await saveDbCollectionAsync(supabase, 'pending_rej_' + telegramId, null);
-              await supabase.from('clean24_collections').upsert({
-                id: 'leaveRequests',
-                data: leaveList,
-                updated_at: new Date().toISOString()
-              });
-              await supabase.from('tc_collections').upsert({
-                id: 'leaveRequests',
-                data: leaveList,
-                updated_at: new Date().toISOString()
-              });
+              await saveDbCollection(supabase, 'leaveRequests', leaveList);
             } catch (err) {}
           }
 
@@ -1498,12 +1444,7 @@ export default async function handler(req: any, res: any) {
         let leaveList: any[] = [];
         if (supabase) {
           try {
-            const { data } = await supabase.from('clean24_collections').select('data').eq('id', 'leaveRequests').maybeSingle();
-            leaveList = Array.isArray(data?.data) ? data.data : [];
-            if (leaveList.length === 0) {
-              const { data: tcRow } = await supabase.from('tc_collections').select('data').eq('id', 'leaveRequests').maybeSingle();
-              leaveList = Array.isArray(tcRow?.data) ? tcRow.data : [];
-            }
+            leaveList = (await loadDbCollection(supabase, 'leaveRequests')) || [];
           } catch {}
         }
 
@@ -1727,12 +1668,7 @@ export default async function handler(req: any, res: any) {
           // Record leave request into database
           if (supabase) {
             try {
-              const { data: leaveRow } = await supabase.from('clean24_collections').select('data').eq('id', 'leaveRequests').maybeSingle();
-              let leaveList = Array.isArray(leaveRow?.data) ? leaveRow.data : [];
-              if (leaveList.length === 0) {
-                const { data: tcRow } = await supabase.from('tc_collections').select('data').eq('id', 'leaveRequests').maybeSingle();
-                leaveList = Array.isArray(tcRow?.data) ? tcRow.data : [];
-              }
+              let leaveList = (await loadDbCollection(supabase, 'leaveRequests')) || [];
               const newLeave = {
                 id: newLeaveId,
                 staffId: matchedStaff.id,
@@ -1747,16 +1683,7 @@ export default async function handler(req: any, res: any) {
                 date: phnomPenhDateStr
               };
               leaveList.unshift(newLeave);
-              await supabase.from('clean24_collections').upsert({
-                id: 'leaveRequests',
-                data: leaveList,
-                updated_at: new Date().toISOString()
-              });
-              await supabase.from('tc_collections').upsert({
-                id: 'leaveRequests',
-                data: leaveList,
-                updated_at: new Date().toISOString()
-              });
+              await saveDbCollection(supabase, 'leaveRequests', leaveList);
             } catch (err) {
               console.error('Failed to save leave request:', err);
             }

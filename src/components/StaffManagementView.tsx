@@ -162,7 +162,7 @@ export default function StaffManagementView({
 
   // 2. Filter list based on branch rules and active branch selection
   const getFilteredStaff = () => {
-    let list = Array.isArray(staff) ? staff : [];
+    let list = Array.isArray(staff) ? staff.filter(s => s && s.role !== 'Owner' && s.roleId !== 'owner' && !String(s.position || '').toLowerCase().includes('owner') && s.id !== 'staff_owner_clean24') : [];
 
     if (activeBranchId !== 'all') {
       list = list.filter(s => s.branchId === activeBranchId);

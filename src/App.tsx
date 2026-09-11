@@ -218,9 +218,13 @@ export default function App() {
     };
   }, []);
 
+  // Helper to ensure owner is never loaded as employee staff
+  const cleanStaffRoster = (list: any[]): Staff[] => 
+    Array.isArray(list) ? list.filter((s: any) => s && s.role !== 'Owner' && s.roleId !== 'owner' && !String(s.position || '').toLowerCase().includes('owner') && s.id !== 'staff_owner_clean24') : [];
+
   // Database lists
   const [branches, setBranches] = useState<Branch[]>(() => db.getBranches());
-  const [staff, setStaff] = useState<Staff[]>(() => db.getStaff());
+  const [staff, setStaff] = useState<Staff[]>(() => cleanStaffRoster(db.getStaff()));
   const [salaries, setSalaries] = useState<Salary[]>(() => db.getSalaries());
   const [salarySchedules, setSalarySchedules] = useState<SalarySchedule[]>(() => db.getSalarySchedules());
   const [salaryAdvances, setSalaryAdvances] = useState<SalaryAdvance[]>(() => db.getSalaryAdvances());
@@ -344,7 +348,7 @@ export default function App() {
           };
 
           updateIfChanged(s.branches, db.getBranches, setBranches, db.saveBranches);
-          updateIfChanged(s.staff, db.getStaff, setStaff, db.saveStaff);
+          updateIfChanged(cleanStaffRoster(s.staff), () => cleanStaffRoster(db.getStaff()), setStaff, db.saveStaff);
           updateIfChanged(s.salaries, db.getSalaries, setSalaries, db.saveSalaries);
           updateIfChanged(s.salarySchedules, db.getSalarySchedules, setSalarySchedules, db.saveSalarySchedules);
           updateIfChanged(s.salaryAdvances, db.getSalaryAdvances, setSalaryAdvances, db.saveSalaryAdvances);

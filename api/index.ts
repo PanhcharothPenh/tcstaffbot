@@ -560,16 +560,15 @@ export default async function handler(req: any, res: any) {
           isStaffNotInactive(s) && isMatchingTg(s.telegramId, s.telegramUsername)
         );
 
-        // 2. Check allUsers (User Management: Owner, Admin, Manager, Staff)
+        // 2. Check allUsers (User Management: only bridge Manager or Staff, NOT Owner)
         if (!matchedStaff) {
           const matchedUser = allUsers.find((u: any) => 
             isStaffNotInactive(u) && isMatchingTg(u.telegramChatId || u.telegramId, u.telegramUsername)
           );
 
-          if (matchedUser) {
-            const userRole = matchedUser.role || 'Admin';
+          if (matchedUser && matchedUser.role !== 'Owner' && matchedUser.roleId !== 'owner') {
+            const userRole = matchedUser.role || 'Staff';
             const roleTitle = 
-              userRole === 'Owner' ? 'ម្ចាស់ហាង (Store Owner)' :
               userRole === 'Admin' ? 'អ្នកគ្រប់គ្រងជាន់ខ្ពស់ (Admin)' :
               userRole === 'Manager' ? 'អ្នកគ្រប់គ្រងសាខា (Manager)' :
               userRole === 'Staff' ? 'បុគ្គលិក (Staff)' : userRole;
@@ -592,40 +591,6 @@ export default async function handler(req: any, res: any) {
               createdAt: new Date().toISOString()
             };
             allStaff.unshift(matchedStaff);
-            await saveCollection('staff', allStaff);
-          }
-        }
-
-        // 3. Assign Clean24 as Owner
-        const isClean24Owner = (cleanTgId === '8412569939' || cleanTgName === 'clean24vengsreng');
-        if (isClean24Owner) {
-          if (!matchedStaff) {
-            matchedStaff = {
-              id: 'staff_owner_clean24',
-              fullName: 'Clean24 (Owner)',
-              position: 'ម្ចាស់ហាង (Store Owner)',
-              role: 'Owner',
-              gender: 'Other',
-              phone: '012 888 999',
-              branchId: 'b1',
-              assignedBranchIds: ['b1', 'b2'],
-              status: 'Active',
-              telegramId: '8412569939',
-              telegramUsername: '@clean24vengsreng',
-              telegramLinked: true,
-              faceEnrolled: false,
-              attendanceEnabled: true,
-              createdAt: new Date().toISOString()
-            };
-            allStaff.unshift(matchedStaff);
-            await saveCollection('staff', allStaff);
-          } else {
-            matchedStaff.position = 'ម្ចាស់ហាង (Store Owner)';
-            matchedStaff.role = 'Owner';
-            matchedStaff.telegramId = '8412569939';
-            matchedStaff.telegramUsername = '@clean24vengsreng';
-            matchedStaff.telegramLinked = true;
-            matchedStaff.status = 'Active';
             await saveCollection('staff', allStaff);
           }
         }
