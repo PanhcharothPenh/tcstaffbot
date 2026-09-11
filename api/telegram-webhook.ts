@@ -625,6 +625,126 @@ export default async function handler(req: any, res: any) {
       }
 
       // =================================================================================
+      // ACTION: ✍️ HANDLE ADMIN TYPED REJECTION REASON FOR LEAVE REQUEST
+      // =================================================================================
+      let pendingRejectionSession: any = null;
+      if (supabase && !isCallback && userText && !userText.startsWith('/')) {
+        try {
+          const { data: pRow } = await supabase.from('clean24_collections').select('data').eq('id', 'pending_rej_' + telegramId).maybeSingle();
+          if (pRow?.data?.leaveId) {
+            pendingRejectionSession = pRow.data;
+          }
+        } catch (_) {}
+      }
+
+      if (pendingRejectionSession && pendingRejectionSession.leaveId) {
+        await saveDbCollectionAsync(supabase, 'pending_rej_' + telegramId, null);
+        const approverName = pendingRejectionSession.approverName || (matchedStaff?.fullName || firstName || (cleanTgHandle ? `@${cleanTgHandle}` : 'Admin / Owner'));
+        const rejectReason = userText.trim();
+        const leaveId = pendingRejectionSession.leaveId;
+
+        let leaveList: any[] = [];
+        try {
+          const { data: row } = await supabase.from('clean24_collections').select('data').eq('id', 'leaveRequests').maybeSingle();
+          leaveList = Array.isArray(row?.data) ? row.data : [];
+          if (leaveList.length === 0) {
+            const { data: tcRow } = await supabase.from('tc_collections').select('data').eq('id', 'leaveRequests').maybeSingle();
+            leaveList = Array.isArray(tcRow?.data) ? tcRow.data : [];
+          }
+        } catch (_) {}
+
+        const leaveIndex = leaveList.findIndex((l: any) => l.id === leaveId);
+        if (leaveIndex >= 0) {
+          const targetLeave = leaveList[leaveIndex];
+          targetLeave.status = 'Rejected';
+          targetLeave.rejectedBy = approverName;
+          targetLeave.rejectedAt = new Date().toISOString();
+          targetLeave.reviewNote = rejectReason;
+
+          await supabase.from('clean24_collections').upsert({ id: 'leaveRequests', data: leaveList, updated_at: new Date().toISOString() });
+          await supabase.from('tc_collections').upsert({ id: 'leaveRequests', data: leaveList, updated_at: new Date().toISOString() });
+
+          // 1. Notify the staff member who requested leave DIRECTLY back on Telegram
+          const staffObj = (allStaff || []).find((s: any) => s.id === targetLeave.staffId) || { fullName: targetLeave.staffName };
+          const staffNotifyTarget = String(targetLeave.staffChatId || targetLeave.staffTelegramId || staffObj?.telegramId || pendingRejectionSession.staffNotifyTarget || '');
+
+          if (staffNotifyTarget) {
+            try {
+              await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: staffNotifyTarget,
+                  text: `❌ <b>ពាក្យសុំច្បាប់ត្រូវបានបដិសេធ</b>\n\n` +
+                    `👋 សួស្តី <b>${targetLeave.staffName}</b>!\n\n` +
+                    `ពាក្យសុំច្បាប់របស់អ្នកត្រូវបាន <b>បដិសេធ</b>។\n\n` +
+                    `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(targetLeave.date, displayDateStr)}</code>\n` +
+                    `🏢 <b>សាខា:</b> ${targetLeave.branchName || 'Toto By Chi Chi MC Park'}\n\n` +
+                    `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${targetLeave.details || ''}\n\n` +
+                    `💬 <b>មូលហេតុបដិសេធ:</b>\n${rejectReason}\n\n` +
+                    `👤 <b>ពិនិត្យដោយ:</b> ${approverName}\n` +
+                    `🔴 <b>ស្ថានភាព:</b> <b>បដិសេធ</b>\n\n` +
+                    `ℹ️ សម្រាប់ព័ត៌មានបន្ថែម សូមទាក់ទងអ្នកគ្រប់គ្រងដោយផ្ទាល់។`,
+                  parse_mode: 'HTML'
+                })
+              });
+            } catch (_) {}
+          }
+
+          // 2. Update the original alert message in the group/chat to show rejected status & disable buttons
+          const editTargetChatId = pendingRejectionSession.originalChatId || chatId;
+          const editTargetMsgId = pendingRejectionSession.originalMsgId;
+
+          if (editTargetMsgId && editTargetChatId) {
+            try {
+              const updatedText = `❌ <b>ពាក្យសុំច្បាប់ត្រូវបានបដិសេធ</b>\n\n` +
+                `👤 <b>បុគ្គលិក:</b> ${targetLeave.staffName}\n` +
+                `🏢 <b>សាខា:</b> ${targetLeave.branchName || 'Toto By Chi Chi MC Park'}\n` +
+                `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(targetLeave.date, displayDateStr)}</code>\n\n` +
+                `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${targetLeave.details || ''}\n\n` +
+                `💬 <b>មូលហេតុបដិសេធ:</b>\n${rejectReason}\n\n` +
+                `👤 <b>អ្នកពិនិត្យ:</b> ${approverName}\n` +
+                `🔴 <b>ស្ថានភាព:</b> <b>បដិសេធ</b>\n\n` +
+                `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`;
+
+              await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: editTargetChatId,
+                  message_id: editTargetMsgId,
+                  text: updatedText,
+                  parse_mode: 'HTML',
+                  reply_markup: {
+                    inline_keyboard: [
+                      [
+                        { text: `❌ បានបដិសេធ`, callback_data: 'noop' }
+                      ]
+                    ]
+                  }
+                })
+              });
+            } catch (_) {}
+          }
+
+          return sendOrReply(res, botToken, {
+            chat_id: chatId,
+            text: `❌ <b>ពាក្យសុំច្បាប់ត្រូវបានបដិសេធ</b>\n\n` +
+              `👤 <b>បុគ្គលិក:</b> ${targetLeave.staffName}\n` +
+              `🏢 <b>សាខា:</b> ${targetLeave.branchName || 'Toto By Chi Chi MC Park'}\n` +
+              `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(targetLeave.date, displayDateStr)}</code>\n\n` +
+              `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${targetLeave.details || ''}\n\n` +
+              `💬 <b>មូលហេតុបដិសេធ:</b>\n${rejectReason}\n\n` +
+              `👤 <b>អ្នកពិនិត្យ:</b> ${approverName}\n` +
+              `🔴 <b>ស្ថានភាព:</b> <b>បដិសេធ</b>\n\n` +
+              `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`,
+            parse_mode: 'HTML',
+            reply_markup: persistentReplyKeyboard
+          });
+        }
+      }
+
+      // =================================================================================
       // ACTION: 🧹 REMOVE UNWANTED OLD KEYBOARD (e.g. Hospital VPNs, NSSF Branches, etc.)
       // =================================================================================
       const isUnwantedKeyboard = 
@@ -995,9 +1115,25 @@ export default async function handler(req: any, res: any) {
       // =================================================================================
       const isLeaveApprove = isCallback && callbackQuery.data?.startsWith('leave_appr_');
       const isLeaveReject = isCallback && callbackQuery.data?.startsWith('leave_rejc_');
+      const isLeaveRejectPreset = isCallback && callbackQuery.data?.startsWith('rejrsn_');
 
-      if (isLeaveApprove || isLeaveReject) {
-        const leaveId = (callbackQuery.data || '').replace(isLeaveApprove ? 'leave_appr_' : 'leave_rejc_', '');
+      if (isLeaveApprove || isLeaveReject || isLeaveRejectPreset) {
+        let leaveId = '';
+        let presetReasonText = '';
+        if (isLeaveApprove) {
+          leaveId = (callbackQuery.data || '').replace('leave_appr_', '');
+        } else if (isLeaveReject) {
+          leaveId = (callbackQuery.data || '').replace('leave_rejc_', '');
+        } else if (isLeaveRejectPreset) {
+          const raw = callbackQuery.data || '';
+          const lastUnderscore = raw.lastIndexOf('_');
+          const code = raw.substring(lastUnderscore + 1);
+          leaveId = raw.substring('rejrsn_'.length, lastUnderscore);
+          if (code === 'staffing') presetReasonText = 'ខ្វះកម្លាំងបុគ្គលិកក្នុងវេន';
+          else if (code === 'conflict') presetReasonText = 'សុំច្បាប់ជាន់គ្នាជាមួយអ្នកផ្សេង';
+          else if (code === 'denied') presetReasonText = 'មិនអនុញ្ញាតសម្រាកនៅថ្ងៃនេះ';
+          else presetReasonText = 'មិនមានការបញ្ជាក់មូលហេតុបន្ថែម';
+        }
         const approverName = matchedStaff?.fullName || firstName || (cleanTgHandle ? `@${cleanTgHandle}` : 'Admin / Owner');
 
         let leaveList: any[] = [];
@@ -1122,8 +1258,7 @@ export default async function handler(req: any, res: any) {
                     `🏢 <b>សាខា:</b> ${targetLeave.branchName || 'Toto By Chi Chi MC Park'}\n\n` +
                     `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${targetLeave.details || 'សុំច្បាប់'}\n\n` +
                     `👤 <b>អនុម័តដោយ:</b> ${approverName}\n` +
-                    `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>\n\n` +
-                    `✨ ប្រព័ន្ធបានកត់ត្រាវត្តមានជា «ច្បាប់សម្រាក (Permission)» ជូនរួចរាល់ហើយ។`,
+                    `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>`,
                   parse_mode: 'HTML'
                 })
               });
@@ -1181,13 +1316,71 @@ export default async function handler(req: any, res: any) {
         }
 
         if (isLeaveReject) {
+          // Save pending rejection session so admin can either type a custom reason or click a preset button
+          if (supabase) {
+            try {
+              await saveDbCollectionAsync(supabase, 'pending_rej_' + telegramId, {
+                leaveId,
+                originalChatId: chatId,
+                originalMsgId: msg?.message_id,
+                approverName,
+                staffName: targetLeave.staffName,
+                staffNotifyTarget,
+                leaveDate: targetLeave.date
+              });
+            } catch (_) {}
+          }
+
+          if (callbackQuery.id) {
+            fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ callback_query_id: callbackQuery.id, text: `✍️ សូមវាយបញ្ចូលមូលហេតុ ឬជ្រើសរើសខាងក្រោម` })
+            }).catch(() => {});
+          }
+
+          return sendOrReply(res, botToken, {
+            chat_id: chatId,
+            text: `✍️ <b>សូមវាយបញ្ចូលមូលហេតុនៃការបដិសេធច្បាប់របស់ ${targetLeave.staffName}៖</b>\n\n` +
+              `<i>💡 លោកអ្នកអាចវាយសារផ្ញើផ្ទាល់ ឬជ្រើសរើសមូលហេតុរហ័សខាងក្រោម៖</i>`,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: '👥 ខ្វះកម្លាំងបុគ្គលិកក្នុងវេន', callback_data: `rejrsn_${leaveId}_staffing` }
+                ],
+                [
+                  { text: '⚠️ សុំច្បាប់ជាន់គ្នាជាមួយអ្នកផ្សេង', callback_data: `rejrsn_${leaveId}_conflict` }
+                ],
+                [
+                  { text: '❌ មិនអនុញ្ញាតសម្រាកនៅថ្ងៃនេះ', callback_data: `rejrsn_${leaveId}_denied` }
+                ],
+                [
+                  { text: '🚫 មិនបញ្ជាក់មូលហេតុ', callback_data: `rejrsn_${leaveId}_none` }
+                ]
+              ]
+            }
+          });
+        }
+
+        if (isLeaveRejectPreset) {
+          const rejectReason = presetReasonText;
           targetLeave.status = 'Rejected';
           targetLeave.rejectedBy = approverName;
           targetLeave.rejectedAt = new Date().toISOString();
+          targetLeave.reviewNote = rejectReason;
 
-          // Save leaveRequests
+          // Retrieve original message context from pending session if available
+          let originalAlertMsgId = null;
+          let originalAlertChatId = null;
           if (supabase) {
             try {
+              const { data: pRow } = await supabase.from('clean24_collections').select('data').eq('id', 'pending_rej_' + telegramId).maybeSingle();
+              if (pRow?.data) {
+                originalAlertMsgId = pRow.data.originalMsgId;
+                originalAlertChatId = pRow.data.originalChatId;
+              }
+              await saveDbCollectionAsync(supabase, 'pending_rej_' + telegramId, null);
               await supabase.from('clean24_collections').upsert({
                 id: 'leaveRequests',
                 data: leaveList,
@@ -1211,7 +1404,6 @@ export default async function handler(req: any, res: any) {
           }
 
           // 1. Notify the staff member who requested leave DIRECTLY back on Telegram
-          const rejectReasonForStaff = targetLeave.reviewNote || '[មូលហេតុពីអ្នកគ្រប់គ្រង]';
           if (staffNotifyTarget) {
             try {
               await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -1225,7 +1417,7 @@ export default async function handler(req: any, res: any) {
                     `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(targetLeave.date, displayDateStr)}</code>\n` +
                     `🏢 <b>សាខា:</b> ${targetLeave.branchName || 'Toto By Chi Chi MC Park'}\n\n` +
                     `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${targetLeave.details || ''}\n\n` +
-                    `💬 <b>មូលហេតុបដិសេធ:</b>\n${rejectReasonForStaff}\n\n` +
+                    `💬 <b>មូលហេតុបដិសេធ:</b>\n${rejectReason}\n\n` +
                     `👤 <b>ពិនិត្យដោយ:</b> ${approverName}\n` +
                     `🔴 <b>ស្ថានភាព:</b> <b>បដិសេធ</b>\n\n` +
                     `ℹ️ សម្រាប់ព័ត៌មានបន្ថែម សូមទាក់ទងអ្នកគ្រប់គ្រងដោយផ្ទាល់។`,
@@ -1235,32 +1427,31 @@ export default async function handler(req: any, res: any) {
             } catch (e) {}
           }
 
-          // 2. Update the original alert message in the group/chat to show rejected status & disable buttons
-          const rejectReasonForGroup = targetLeave.reviewNote || '[បញ្ចូលមូលហេតុបដិសេធ]';
-          if (msg?.message_id && chatId) {
-            try {
-              const updatedText = `❌ <b>ពាក្យសុំច្បាប់ត្រូវបានបដិសេធ</b>\n\n` +
-                `👤 <b>បុគ្គលិក:</b> ${targetLeave.staffName}\n` +
-                `🏢 <b>សាខា:</b> ${targetLeave.branchName || 'Toto By Chi Chi MC Park'}\n` +
-                `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(targetLeave.date, displayDateStr)}</code>\n\n` +
-                `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${targetLeave.details || ''}\n\n` +
-                `💬 <b>មូលហេតុបដិសេធ:</b>\n${rejectReasonForGroup}\n\n` +
-                `👤 <b>អ្នកពិនិត្យ:</b> ${approverName}\n` +
-                `🔴 <b>ស្ថានភាព:</b> <b>បដិសេធ</b>\n\n` +
-                `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`;
+          const finalResultText = `❌ <b>ពាក្យសុំច្បាប់ត្រូវបានបដិសេធ</b>\n\n` +
+            `👤 <b>បុគ្គលិក:</b> ${targetLeave.staffName}\n` +
+            `🏢 <b>សាខា:</b> ${targetLeave.branchName || 'Toto By Chi Chi MC Park'}\n` +
+            `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(targetLeave.date, displayDateStr)}</code>\n\n` +
+            `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${targetLeave.details || ''}\n\n` +
+            `💬 <b>មូលហេតុបដិសេធ:</b>\n${rejectReason}\n\n` +
+            `👤 <b>អ្នកពិនិត្យ:</b> ${approverName}\n` +
+            `🔴 <b>ស្ថានភាព:</b> <b>បដិសេធ</b>\n\n` +
+            `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`;
 
+          // 2. If original alert message was separate from this prompt message, update it too
+          if (originalAlertMsgId && originalAlertChatId && (String(originalAlertMsgId) !== String(msg?.message_id) || String(originalAlertChatId) !== String(chatId))) {
+            try {
               await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  chat_id: chatId,
-                  message_id: msg.message_id,
-                  text: updatedText,
+                  chat_id: originalAlertChatId,
+                  message_id: originalAlertMsgId,
+                  text: finalResultText,
                   parse_mode: 'HTML',
                   reply_markup: {
                     inline_keyboard: [
                       [
-                        { text: `❌ បានបដិសេធ`, callback_data: 'noop' }
+                        { text: `❌ បានបដិសេធ (${rejectReason})`, callback_data: 'noop' }
                       ]
                     ]
                   }
@@ -1269,19 +1460,32 @@ export default async function handler(req: any, res: any) {
             } catch (e) {}
           }
 
-          const responseText = `❌ <b>ពាក្យសុំច្បាប់ត្រូវបានបដិសេធ</b>\n\n` +
-            `👤 <b>បុគ្គលិក:</b> ${targetLeave.staffName}\n` +
-            `🏢 <b>សាខា:</b> ${targetLeave.branchName || 'Toto By Chi Chi MC Park'}\n` +
-            `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(targetLeave.date, displayDateStr)}</code>\n\n` +
-            `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${targetLeave.details || ''}\n\n` +
-            `💬 <b>មូលហេតុបដិសេធ:</b>\n${rejectReasonForGroup}\n\n` +
-            `👤 <b>អ្នកពិនិត្យ:</b> ${approverName}\n` +
-            `🔴 <b>ស្ថានភាព:</b> <b>បដិសេធ</b>\n\n` +
-            `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`;
+          // 3. Edit current message to show final result and remove inline buttons
+          if (msg?.message_id && chatId) {
+            try {
+              await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  message_id: msg.message_id,
+                  text: finalResultText,
+                  parse_mode: 'HTML',
+                  reply_markup: {
+                    inline_keyboard: [
+                      [
+                        { text: `❌ បានបដិសេធ (${rejectReason})`, callback_data: 'noop' }
+                      ]
+                    ]
+                  }
+                })
+              });
+            } catch (e) {}
+          }
 
           return sendOrReply(res, botToken, {
             chat_id: chatId,
-            text: responseText,
+            text: finalResultText,
             parse_mode: 'HTML'
           });
         }

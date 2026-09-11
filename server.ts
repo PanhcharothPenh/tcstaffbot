@@ -5524,8 +5524,7 @@ app.post(['/api/leave-requests', '/api/leave-requests/'], async (req, res) => {
               `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n\n` +
               `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${leave.details || 'សុំច្បាប់'}\n\n` +
               `👤 <b>អនុម័តដោយ:</b> ${leave.approvedBy}\n` +
-              `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>\n\n` +
-              `✨ ប្រព័ន្ធបានកត់ត្រាវត្តមានជា «ច្បាប់សម្រាក (Permission)» ជូនរួចរាល់ហើយ។`,
+              `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>`,
             parse_mode: 'HTML'
           })
         }).catch(() => {});
@@ -5589,7 +5588,7 @@ app.post(['/api/leave-requests', '/api/leave-requests/'], async (req, res) => {
               `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leave.date)}</code>\n` +
               `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n\n` +
               `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${leave.details || ''}\n\n` +
-              `💬 <b>មូលហេតុបដិសេធ:</b>\n${note || '[មូលហេតុពីអ្នកគ្រប់គ្រង]'}\n\n` +
+              `💬 <b>មូលហេតុបដិសេធ:</b>\n${note || 'មិនមានការបញ្ជាក់មូលហេតុបន្ថែម'}\n\n` +
               `👤 <b>ពិនិត្យដោយ:</b> ${leave.rejectedBy}\n` +
               `🔴 <b>ស្ថានភាព:</b> <b>បដិសេធ</b>\n\n` +
               `ℹ️ សម្រាប់ព័ត៌មានបន្ថែម សូមទាក់ទងអ្នកគ្រប់គ្រងដោយផ្ទាល់។`,
@@ -5611,7 +5610,7 @@ app.post(['/api/leave-requests', '/api/leave-requests/'], async (req, res) => {
               `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n` +
               `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leave.date)}</code>\n\n` +
               `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${leave.details || ''}\n\n` +
-              `💬 <b>មូលហេតុបដិសេធ:</b>\n${note || '[បញ្ចូលមូលហេតុបដិសេធ]'}\n\n` +
+              `💬 <b>មូលហេតុបដិសេធ:</b>\n${note || 'មិនមានការបញ្ជាក់មូលហេតុបន្ថែម'}\n\n` +
               `👤 <b>អ្នកពិនិត្យ:</b> ${leave.rejectedBy}\n` +
               `🔴 <b>ស្ថានភាព:</b> <b>បដិសេធ</b>\n\n` +
               `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`,
