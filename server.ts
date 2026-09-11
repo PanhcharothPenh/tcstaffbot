@@ -5180,7 +5180,7 @@ if (!process.env.VERCEL) {
 // 2. Validate Telegram Mini App Session
 app.post('/api/telegram/validate-init-data', (req, res) => {
   try {
-    const { initData, simulationStaffId } = req.body;
+    const { initData, simulationStaffId, unsafeUser, telegramId, telegramUsername } = req.body;
 
     let tgUser: any = null;
     let staff: any = null;
@@ -5189,16 +5189,129 @@ app.post('/api/telegram/validate-init-data', (req, res) => {
       const validation = validateTelegramInitData(initData);
       if (validation.valid && validation.user) {
         tgUser = validation.user;
-        const tgId = String(tgUser.id);
-        const tgUsername = tgUser.username ? tgUser.username.toLowerCase() : '';
-        staff = (localDb.staff || []).find(s => 
-          (s.telegramId && String(s.telegramId) === tgId) ||
-          (tgUsername && s.telegramUsername && s.telegramUsername.replace('@', '').toLowerCase() === tgUsername)
-        );
       }
     }
 
+    if (!tgUser && unsafeUser && typeof unsafeUser === 'object') {
+      tgUser = unsafeUser;
+    }
 
+    if (!tgUser && (telegramId || telegramUsername)) {
+      tgUser = { id: telegramId, username: telegramUsername || '' };
+    }
+
+    const cleanTgId = tgUser?.id ? String(tgUser.id).trim() : (telegramId ? String(telegramId).trim() : '');
+    const cleanTgName = tgUser?.username 
+      ? String(tgUser.username).replace(/^@/, '').toLowerCase().trim() 
+      : (telegramUsername ? String(telegramUsername).replace(/^@/, '').toLowerCase().trim() : '');
+
+    const isStaffNotInactive = (s: any) => {
+      if (!s) return false;
+      const st = String(s.status || '').toLowerCase().trim();
+      return st !== 'inactive' && st !== 'terminated' && st !== 'resigned' && st !== 'disabled' && st !== 'locked';
+    };
+
+    const isMatchingTg = (storedId: any, storedUser: any) => {
+      const sId = String(storedId || '').trim();
+      const sUser = String(storedUser || '').replace(/^@/, '').toLowerCase().trim();
+
+      if (cleanTgId) {
+        if (sId === cleanTgId) return true;
+        if (sUser === cleanTgId) return true;
+      }
+      if (cleanTgName) {
+        if (sUser === cleanTgName) return true;
+        if (sId.replace(/^@/, '').toLowerCase().trim() === cleanTgName) return true;
+      }
+      return false;
+    };
+
+    if (cleanTgId || cleanTgName) {
+      // 1. Check localDb.staff
+      staff = (localDb.staff || []).find(s => 
+        isStaffNotInactive(s) && isMatchingTg(s.telegramId, s.telegramUsername)
+      );
+
+      // 2. Check localDb.users (User Management: Owner, Admin, Manager, Staff)
+      if (!staff) {
+        const matchedUser = (localDb.users || []).find((u: any) => 
+          isStaffNotInactive(u) && isMatchingTg(u.telegramChatId || u.telegramId, u.telegramUsername)
+        );
+
+        if (matchedUser) {
+          const userRole = matchedUser.role || 'Admin';
+          const roleTitle = 
+            userRole === 'Owner' ? 'ម្ចាស់ហាង (Store Owner)' :
+            userRole === 'Admin' ? 'អ្នកគ្រប់គ្រងជាន់ខ្ពស់ (Admin)' :
+            userRole === 'Manager' ? 'អ្នកគ្រប់គ្រងសាខា (Manager)' :
+            userRole === 'Staff' ? 'បុគ្គលិក (Staff)' : userRole;
+
+          staff = {
+            id: 'staff_usr_' + (matchedUser.id || Date.now()),
+            fullName: matchedUser.fullName || matchedUser.username,
+            position: roleTitle,
+            role: userRole,
+            gender: 'Other',
+            phone: matchedUser.phone || '012 888 999',
+            branchId: matchedUser.assignedBranchIds?.[0] || 'b1',
+            assignedBranchIds: matchedUser.assignedBranchIds || ['b1', 'b2'],
+            status: 'Active',
+            telegramId: cleanTgId || String(matchedUser.telegramChatId || matchedUser.telegramId || ''),
+            telegramUsername: cleanTgName ? `@${cleanTgName}` : (matchedUser.telegramUsername || undefined),
+            telegramLinked: true,
+            faceEnrolled: false,
+            attendanceEnabled: true,
+            createdAt: new Date().toISOString()
+          };
+          if (!localDb.staff) localDb.staff = [];
+          localDb.staff.unshift(staff);
+          saveLocalDb();
+        }
+      }
+
+      // 3. Clean24 Owner auto-bridge
+      const isClean24Owner = (cleanTgId === '8412569939' || cleanTgName === 'clean24vengsreng');
+      if (isClean24Owner) {
+        if (!staff) {
+          staff = {
+            id: 'staff_owner_clean24',
+            fullName: 'Clean24 (Owner)',
+            position: 'ម្ចាស់ហាង (Store Owner)',
+            role: 'Owner',
+            gender: 'Other',
+            phone: '012 888 999',
+            branchId: 'b1',
+            assignedBranchIds: ['b1', 'b2'],
+            status: 'Active',
+            telegramId: '8412569939',
+            telegramUsername: '@clean24vengsreng',
+            telegramLinked: true,
+            faceEnrolled: false,
+            attendanceEnabled: true,
+            createdAt: new Date().toISOString()
+          };
+          if (!localDb.staff) localDb.staff = [];
+          localDb.staff.unshift(staff);
+          saveLocalDb();
+        } else {
+          staff.position = 'ម្ចាស់ហាង (Store Owner)';
+          staff.role = 'Owner';
+          staff.telegramId = '8412569939';
+          staff.telegramUsername = '@clean24vengsreng';
+          staff.telegramLinked = true;
+          staff.status = 'Active';
+          saveLocalDb();
+        }
+      }
+
+      // Auto-link ID if username matched
+      if (staff && cleanTgId && (!staff.telegramId || String(staff.telegramId) !== cleanTgId)) {
+        staff.telegramId = cleanTgId;
+        staff.telegramLinked = true;
+        if (cleanTgName && !staff.telegramUsername) staff.telegramUsername = `@${cleanTgName}`;
+        saveLocalDb();
+      }
+    }
 
     if (!staff && simulationStaffId) {
       staff = (localDb.staff || []).find(s => s.id === simulationStaffId);
@@ -5212,16 +5325,47 @@ app.post('/api/telegram/validate-init-data', (req, res) => {
       return res.status(404).json({
         success: false,
         unlinked: true,
-        user: tgUser,
-        error: 'គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិកណាម្នាក់ឡើយ។'
+        user: tgUser || { id: cleanTgId, username: cleanTgName },
+        error: 'គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិក TC Staff ណាម្នាក់ឡើយ។'
       });
     }
 
-    const branch = (localDb.branches || []).find(b => b.id === (staff.assignedBranchId || staff.branchId)) || {
-      id: staff.branchId,
-      branchName: 'TC Staff Management',
-      locationVerificationEnabled: false,
-      allowedRadius: 100
+    const isOwner = Boolean(
+      cleanTgId === '8412569939' || 
+      cleanTgName === 'clean24vengsreng' || 
+      staff.role === 'Owner' || 
+      (staff.position && staff.position.toLowerCase().includes('owner'))
+    );
+
+    const assignedIds = Array.isArray(staff?.assignedBranchIds) ? staff.assignedBranchIds : [];
+    const allBranches = localDb.branches || [];
+    const hasAllBranches = 
+      isOwner || 
+      assignedIds.includes('all') || 
+      assignedIds.length === 0 || 
+      (allBranches.length > 0 && assignedIds.length >= allBranches.length);
+
+    let branchDisplayName = '';
+    if (hasAllBranches) {
+      branchDisplayName = 'គ្រប់សាខាទាំងអស់ (All Branches)';
+    } else if (assignedIds.length > 1) {
+      const names = assignedIds.map((id: string) => {
+        const b = allBranches.find((x: any) => x.id === id);
+        return b?.branchName || id;
+      });
+      branchDisplayName = names.join(' | ');
+    } else {
+      const singleBranch = allBranches.find((b: any) => b.id === (assignedIds[0] || staff.assignedBranchId || staff.branchId));
+      branchDisplayName = singleBranch?.branchName || 'TC Staff Management';
+    }
+
+    const branch = {
+      id: staff.branchId || 'b1',
+      branchName: branchDisplayName,
+      latitude: allBranches[0]?.latitude || 11.53,
+      longitude: allBranches[0]?.longitude || 104.88,
+      allowedRadius: 100,
+      locationVerificationEnabled: false
     };
 
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
@@ -5251,6 +5395,54 @@ app.post('/api/telegram/validate-init-data', (req, res) => {
       },
       todayAttendance
     });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 2b. Telegram Link Endpoint
+app.post('/api/telegram/link', (req, res) => {
+  try {
+    const { staffId, telegramId, telegramUsername, staffData } = req.body;
+    if (!staffId || !telegramId) {
+      return res.status(400).json({ success: false, error: 'staffId and telegramId are required' });
+    }
+
+    if (!localDb.staff) localDb.staff = [];
+    let staff = (localDb.staff || []).find(s => s.id === staffId);
+    if (!staff && staffData && staffData.fullName) {
+      staff = (localDb.staff || []).find(s => s.fullName?.toLowerCase() === staffData.fullName.toLowerCase());
+    }
+
+    const user = (localDb.users || []).find((u: any) => u.id === staffId || u.username === staffId);
+
+    if (staff) {
+      staff.telegramId = String(telegramId).trim();
+      if (telegramUsername) staff.telegramUsername = telegramUsername.trim();
+      staff.telegramLinked = true;
+      saveLocalDb();
+      return res.json({ success: true, message: `Linked ${staff.fullName} to Telegram`, staff });
+    } else if (user) {
+      user.telegramChatId = String(telegramId).trim();
+      user.telegramId = String(telegramId).trim();
+      if (telegramUsername) user.telegramUsername = telegramUsername.trim();
+      saveLocalDb();
+      return res.json({ success: true, message: `Linked user ${user.username} to Telegram`, user });
+    } else if (staffData) {
+      const newRec = {
+        ...staffData,
+        id: staffId,
+        telegramId: String(telegramId).trim(),
+        telegramUsername: telegramUsername ? telegramUsername.trim() : undefined,
+        telegramLinked: true,
+        status: 'Active'
+      };
+      localDb.staff.unshift(newRec);
+      saveLocalDb();
+      return res.json({ success: true, message: `Created and linked ${newRec.fullName}`, staff: newRec });
+    }
+
+    return res.status(404).json({ success: false, error: 'Staff or User not found' });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
   }

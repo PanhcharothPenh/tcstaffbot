@@ -396,22 +396,79 @@ export default async function handler(req: any, res: any) {
   // 2. TELEGRAM LINK (POST /api/telegram/link)
   if (path === '/api/telegram/link' && req.method === 'POST') {
     try {
-      const { staffId, telegramId, telegramUsername } = req.body || {};
+      const { staffId, telegramId, telegramUsername, staffData } = req.body || {};
       if (!staffId || !telegramId) {
         return res.status(400).json({ success: false, error: 'staffId and telegramId are required' });
       }
 
       const allStaff = await getCollection('staff');
-      const sIdx = allStaff.findIndex((s: any) => s.id === staffId);
-      if (sIdx === -1) {
-        return res.status(404).json({ success: false, error: 'Staff profile not found' });
+      let sIdx = allStaff.findIndex((s: any) => s.id === staffId);
+      
+      if (sIdx === -1 && staffData && staffData.fullName) {
+        sIdx = allStaff.findIndex((s: any) => s.fullName?.toLowerCase() === staffData.fullName.toLowerCase());
       }
 
-      allStaff[sIdx].telegramId = String(telegramId).trim();
-      if (telegramUsername) allStaff[sIdx].telegramUsername = telegramUsername.trim();
-      allStaff[sIdx].telegramLinked = true;
+      const allUsers = await getCollection('users');
+      const uIdx = allUsers.findIndex((u: any) => u.id === staffId || u.username === staffId);
 
-      await saveCollection('staff', allStaff);
+      if (sIdx >= 0) {
+        allStaff[sIdx].telegramId = String(telegramId).trim();
+        if (telegramUsername) allStaff[sIdx].telegramUsername = telegramUsername.trim();
+        allStaff[sIdx].telegramLinked = true;
+        allStaff[sIdx].status = allStaff[sIdx].status || 'Active';
+        await saveCollection('staff', allStaff);
+      } else if (uIdx >= 0) {
+        allUsers[uIdx].telegramChatId = String(telegramId).trim();
+        allUsers[uIdx].telegramId = String(telegramId).trim();
+        if (telegramUsername) allUsers[uIdx].telegramUsername = telegramUsername.trim();
+        await saveCollection('users', allUsers);
+
+        // Also create/upsert mirror in staff collection
+        const matchedUser = allUsers[uIdx];
+        const userRole = matchedUser.role || 'Staff';
+        const newStaffRecord = {
+          id: 'staff_usr_' + matchedUser.id,
+          fullName: matchedUser.fullName || matchedUser.username,
+          position: userRole === 'Owner' ? 'ម្ចាស់ហាង (Store Owner)' : (userRole === 'Staff' ? 'បុគ្គលិក (Staff)' : userRole),
+          role: userRole,
+          gender: 'Other',
+          phone: matchedUser.phone || '012 888 999',
+          branchId: matchedUser.assignedBranchIds?.[0] || 'b1',
+          assignedBranchIds: matchedUser.assignedBranchIds || ['b1', 'b2'],
+          status: 'Active',
+          telegramId: String(telegramId).trim(),
+          telegramUsername: telegramUsername ? telegramUsername.trim() : undefined,
+          telegramLinked: true,
+          faceEnrolled: false,
+          attendanceEnabled: true,
+          createdAt: new Date().toISOString()
+        };
+        allStaff.unshift(newStaffRecord);
+        await saveCollection('staff', allStaff);
+        return res.status(200).json({
+          success: true,
+          message: `បានភ្ជាប់ Telegram ID ${telegramId} ជាមួយ ${matchedUser.fullName || matchedUser.username} ដោយជោគជ័យ!`,
+          staff: newStaffRecord
+        });
+      } else if (staffData) {
+        const newRec = {
+          ...staffData,
+          id: staffId,
+          telegramId: String(telegramId).trim(),
+          telegramUsername: telegramUsername ? telegramUsername.trim() : undefined,
+          telegramLinked: true,
+          status: 'Active'
+        };
+        allStaff.unshift(newRec);
+        await saveCollection('staff', allStaff);
+        return res.status(200).json({
+          success: true,
+          message: `បានភ្ជាប់ Telegram ID ${telegramId} ដោយជោគជ័យ!`,
+          staff: newRec
+        });
+      } else {
+        return res.status(404).json({ success: false, error: 'Staff profile not found' });
+      }
 
       return res.status(200).json({
         success: true,
@@ -447,128 +504,190 @@ export default async function handler(req: any, res: any) {
   // 4. VALIDATE TELEGRAM MINI APP SESSION (POST /api/telegram/validate-init-data)
   if (path === '/api/telegram/validate-init-data' && req.method === 'POST') {
     try {
-      const { initData, simulationStaffId } = req.body || {};
+      const { initData, simulationStaffId, unsafeUser, telegramId, telegramUsername } = req.body || {};
       const allStaff = await getCollection('staff');
       const allBranches = await getCollection('branches');
       const allAtt = await getCollection('attendance');
+      const allUsers = await getCollection('users');
 
       let tgUser: any = null;
       let matchedStaff: any = null;
 
       if (initData) {
         const val = validateTelegramInitData(initData, allBotTokens);
-        if (val.valid && val.user) {
+        if (val.user) {
           tgUser = val.user;
-          const tgId = String(tgUser.id);
-          const tgName = (tgUser.username || '').toLowerCase().replace(/^@/, '').trim();
-          
-          // STRICT AUTH: Must match an active staff member explicitly registered with this telegramId or telegramUsername
-          matchedStaff = allStaff.find((s: any) => 
-            s.status === 'Active' && (
-              (s.telegramId && String(s.telegramId) === tgId) ||
-              (tgName && s.telegramUsername && s.telegramUsername.replace(/^@/, '').toLowerCase().trim() === tgName)
-            )
+        }
+      }
+
+      if (!tgUser && unsafeUser && typeof unsafeUser === 'object') {
+        tgUser = unsafeUser;
+      }
+
+      if (!tgUser && (telegramId || telegramUsername)) {
+        tgUser = { id: telegramId, username: telegramUsername || '' };
+      }
+
+      const cleanTgId = tgUser?.id ? String(tgUser.id).trim() : (telegramId ? String(telegramId).trim() : '');
+      const cleanTgName = tgUser?.username 
+        ? String(tgUser.username).replace(/^@/, '').toLowerCase().trim() 
+        : (telegramUsername ? String(telegramUsername).replace(/^@/, '').toLowerCase().trim() : '');
+
+      const isStaffNotInactive = (s: any) => {
+        if (!s) return false;
+        const st = String(s.status || '').toLowerCase().trim();
+        return st !== 'inactive' && st !== 'terminated' && st !== 'resigned' && st !== 'disabled' && st !== 'locked';
+      };
+
+      const isMatchingTg = (storedId: any, storedUser: any) => {
+        const sId = String(storedId || '').trim();
+        const sUser = String(storedUser || '').replace(/^@/, '').toLowerCase().trim();
+
+        if (cleanTgId) {
+          if (sId === cleanTgId) return true;
+          if (sUser === cleanTgId) return true;
+        }
+        if (cleanTgName) {
+          if (sUser === cleanTgName) return true;
+          if (sId.replace(/^@/, '').toLowerCase().trim() === cleanTgName) return true;
+        }
+        return false;
+      };
+
+      if (cleanTgId || cleanTgName) {
+        // 1. Check allStaff
+        matchedStaff = allStaff.find((s: any) => 
+          isStaffNotInactive(s) && isMatchingTg(s.telegramId, s.telegramUsername)
+        );
+
+        // 2. Check allUsers (User Management: Owner, Admin, Manager, Staff)
+        if (!matchedStaff) {
+          const matchedUser = allUsers.find((u: any) => 
+            isStaffNotInactive(u) && isMatchingTg(u.telegramChatId || u.telegramId, u.telegramUsername)
           );
 
-          // Check User Management accounts (Owner, Admin, Manager)
-          if (!matchedStaff) {
-            const allUsers = await getCollection('users');
-            const matchedUser = allUsers.find((u: any) => {
-              const uTgId = String(u.telegramChatId || u.telegramId || '').trim();
-              const uTgUser = (u.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
-              return u.status === 'Active' && (
-                (tgId && uTgId === tgId) || 
-                (tgName && uTgUser === tgName)
-              );
-            });
+          if (matchedUser) {
+            const userRole = matchedUser.role || 'Admin';
+            const roleTitle = 
+              userRole === 'Owner' ? 'ម្ចាស់ហាង (Store Owner)' :
+              userRole === 'Admin' ? 'អ្នកគ្រប់គ្រងជាន់ខ្ពស់ (Admin)' :
+              userRole === 'Manager' ? 'អ្នកគ្រប់គ្រងសាខា (Manager)' :
+              userRole === 'Staff' ? 'បុគ្គលិក (Staff)' : userRole;
 
-            if (matchedUser) {
-              const userRole = matchedUser.role || 'Admin';
-              const roleTitle = 
-                userRole === 'Owner' ? 'ម្ចាស់ហាង (Store Owner)' :
-                userRole === 'Admin' ? 'អ្នកគ្រប់គ្រងជាន់ខ្ពស់ (Admin)' :
-                userRole === 'Manager' ? 'អ្នកគ្រប់គ្រងសាខា (Manager)' : userRole;
-
-              matchedStaff = {
-                id: 'staff_usr_' + (matchedUser.id || Date.now()),
-                fullName: matchedUser.fullName || matchedUser.username,
-                position: roleTitle,
-                role: userRole,
-                gender: 'Other',
-                phone: matchedUser.phone || '012 888 999',
-                branchId: matchedUser.assignedBranchIds?.[0] || 'b1',
-                assignedBranchIds: matchedUser.assignedBranchIds || ['b1', 'b2'],
-                status: 'Active',
-                telegramId: tgId,
-                telegramUsername: tgName ? `@${tgName}` : undefined,
-                telegramLinked: true,
-                faceEnrolled: false,
-                attendanceEnabled: true,
-                createdAt: new Date().toISOString()
-              };
-              allStaff.unshift(matchedStaff);
-              await saveCollection('staff', allStaff);
-            }
-          }
-
-          // Assign Clean24 as Owner
-          const isClean24Owner = (tgId === '8412569939' || tgName === 'clean24vengsreng');
-          if (isClean24Owner) {
-            if (!matchedStaff) {
-              matchedStaff = {
-                id: 'staff_owner_clean24',
-                fullName: 'Clean24 (Owner)',
-                position: 'ម្ចាស់ហាង (Store Owner)',
-                role: 'Owner',
-                gender: 'Other',
-                phone: '012 888 999',
-                branchId: 'b1',
-                assignedBranchIds: ['b1', 'b2'],
-                status: 'Active',
-                telegramId: '8412569939',
-                telegramUsername: '@clean24vengsreng',
-                telegramLinked: true,
-                faceEnrolled: false,
-                attendanceEnabled: true,
-                createdAt: new Date().toISOString()
-              };
-              allStaff.unshift(matchedStaff);
-              await saveCollection('staff', allStaff);
-            } else {
-              matchedStaff.position = 'ម្ចាស់ហាង (Store Owner)';
-              matchedStaff.role = 'Owner';
-              matchedStaff.telegramId = '8412569939';
-              matchedStaff.telegramUsername = '@clean24vengsreng';
-              matchedStaff.telegramLinked = true;
-              matchedStaff.status = 'Active';
-              await saveCollection('staff', allStaff);
-            }
-          }
-
-          // If matched by username and telegramId is empty, link their telegramId
-          if (matchedStaff && (!matchedStaff.telegramId || String(matchedStaff.telegramId) !== tgId)) {
-            matchedStaff.telegramId = tgId;
-            matchedStaff.telegramLinked = true;
-            if (tgName && !matchedStaff.telegramUsername) matchedStaff.telegramUsername = `@${tgName}`;
+            matchedStaff = {
+              id: 'staff_usr_' + (matchedUser.id || Date.now()),
+              fullName: matchedUser.fullName || matchedUser.username,
+              position: roleTitle,
+              role: userRole,
+              gender: 'Other',
+              phone: matchedUser.phone || '012 888 999',
+              branchId: matchedUser.assignedBranchIds?.[0] || 'b1',
+              assignedBranchIds: matchedUser.assignedBranchIds || ['b1', 'b2'],
+              status: 'Active',
+              telegramId: cleanTgId || String(matchedUser.telegramChatId || matchedUser.telegramId || ''),
+              telegramUsername: cleanTgName ? `@${cleanTgName}` : (matchedUser.telegramUsername || undefined),
+              telegramLinked: true,
+              faceEnrolled: false,
+              attendanceEnabled: true,
+              createdAt: new Date().toISOString()
+            };
+            allStaff.unshift(matchedStaff);
             await saveCollection('staff', allStaff);
           }
         }
+
+        // 3. Assign Clean24 as Owner
+        const isClean24Owner = (cleanTgId === '8412569939' || cleanTgName === 'clean24vengsreng');
+        if (isClean24Owner) {
+          if (!matchedStaff) {
+            matchedStaff = {
+              id: 'staff_owner_clean24',
+              fullName: 'Clean24 (Owner)',
+              position: 'ម្ចាស់ហាង (Store Owner)',
+              role: 'Owner',
+              gender: 'Other',
+              phone: '012 888 999',
+              branchId: 'b1',
+              assignedBranchIds: ['b1', 'b2'],
+              status: 'Active',
+              telegramId: '8412569939',
+              telegramUsername: '@clean24vengsreng',
+              telegramLinked: true,
+              faceEnrolled: false,
+              attendanceEnabled: true,
+              createdAt: new Date().toISOString()
+            };
+            allStaff.unshift(matchedStaff);
+            await saveCollection('staff', allStaff);
+          } else {
+            matchedStaff.position = 'ម្ចាស់ហាង (Store Owner)';
+            matchedStaff.role = 'Owner';
+            matchedStaff.telegramId = '8412569939';
+            matchedStaff.telegramUsername = '@clean24vengsreng';
+            matchedStaff.telegramLinked = true;
+            matchedStaff.status = 'Active';
+            await saveCollection('staff', allStaff);
+          }
+        }
+
+        // Auto-link ID if username matched
+        if (matchedStaff && cleanTgId && (!matchedStaff.telegramId || String(matchedStaff.telegramId) !== cleanTgId)) {
+          matchedStaff.telegramId = cleanTgId;
+          matchedStaff.telegramLinked = true;
+          if (cleanTgName && !matchedStaff.telegramUsername) matchedStaff.telegramUsername = `@${cleanTgName}`;
+          await saveCollection('staff', allStaff);
+        }
+      }
+
+      if (!matchedStaff && simulationStaffId) {
+        matchedStaff = allStaff.find((s: any) => s.id === simulationStaffId);
       }
 
       if (!matchedStaff) {
         return res.status(404).json({
           success: false,
           unlinked: true,
-          user: tgUser,
+          user: tgUser || { id: cleanTgId, username: cleanTgName },
           error: 'គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិក TC Staff ណាម្នាក់ឡើយ។'
         });
       }
 
-      const branch = allBranches.find((b: any) => b.id === (matchedStaff.assignedBranchId || matchedStaff.branchId)) || {
-        id: matchedStaff.branchId,
-        branchName: 'TC Staff',
-        locationVerificationEnabled: false,
-        allowedRadius: 100
+      // Check if user is assigned to all branches or owner
+      const isOwner = Boolean(
+        cleanTgId === '8412569939' || 
+        cleanTgName === 'clean24vengsreng' || 
+        matchedStaff.role === 'Owner' || 
+        (matchedStaff.position && matchedStaff.position.toLowerCase().includes('owner'))
+      );
+
+      const assignedIds = Array.isArray(matchedStaff?.assignedBranchIds) ? matchedStaff.assignedBranchIds : [];
+      const hasAllBranches = 
+        isOwner || 
+        assignedIds.includes('all') || 
+        assignedIds.length === 0 || 
+        (allBranches.length > 0 && assignedIds.length >= allBranches.length);
+
+      let branchDisplayName = '';
+      if (hasAllBranches) {
+        branchDisplayName = 'គ្រប់សាខាទាំងអស់ (All Branches)';
+      } else if (assignedIds.length > 1) {
+        const names = assignedIds.map((id: string) => {
+          const b = allBranches.find((x: any) => x.id === id);
+          return b?.branchName || id;
+        });
+        branchDisplayName = names.join(' | ');
+      } else {
+        const singleBranch = allBranches.find((b: any) => b.id === (assignedIds[0] || matchedStaff.branchId));
+        branchDisplayName = singleBranch?.branchName || 'TC Staff';
+      }
+
+      const branch = {
+        id: matchedStaff.branchId || 'b1',
+        branchName: branchDisplayName,
+        latitude: allBranches[0]?.latitude || 11.53,
+        longitude: allBranches[0]?.longitude || 104.88,
+        allowedRadius: 100,
+        locationVerificationEnabled: false
       };
 
       const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });

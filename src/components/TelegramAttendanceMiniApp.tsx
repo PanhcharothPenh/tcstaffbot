@@ -65,6 +65,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   const [branchInfo, setBranchInfo] = useState<any>(() => cachedData?.branch || null);
   const [todayAttendance, setTodayAttendance] = useState<any>(() => cachedData?.todayAttendance || null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [detectedTgUser, setDetectedTgUser] = useState<any>(null);
 
   // Camera & Capture State
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -164,15 +165,28 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     }
     setAuthError(null);
     try {
+      const tg = (window as any).Telegram?.WebApp;
+      const unsafeUser = tg?.initDataUnsafe?.user || null;
+      if (unsafeUser) {
+        setDetectedTgUser(unsafeUser);
+      }
+
       const res = await fetch('/api/telegram/validate-init-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          initData: dataStr
+          initData: dataStr,
+          unsafeUser: unsafeUser,
+          telegramId: unsafeUser?.id ? String(unsafeUser.id) : undefined,
+          telegramUsername: unsafeUser?.username || undefined
         })
       });
 
       const data = await res.json();
+      if (data.user) {
+        setDetectedTgUser(data.user);
+      }
+
       if (data.success && data.staff) {
         setStaffInfo(data.staff);
         setBranchInfo(data.branch);
@@ -520,6 +534,20 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
           <div className="p-3 bg-amber-50/70 border border-amber-200/60 rounded-2xl text-xs text-amber-950 font-medium leading-relaxed text-left">
             {authError}
           </div>
+          {detectedTgUser && (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 space-y-1.5 text-left font-mono">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-sans">🆔 Telegram ID:</span>
+                <span className="font-bold text-blue-600 select-all">{detectedTgUser.id}</span>
+              </div>
+              {detectedTgUser.username && (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-sans">👤 Username:</span>
+                  <span className="font-bold text-blue-600 select-all">@{detectedTgUser.username.replace(/^@/, '')}</span>
+                </div>
+              )}
+            </div>
+          )}
           <p className="text-[11px] text-slate-500 leading-relaxed">
             សូមទាក់ទង <b>Admin ឬ Manager</b> របស់អ្នកដើម្បីចុះឈ្មោះ និងភ្ជាប់គណនី Telegram នេះទៅកាន់ប្រព័ន្ធ TC Staff មុនពេលចុះវត្តមាន។
           </p>

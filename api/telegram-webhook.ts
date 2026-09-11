@@ -352,32 +352,37 @@ export default async function handler(req: any, res: any) {
           storedConfig = batch['telegramConfig'] || { chatIds: { branches: {} } };
           storedRecipients = Array.isArray(batch['telegramRecipients']) ? batch['telegramRecipients'] : [];
 
-          // 8. Find matching staff by Telegram ID or Username (Must be Active)
-          matchedStaff = allStaff.find((s: any) => {
-            const sId = String(s.telegramId || '').trim();
-            const sUser = (s.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
-            return s.status === 'Active' && (
-              (telegramId && sId === telegramId) || 
-              (cleanTgHandle && sUser === cleanTgHandle)
-            );
-          });
+          const isNotInactive = (item: any) => {
+            if (!item) return false;
+            const st = String(item.status || '').toLowerCase().trim();
+            return st !== 'inactive' && st !== 'terminated' && st !== 'resigned' && st !== 'disabled' && st !== 'locked';
+          };
 
-          // 8b. Also check User Management accounts (Owner, Admin, Manager)
-          const matchedUser = allUsers.find((u: any) => {
-            const uTgId = String(u.telegramChatId || u.telegramId || '').trim();
-            const uTgUser = (u.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
-            return u.status === 'Active' && (
-              (telegramId && uTgId === telegramId) || 
-              (cleanTgHandle && uTgUser === cleanTgHandle)
-            );
-          });
+          const isTgMatch = (storedId: any, storedUser: any) => {
+            const sId = String(storedId || '').trim();
+            const sUser = String(storedUser || '').replace(/^@/, '').toLowerCase().trim();
+            if (telegramId) {
+              if (sId === telegramId || sUser === telegramId) return true;
+            }
+            if (cleanTgHandle) {
+              if (sUser === cleanTgHandle || sId === cleanTgHandle || sId.replace(/^@/, '').toLowerCase() === cleanTgHandle) return true;
+            }
+            return false;
+          };
+
+          // 8. Find matching staff by Telegram ID or Username
+          matchedStaff = allStaff.find((s: any) => isNotInactive(s) && isTgMatch(s.telegramId, s.telegramUsername));
+
+          // 8b. Also check User Management accounts (Owner, Admin, Manager, Staff)
+          const matchedUser = allUsers.find((u: any) => isNotInactive(u) && isTgMatch(u.telegramChatId || u.telegramId, u.telegramUsername));
 
           if (!matchedStaff && matchedUser) {
             const userRole = matchedUser.role || 'Admin';
             const roleTitle = 
               userRole === 'Owner' ? 'ម្ចាស់ហាង (Store Owner)' :
               userRole === 'Admin' ? 'អ្នកគ្រប់គ្រងជាន់ខ្ពស់ (Admin)' :
-              userRole === 'Manager' ? 'អ្នកគ្រប់គ្រងសាខា (Manager)' : userRole;
+              userRole === 'Manager' ? 'អ្នកគ្រប់គ្រងសាខា (Manager)' :
+              userRole === 'Staff' ? 'បុគ្គលិក (Staff)' : userRole;
 
             matchedStaff = {
               id: 'staff_usr_' + (matchedUser.id || Date.now()),
@@ -526,6 +531,23 @@ export default async function handler(req: any, res: any) {
         if (matchedRec) effectiveBranchId = matchedRec.branchId;
       }
 
+      const isOwnerRole = Boolean(
+        telegramId === '8412569939' ||
+        cleanTgHandle === 'clean24vengsreng' ||
+        (matchedStaff && (
+          matchedStaff.role === 'Owner' || 
+          matchedStaff.role === 'Admin' || 
+          matchedStaff.role === 'Manager' ||
+          (matchedStaff.position && (
+            matchedStaff.position.toLowerCase().includes('owner') ||
+            matchedStaff.position.toLowerCase().includes('admin') ||
+            matchedStaff.position.toLowerCase().includes('manager') ||
+            matchedStaff.position.includes('ម្ចាស់ហាង') ||
+            matchedStaff.position.includes('អ្នកគ្រប់គ្រង')
+          ))
+        ))
+      );
+
       // Check matched staff
       if (!effectiveBranchId && matchedStaff?.branchId) {
         effectiveBranchId = matchedStaff.branchId;
@@ -541,7 +563,27 @@ export default async function handler(req: any, res: any) {
         };
       }
 
-      const branchDisplay = staffBranch?.branchName || (effectiveBranchId === 'b2' ? 'Coffee corner' : 'toto by Chichi');
+      // Determine branch display: if Owner or assigned to all branches, show គ្រប់សាខាទាំងអស់
+      const assignedIds = Array.isArray(matchedStaff?.assignedBranchIds) ? matchedStaff.assignedBranchIds : [];
+      const hasAllBranches = 
+        isOwnerRole || 
+        assignedIds.includes('all') || 
+        assignedIds.length === 0 || 
+        (allBranches.length > 0 && assignedIds.length >= allBranches.length);
+
+      let branchDisplay = '';
+      if (hasAllBranches) {
+        branchDisplay = 'គ្រប់សាខាទាំងអស់ (All Branches)';
+      } else if (assignedIds.length > 1) {
+        const names = assignedIds.map((id: string) => {
+          const b = allBranches.find((x: any) => x.id === id);
+          return b?.branchName || id;
+        });
+        branchDisplay = names.join(' | ');
+      } else {
+        const singleBranch = allBranches.find((b: any) => b.id === (assignedIds[0] || matchedStaff?.branchId || effectiveBranchId));
+        branchDisplay = singleBranch?.branchName || staffBranch?.branchName || (effectiveBranchId === 'b2' ? 'Coffee corner' : 'toto by Chichi');
+      }
 
       // Resolve Unified Bot Token
       let botToken = (
@@ -756,21 +798,6 @@ export default async function handler(req: any, res: any) {
         resize_keyboard: true,
         is_persistent: true
       };
-
-      const isOwnerRole = Boolean(matchedStaff && (
-        matchedStaff.role === 'Owner' || 
-        matchedStaff.role === 'Admin' || 
-        matchedStaff.role === 'Manager' ||
-        (matchedStaff.position && (
-          matchedStaff.position.toLowerCase().includes('owner') ||
-          matchedStaff.position.toLowerCase().includes('admin') ||
-          matchedStaff.position.toLowerCase().includes('manager') ||
-          matchedStaff.position.includes('ម្ចាស់ហាង') ||
-          matchedStaff.position.includes('អ្នកគ្រប់គ្រង')
-        )) ||
-        telegramId === '8412569939' ||
-        cleanTgHandle === 'clean24vengsreng'
-      ));
 
       const persistentReplyKeyboard = isOwnerRole ? ownerReplyKeyboard : staffReplyKeyboard;
 
