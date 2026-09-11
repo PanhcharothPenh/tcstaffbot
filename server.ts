@@ -4679,7 +4679,75 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
       return res.json({ ok: true });
     }
 
-    const persistentKb = {
+    const cleanTgHandle = username.replace(/^@/, '').toLowerCase();
+    let matchedStaff = (localDb.staff || []).find((s: any) => 
+      (s.telegramId && String(s.telegramId) === telegramId) ||
+      (cleanTgHandle && s.telegramUsername && s.telegramUsername.replace(/^@/, '').toLowerCase() === cleanTgHandle)
+    );
+
+    const isClean24Owner = (telegramId === '8412569939' || cleanTgHandle === 'clean24vengsreng');
+    if (isClean24Owner) {
+      if (!matchedStaff) {
+        matchedStaff = {
+          id: 'staff_owner_clean24',
+          fullName: 'Clean24 (Owner)',
+          position: 'ម្ចាស់ហាង (Store Owner)',
+          role: 'Owner',
+          gender: 'Other',
+          phone: '012 888 999',
+          branchId: 'b1',
+          assignedBranchIds: ['b1', 'b2'],
+          status: 'Active',
+          telegramId: '8412569939',
+          telegramUsername: '@clean24vengsreng',
+          telegramLinked: true,
+          faceEnrolled: false,
+          attendanceEnabled: true,
+          createdAt: new Date().toISOString()
+        };
+        if (!localDb.staff) localDb.staff = [];
+        localDb.staff.unshift(matchedStaff);
+        saveLocalDb();
+      } else {
+        matchedStaff.position = 'ម្ចាស់ហាង (Store Owner)';
+        matchedStaff.role = 'Owner';
+        matchedStaff.telegramId = '8412569939';
+        matchedStaff.telegramUsername = '@clean24vengsreng';
+        matchedStaff.telegramLinked = true;
+        matchedStaff.status = 'Active';
+        saveLocalDb();
+      }
+    }
+
+    // Check if user is linked via User Management
+    const matchedUser = (localDb.users || []).find((u: any) =>
+      (u.telegramId && String(u.telegramId) === telegramId) ||
+      (cleanTgHandle && u.telegramUsername && u.telegramUsername.replace(/^@/, '').toLowerCase() === cleanTgHandle)
+    );
+
+    const isOwnerRole = Boolean(
+      isClean24Owner ||
+      (matchedStaff && (
+        matchedStaff.role === 'Owner' || 
+        matchedStaff.role === 'Admin' || 
+        matchedStaff.role === 'Manager' ||
+        (matchedStaff.position && (
+          matchedStaff.position.toLowerCase().includes('owner') ||
+          matchedStaff.position.toLowerCase().includes('admin') ||
+          matchedStaff.position.toLowerCase().includes('manager') ||
+          matchedStaff.position.includes('ម្ចាស់ហាង') ||
+          matchedStaff.position.includes('អ្នកគ្រប់គ្រង')
+        ))
+      )) ||
+      (matchedUser && (
+        matchedUser.role === 'Owner' ||
+        matchedUser.role === 'Admin' ||
+        matchedUser.role === 'Manager'
+      ))
+    );
+
+    // 1. Staff Keyboard: Strictly Check In/Out, Attendance List, and Leave Request (សុំច្បាប់)
+    const staffReplyKeyboard = {
       keyboard: [
         [
           { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
@@ -4687,9 +4755,6 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
         ],
         [
           { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
-          { text: '👤 ព័ត៌មានបុគ្គលិក' }
-        ],
-        [
           { text: '📝 សុំច្បាប់' }
         ]
       ],
@@ -4697,13 +4762,162 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
       is_persistent: true
     };
 
+    // 2. Owner & Manager Keyboard: Full Options (Check In/Out, All Staff Attendance, Leave Requests, Account Info, Guide)
+    const ownerReplyKeyboard = {
+      keyboard: [
+        [
+          { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
+          { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+        ],
+        [
+          { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
+          { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
+        ],
+        [
+          { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+          { text: '👤 ព័ត៌មានគណនី' },
+          { text: '❓ របៀបប្រើប្រាស់' }
+        ]
+      ],
+      resize_keyboard: true,
+      is_persistent: true
+    };
+
+    const persistentKb = isOwnerRole ? ownerReplyKeyboard : staffReplyKeyboard;
+
+    // Handle All Staff Attendance (វត្តមានបុគ្គលិកទាំងអស់)
+    if (text.includes('វត្តមានបុគ្គលិកទាំងអស់') || text === '/all_attendance') {
+      const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
+      const allStaff = (localDb.staff || []).filter((s: any) => s.status !== 'Inactive' && s.status !== 'Terminated');
+      const todayAtt = (localDb.attendance || []).filter((a: any) => a.date === todayStr);
+
+      const presentList = todayAtt.filter((a: any) => a.checkIn);
+      const presentStaffIds = new Set(presentList.map((a: any) => a.staffId));
+      const absentStaff = allStaff.filter((s: any) => !presentStaffIds.has(s.id));
+
+      let summaryText = `👥 <b>[វត្តមានបុគ្គលិកប្រចាំថ្ងៃ]</b>\n📅 <code>${todayStr}</code>\n\n`;
+      summaryText += `🟢 <b>បានចុះឈ្មោះចូល (${presentList.length} នាក់)៖</b>\n`;
+      if (presentList.length === 0) {
+        summaryText += `<i>(មិនទាន់មានបុគ្គលិកណាចូលធ្វើការនៅឡើយទេ)</i>\n`;
+      } else {
+        presentList.forEach((r: any, idx: number) => {
+          const st = allStaff.find((s: any) => s.id === r.staffId);
+          const name = st?.fullName || r.staffName || 'Staff';
+          summaryText += `${idx + 1}. <b>${name}</b>: ចូល <code>${r.checkIn}</code> ${r.checkOut ? `→ ចេញ <code>${r.checkOut}</code>` : ''}\n`;
+        });
+      }
+
+      if (absentStaff.length > 0) {
+        summaryText += `\n🔴 <b>មិនទាន់ចូល (${absentStaff.length} នាក់)៖</b>\n`;
+        absentStaff.forEach((s: any, idx: number) => {
+          summaryText += `- ${s.fullName} (${s.position || 'Staff'})\n`;
+        });
+      }
+
+      if (botToken) {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: summaryText,
+            parse_mode: 'HTML',
+            reply_markup: persistentKb
+          })
+        });
+      }
+      return res.json({ ok: true });
+    }
+
+    // Handle All Leave Requests (ពាក្យសុំច្បាប់ទាំងអស់)
+    if (text.includes('ពាក្យសុំច្បាប់ទាំងអស់') || (text.includes('ពាក្យសុំច្បាប់') && isOwnerRole && !text.includes('📝 សុំច្បាប់'))) {
+      const leaveList: any[] = localDb.leaveRequests || [];
+      let leaveMsg = `📑 <b>[បញ្ជីពាក្យសុំច្បាប់របស់បុគ្គលិក]</b>\n\n`;
+      const pendingLeaves = leaveList.filter((l: any) => l.status === 'Pending').slice(0, 10);
+
+      if (pendingLeaves.length === 0) {
+        leaveMsg += `✅ <b>គ្មានពាក្យសុំច្បាប់ដែលកំពុងរង់ចាំ (Pending) ឡើយ។</b>\n\nបុគ្គលិកទាំងអស់បំពេញការងារជាធម្មតា។`;
+      } else {
+        leaveMsg += `⏳ <b>ពាក្យសុំច្បាប់កំពុងរង់ចាំ (${pendingLeaves.length})៖</b>\n\n`;
+        pendingLeaves.forEach((l: any, idx: number) => {
+          leaveMsg += `${idx + 1}. 👤 <b>${l.staffName || 'បុគ្គលិក'}</b>\n` +
+            `📅 ថ្ងៃ៖ <code>${l.date || ''}</code>\n` +
+            `📝 មូលហេតុ៖ <i>${l.details || l.reason || 'ច្បាប់'}</i>\n` +
+            `──────────────\n`;
+        });
+      }
+
+      if (botToken) {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: leaveMsg,
+            parse_mode: 'HTML',
+            reply_markup: persistentKb
+          })
+        });
+      }
+      return res.json({ ok: true });
+    }
+
+    // Handle Profile (ព័ត៌មានគណនី / ព័ត៌មានបុគ្គលិក)
+    if (text === '👤 ព័ត៌មានគណនី' || text === '👤 ព័ត៌មានបុគ្គលិក' || text === '/profile') {
+      const staffName = matchedStaff?.fullName || firstName;
+      const staffPosition = matchedStaff?.position || (isOwnerRole ? 'Owner/Admin' : 'បុគ្គលិក (Staff)');
+      const staffPhone = matchedStaff?.phone || 'មិនទាន់មាន';
+      const staffTgId = matchedStaff?.telegramId || telegramId;
+      const linkStatus = matchedStaff ? 'ភ្ជាប់រួចរាល់ ✅' : 'មិនទាន់ភ្ជាប់ (Unlinked) ⚠️';
+
+      const profileMsg = `👤 <b>ព័ត៌មានគណនីបុគ្គលិក</b>\n\n` +
+        `• <b>ឈ្មោះ:</b> <b>${staffName}</b>\n` +
+        `• <b>តួនាទី:</b> ${staffPosition}\n` +
+        `• <b>លេខទូរស័ព្ទ:</b> <code>${staffPhone}</code>\n` +
+        `• <b>Telegram ID:</b> <code>${staffTgId}</code>\n` +
+        `• <b>ស្ថានភាពភ្ជាប់:</b> ${linkStatus}\n`;
+
+      if (botToken) {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: profileMsg,
+            parse_mode: 'HTML',
+            reply_markup: persistentKb
+          })
+        });
+      }
+      return res.json({ ok: true });
+    }
+
+    // Handle Help (របៀបប្រើប្រាស់)
+    if (text === '❓ របៀបប្រើប្រាស់' || text === '/help') {
+      const helpMsg = `❓ <b>របៀបប្រើប្រាស់ TC Staff Bot</b>\n\n` +
+        `1. ចុច <b>📸 ចុះឈ្មោះចូល</b> ដើម្បីបើកកាមេរ៉ាស្កេនមុខ Check-in\n` +
+        `2. ចុច <b>🚪 ចុះឈ្មោះចេញ</b> ដើម្បីបើកកាមេរ៉ាស្កេនមុខ Check-out\n` +
+        `3. ចុច <b>📊 មើលប្រវត្តិវត្តមាន</b> ដើម្បីមើលទិន្នន័យវត្តមានផ្ទាល់ខ្លួន\n` +
+        `4. ចុច <b>📝 សុំច្បាប់</b> ដើម្បីដាក់ពាក្យស្នើសុំច្បាប់ឈប់សម្រាក\n` +
+        (isOwnerRole ? `5. ចុច <b>👥 វត្តមានបុគ្គលិកទាំងអស់</b> និង <b>📑 ពាក្យសុំច្បាប់ទាំងអស់</b> សម្រាប់អ្នកគ្រប់គ្រង\n` : '');
+
+      if (botToken) {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: helpMsg,
+            parse_mode: 'HTML',
+            reply_markup: persistentKb
+          })
+        });
+      }
+      return res.json({ ok: true });
+    }
+
     // Handle Leave Request (សុំច្បាប់)
     if (text.includes('សុំច្បាប់') || text.includes('សុំឈប់') || text === '/leave' || text === '📝 សុំច្បាប់') {
-      const matchedStaff = (localDb.staff || []).find(s => 
-        (s.telegramId && String(s.telegramId) === telegramId) ||
-        (username && s.telegramUsername && s.telegramUsername.replace('@', '').toLowerCase() === username.toLowerCase())
-      );
-
       if (!matchedStaff) {
         if (botToken) {
           await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -4767,45 +4981,6 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
 
     // Handle /start or /attendance
     if (text.startsWith('/start') || text === '/attendance') {
-      let matchedStaff = (localDb.staff || []).find(s => 
-        (s.telegramId && String(s.telegramId) === telegramId) ||
-        (username && s.telegramUsername && s.telegramUsername.replace('@', '').toLowerCase() === username.toLowerCase())
-      );
-
-      const isClean24Owner = (telegramId === '8412569939' || (username || '').toLowerCase() === 'clean24vengsreng');
-      if (isClean24Owner) {
-        if (!matchedStaff) {
-          matchedStaff = {
-            id: 'staff_owner_clean24',
-            fullName: 'Clean24 (Owner)',
-            position: 'ម្ចាស់ហាង (Store Owner)',
-            role: 'Owner',
-            gender: 'Other',
-            phone: '012 888 999',
-            branchId: 'b1',
-            assignedBranchIds: ['b1', 'b2'],
-            status: 'Active',
-            telegramId: '8412569939',
-            telegramUsername: '@clean24vengsreng',
-            telegramLinked: true,
-            faceEnrolled: false,
-            attendanceEnabled: true,
-            createdAt: new Date().toISOString()
-          };
-          if (!localDb.staff) localDb.staff = [];
-          localDb.staff.unshift(matchedStaff);
-          saveLocalDb();
-        } else {
-          matchedStaff.position = 'ម្ចាស់ហាង (Store Owner)';
-          matchedStaff.role = 'Owner';
-          matchedStaff.telegramId = '8412569939';
-          matchedStaff.telegramUsername = '@clean24vengsreng';
-          matchedStaff.telegramLinked = true;
-          matchedStaff.status = 'Active';
-          saveLocalDb();
-        }
-      }
-
       if (matchedStaff) {
         if (!matchedStaff.telegramId) {
           matchedStaff.telegramId = telegramId;
@@ -4814,12 +4989,13 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
         }
 
         const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
-        const todayAtt = (localDb.attendance || []).find(a => a.staffId === matchedStaff.id && a.date === todayStr);
+        const todayAtt = (localDb.attendance || []).find((a: any) => a.staffId === matchedStaff.id && a.date === todayStr);
 
         const checkInTime = todayAtt?.checkIn || '--';
         const checkOutTime = todayAtt?.checkOut || '--';
 
-        const replyText = `<b>TC Staff Attendance</b>\n\nសួស្តី <b>${matchedStaff.fullName}</b>\n\n<b>ថ្ងៃនេះ</b>\nចូល: <code>${checkInTime}</code>\nចេញ: <code>${checkOutTime}</code>`;
+        const roleBadge = isOwnerRole ? '👑 <b>[គណនីម្ចាស់ហាង / Admin]</b>\n\n' : '';
+        const replyText = `<b>TC Staff Attendance</b>\n\n${roleBadge}សួស្តី <b>${matchedStaff.fullName}</b>\n\n<b>ថ្ងៃនេះ</b>\nចូល: <code>${checkInTime}</code>\nចេញ: <code>${checkOutTime}</code>`;
 
         if (botToken) {
           await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -4843,7 +5019,8 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
             body: JSON.stringify({
               chat_id: chatId,
               text: replyText,
-              parse_mode: 'HTML'
+              parse_mode: 'HTML',
+              reply_markup: persistentKb
             })
           });
         }
@@ -4879,10 +5056,75 @@ async function pollTelegramAttendanceBot() {
         const username = msg.from?.username || '';
         const firstName = msg.from?.first_name || 'Staff';
 
-        const matchedStaff = (localDb.staff || []).find(s => 
+        const cleanTgHandle = username.replace(/^@/, '').toLowerCase();
+        let matchedStaff = (localDb.staff || []).find((s: any) => 
           (s.telegramId && String(s.telegramId) === telegramId) ||
-          (username && s.telegramUsername && s.telegramUsername.replace('@', '').toLowerCase() === username.toLowerCase())
+          (cleanTgHandle && s.telegramUsername && s.telegramUsername.replace(/^@/, '').toLowerCase() === cleanTgHandle)
         );
+
+        const isClean24Owner = (telegramId === '8412569939' || cleanTgHandle === 'clean24vengsreng');
+        const matchedUser = (localDb.users || []).find((u: any) =>
+          (u.telegramId && String(u.telegramId) === telegramId) ||
+          (cleanTgHandle && u.telegramUsername && u.telegramUsername.replace(/^@/, '').toLowerCase() === cleanTgHandle)
+        );
+
+        const isOwnerRole = Boolean(
+          isClean24Owner ||
+          (matchedStaff && (
+            matchedStaff.role === 'Owner' || 
+            matchedStaff.role === 'Admin' || 
+            matchedStaff.role === 'Manager' ||
+            (matchedStaff.position && (
+              matchedStaff.position.toLowerCase().includes('owner') ||
+              matchedStaff.position.toLowerCase().includes('admin') ||
+              matchedStaff.position.toLowerCase().includes('manager') ||
+              matchedStaff.position.includes('ម្ចាស់ហាង') ||
+              matchedStaff.position.includes('អ្នកគ្រប់គ្រង')
+            ))
+          )) ||
+          (matchedUser && (
+            matchedUser.role === 'Owner' ||
+            matchedUser.role === 'Admin' ||
+            matchedUser.role === 'Manager'
+          ))
+        );
+
+        const staffReplyKeyboard = {
+          keyboard: [
+            [
+              { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
+              { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+            ],
+            [
+              { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+              { text: '📝 សុំច្បាប់' }
+            ]
+          ],
+          resize_keyboard: true,
+          is_persistent: true
+        };
+
+        const ownerReplyKeyboard = {
+          keyboard: [
+            [
+              { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
+              { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+            ],
+            [
+              { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
+              { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
+            ],
+            [
+              { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+              { text: '👤 ព័ត៌មានគណនី' },
+              { text: '❓ របៀបប្រើប្រាស់' }
+            ]
+          ],
+          resize_keyboard: true,
+          is_persistent: true
+        };
+
+        const persistentKb = isOwnerRole ? ownerReplyKeyboard : staffReplyKeyboard;
 
         const baseUrl = 'https://p2bkh.tech';
 
@@ -4894,24 +5136,13 @@ async function pollTelegramAttendanceBot() {
           }
 
           const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
-          const todayAtt = (localDb.attendance || []).find(a => a.staffId === matchedStaff.id && a.date === todayStr);
+          const todayAtt = (localDb.attendance || []).find((a: any) => a.staffId === matchedStaff.id && a.date === todayStr);
 
           const checkInTime = todayAtt?.checkIn || '--';
           const checkOutTime = todayAtt?.checkOut || '--';
 
-          const replyText = `<b>TC Staff Attendance</b>\n\nសួស្តី <b>${matchedStaff.fullName}</b>\n\n<b>ថ្ងៃនេះ</b>\nចូល: <code>${checkInTime}</code>\nចេញ: <code>${checkOutTime}</code>`;
-
-          const keyboard = {
-            inline_keyboard: [
-              [
-                { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
-                { text: '📸 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
-              ],
-              [
-                { text: '📊 ប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } }
-              ]
-            ]
-          };
+          const roleBadge = isOwnerRole ? '👑 <b>[គណនីម្ចាស់ហាង / Admin]</b>\n\n' : '';
+          const replyText = `<b>TC Staff Attendance</b>\n\n${roleBadge}សួស្តី <b>${matchedStaff.fullName}</b>\n\n<b>ថ្ងៃនេះ</b>\nចូល: <code>${checkInTime}</code>\nចេញ: <code>${checkOutTime}</code>`;
 
           await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
             method: 'POST',
@@ -4920,7 +5151,7 @@ async function pollTelegramAttendanceBot() {
               chat_id: chatId,
               text: replyText,
               parse_mode: 'HTML',
-              reply_markup: keyboard
+              reply_markup: persistentKb
             })
           }).catch(() => {});
         } else {
@@ -4932,7 +5163,8 @@ async function pollTelegramAttendanceBot() {
             body: JSON.stringify({
               chat_id: chatId,
               text: replyText,
-              parse_mode: 'HTML'
+              parse_mode: 'HTML',
+              reply_markup: persistentKb
             })
           }).catch(() => {});
         }

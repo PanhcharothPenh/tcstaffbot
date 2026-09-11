@@ -720,7 +720,8 @@ export default async function handler(req: any, res: any) {
       // ---------------------------------------------------------------------------------
       // PERSISTENT BOTTOM REPLY KEYBOARD FOR TC STAFF MINI APP
       // ---------------------------------------------------------------------------------
-      const persistentReplyKeyboard = {
+      // 1. Staff Keyboard: Strictly Check In/Out, Attendance List, and Leave Request (សុំច្បាប់)
+      const staffReplyKeyboard = {
         keyboard: [
           [
             { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
@@ -728,15 +729,50 @@ export default async function handler(req: any, res: any) {
           ],
           [
             { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
-            { text: '👤 ព័ត៌មានបុគ្គលិក' }
-          ],
-          [
             { text: '📝 សុំច្បាប់' }
           ]
         ],
         resize_keyboard: true,
         is_persistent: true
       };
+
+      // 2. Owner & Manager Keyboard: Full Options (Check In/Out, All Staff Attendance, Leave Requests, Account Info, Guide)
+      const ownerReplyKeyboard = {
+        keyboard: [
+          [
+            { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
+            { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+          ],
+          [
+            { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
+            { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
+          ],
+          [
+            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+            { text: '👤 ព័ត៌មានគណនី' },
+            { text: '❓ របៀបប្រើប្រាស់' }
+          ]
+        ],
+        resize_keyboard: true,
+        is_persistent: true
+      };
+
+      const isOwnerRole = Boolean(matchedStaff && (
+        matchedStaff.role === 'Owner' || 
+        matchedStaff.role === 'Admin' || 
+        matchedStaff.role === 'Manager' ||
+        (matchedStaff.position && (
+          matchedStaff.position.toLowerCase().includes('owner') ||
+          matchedStaff.position.toLowerCase().includes('admin') ||
+          matchedStaff.position.toLowerCase().includes('manager') ||
+          matchedStaff.position.includes('ម្ចាស់ហាង') ||
+          matchedStaff.position.includes('អ្នកគ្រប់គ្រង')
+        )) ||
+        telegramId === '8412569939' ||
+        cleanTgHandle === 'clean24vengsreng'
+      ));
+
+      const persistentReplyKeyboard = isOwnerRole ? ownerReplyKeyboard : staffReplyKeyboard;
 
       // =================================================================================
       // NOTICE: ⚠️ គណនីមិនទាន់បានភ្ជាប់ (Item 1 ខ)
@@ -873,6 +909,79 @@ export default async function handler(req: any, res: any) {
             parse_mode: 'HTML',
             reply_markup: checkoutInlineButtons
           });
+      }
+
+      // =================================================================================
+      // ACTION: 👥 របាយការណ៍វត្តមានបុគ្គលិកទាំងអស់ (OWNER: ALL STAFF ATTENDANCE TODAY)
+      // =================================================================================
+      if (userText.includes('វត្តមានបុគ្គលិកទាំងអស់') || (userText.includes('វត្តមានបុគ្គលិក') && isOwnerRole)) {
+        const todayRecords = allAtt.filter((a: any) => a.date === phnomPenhDateStr);
+        const presentStaff = todayRecords.filter((a: any) => a.checkIn);
+        const absentStaff = allStaff.filter((s: any) => s.status === 'Active' && !todayRecords.some((a: any) => a.staffId === s.id && a.checkIn));
+
+        let summaryText = `👥 <b>[របាយការណ៍វត្តមានបុគ្គលិកថ្ងៃនេះ]</b>\n` +
+          `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
+          `🟢 <b>បានចុះឈ្មោះចូល (${presentStaff.length} នាក់)៖</b>\n`;
+
+        if (presentStaff.length === 0) {
+          summaryText += `<i>(មិនទាន់មានបុគ្គលិកចុះឈ្មោះចូលនៅឡើយទេ)</i>\n`;
+        } else {
+          presentStaff.forEach((r: any, idx: number) => {
+            const st = allStaff.find((s: any) => s.id === r.staffId);
+            const name = st?.fullName || r.staffName || 'Staff';
+            const bName = allBranches.find((b: any) => b.id === (st?.branchId || r.branchId))?.branchName || '';
+            summaryText += `${idx + 1}. <b>${name}</b> ${bName ? `(${bName})` : ''}: ចូល <code>${r.checkIn}</code> ${r.checkOut ? `→ ចេញ <code>${r.checkOut}</code>` : ''}\n`;
+          });
+        }
+
+        if (absentStaff.length > 0) {
+          summaryText += `\n🔴 <b>មិនទាន់ចូល (${absentStaff.length} នាក់)៖</b>\n`;
+          absentStaff.forEach((s: any, idx: number) => {
+            summaryText += `- ${s.fullName} (${s.position || 'Staff'})\n`;
+          });
+        }
+
+        return sendOrReply(res, botToken, {
+          chat_id: chatId,
+          text: summaryText,
+          parse_mode: 'HTML',
+          reply_markup: persistentReplyKeyboard
+        });
+      }
+
+      // =================================================================================
+      // ACTION: 📑 បញ្ជីពាក្យសុំច្បាប់ទាំងអស់ (OWNER: ALL LEAVE REQUESTS)
+      // =================================================================================
+      if (userText.includes('ពាក្យសុំច្បាប់ទាំងអស់') || (userText.includes('ពាក្យសុំច្បាប់') && isOwnerRole)) {
+        let leaveList: any[] = [];
+        if (supabase) {
+          try {
+            const { data } = await supabase.from('clean24_collections').select('data').eq('id', 'leaveRequests').maybeSingle();
+            leaveList = Array.isArray(data?.data) ? data.data : [];
+          } catch {}
+        }
+
+        let leaveMsg = `📑 <b>[បញ្ជីពាក្យសុំច្បាប់របស់បុគ្គលិក]</b>\n\n`;
+        const pendingLeaves = leaveList.filter((l: any) => l.status === 'Pending').slice(0, 10);
+
+        if (pendingLeaves.length === 0) {
+          leaveMsg += `✅ <b>គ្មានពាក្យសុំច្បាប់ដែលកំពុងរង់ចាំ (Pending) ឡើយ។</b>\n\nបុគ្គលិកទាំងអស់បំពេញការងារជាធម្មតា។`;
+        } else {
+          leaveMsg += `⏳ <b>ពាក្យសុំច្បាប់កំពុងរង់ចាំ (${pendingLeaves.length})៖</b>\n\n`;
+          pendingLeaves.forEach((l: any, idx: number) => {
+            leaveMsg += `${idx + 1}. 👤 <b>${l.staffName || 'បុគ្គលិក'}</b> (${l.branchName || ''})\n` +
+              `📅 ថ្ងៃ៖ <code>${l.date || ''}</code>\n` +
+              `📝 មូលហេតុ៖ <i>${l.details || l.reason || 'ច្បាប់'}</i>\n` +
+              `──────────────\n`;
+          });
+        }
+
+        return sendOrReply(res, botToken, {
+          chat_id: chatId,
+          text: leaveMsg,
+          parse_mode: 'HTML',
+          reply_markup: persistentReplyKeyboard
+        });
       }
 
       // =================================================================================
