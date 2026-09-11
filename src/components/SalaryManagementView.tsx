@@ -457,7 +457,7 @@ export default function SalaryManagementView({
       const staffAttendance = (attendance || []).filter(a => 
         a.staffId === staff.id && isRecordInPeriod(a.date, selectedMonth, selectedYear)
       );
-      const absentRecords = staffAttendance.filter(a => a.status === 'Absent');
+      const absentRecords = staffAttendance.filter(a => a.status === 'Absent' || a.status === 'Permission');
       const autoAbsentDays = absentRecords.length;
       const autoAbsentDates = absentRecords.map(a => {
         const parts = a.date.split('-');

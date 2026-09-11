@@ -330,12 +330,14 @@ export default function AttendanceView({
     const workingCount = todayList.filter(a => a.status === 'Working').length;
     const lateCount = todayList.filter(a => a.status === 'Late').length;
     const absentCount = todayList.filter(a => a.status === 'Absent').length;
+    const permissionCount = todayList.filter(a => a.status === 'Permission').length;
 
     return {
       totalToday,
       workingCount,
       lateCount,
-      absentCount
+      absentCount,
+      permissionCount
     };
   }, [attendance, filterBranchId, selectedDate, todayPhnomPenh]);
 
@@ -554,6 +556,7 @@ export default function AttendanceView({
       let presentCount = 0;
       let lateCount = 0;
       let absentCount = 0;
+      let permissionCount = 0;
 
       records.forEach(r => {
         totalWorkHours += r.workHours || 0;
@@ -561,6 +564,7 @@ export default function AttendanceView({
         if (r.status === 'Present' || r.status === 'Completed' || r.status === 'Working') presentCount++;
         if (r.status === 'Late') lateCount++;
         if (r.status === 'Absent') absentCount++;
+        if (r.status === 'Permission') permissionCount++;
       });
 
       return {
@@ -570,6 +574,7 @@ export default function AttendanceView({
         presentCount,
         lateCount,
         absentCount,
+        permissionCount,
         totalWorkHours,
         totalOtHours
       };
@@ -599,6 +604,7 @@ export default function AttendanceView({
     let presentCount = 0;
     let lateCount = 0;
     let absentCount = 0;
+    let permissionCount = 0;
 
     printableLedgerRecords.forEach(r => {
       totalWorkHours += r.workHours || 0;
@@ -606,6 +612,7 @@ export default function AttendanceView({
       if (r.status === 'Present' || r.status === 'Completed' || r.status === 'Working') presentCount++;
       if (r.status === 'Late') lateCount++;
       if (r.status === 'Absent') absentCount++;
+      if (r.status === 'Permission') permissionCount++;
     });
 
     return {
@@ -614,7 +621,8 @@ export default function AttendanceView({
       totalOtHours,
       presentCount,
       lateCount,
-      absentCount
+      absentCount,
+      permissionCount
     };
   }, [printableLedgerRecords]);
 
@@ -1062,7 +1070,7 @@ export default function AttendanceView({
       {activeTab === 'daily' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           {/* 1. TOP SUMMARY METRIC CARDS */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4">
             <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs">
               <div className="flex items-center justify-between text-slate-500">
                 <span className="text-[11px] font-bold uppercase tracking-wider">
@@ -1107,11 +1115,24 @@ export default function AttendanceView({
                 <span className="text-[11px] font-bold uppercase tracking-wider">
                   {lang === 'kh' ? 'អវត្តមាន' : 'Absent'}
                 </span>
-                <XCircle size={16} className="text-rose-600" />
+                <XCircle size={16} className="text-slate-600" />
               </div>
               <div className="mt-2">
-                <span className="text-2xl font-black text-rose-700">{summaryMetrics.absentCount}</span>
-                <span className="text-[10px] text-slate-400 block mt-0.5">នាក់ឈប់សម្រាក</span>
+                <span className="text-2xl font-black text-slate-700">{summaryMetrics.absentCount}</span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">នាក់អវត្តមាន</span>
+              </div>
+            </div>
+
+            <div className="bg-rose-50/60 border-2 border-rose-300 rounded-2xl p-4 shadow-xs">
+              <div className="flex items-center justify-between text-rose-600">
+                <span className="text-[11px] font-black uppercase tracking-wider">
+                  {lang === 'kh' ? '🔴 ច្បាប់សម្រាក' : 'Permission'}
+                </span>
+                <FileText size={16} className="text-rose-600" />
+              </div>
+              <div className="mt-2">
+                <span className="text-2xl font-black text-rose-700">{summaryMetrics.permissionCount || 0}</span>
+                <span className="text-[10px] text-rose-600 font-bold block mt-0.5">នាក់សុំច្បាប់</span>
               </div>
             </div>
           </div>
@@ -1270,6 +1291,7 @@ export default function AttendanceView({
                   className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
                 >
                   <option value="all">✨ គ្រប់ស្ថានភាព</option>
+                  <option value="Permission">🔴 ច្បាប់សម្រាក (Permission)</option>
                   <option value="Working">⏳ កំពុងធ្វើការ (Working)</option>
                   <option value="Completed">✓ បានចេញ (Completed)</option>
                   <option value="Present">Present (ទាន់ពេល)</option>
@@ -1342,18 +1364,34 @@ export default function AttendanceView({
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
                     {filteredRecords.map(rec => (
-                      <tr key={rec.id} className={`transition-colors ${rec.date === todayPhnomPenh ? 'bg-blue-50/30 hover:bg-blue-50/50' : 'hover:bg-slate-50/60'}`}>
+                      <tr key={rec.id} className={`transition-colors ${
+                        rec.status === 'Permission'
+                          ? 'bg-rose-50/70 border-l-4 border-l-rose-500 hover:bg-rose-100/60'
+                          : rec.date === todayPhnomPenh
+                          ? 'bg-blue-50/30 hover:bg-blue-50/50'
+                          : 'hover:bg-slate-50/60'
+                      }`}>
                         {/* Staff Name */}
                         <td className="py-3 px-3.5">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-bold text-slate-900">{rec.staffName}</span>
-                            {rec.date === todayPhnomPenh && (
+                            {rec.status === 'Permission' && (
+                              <span className="px-1.5 py-0.5 rounded-md text-[9.5px] font-black bg-rose-100 text-rose-800 border border-rose-300 inline-flex items-center gap-1 shadow-2xs">
+                                🔴 ច្បាប់សម្រាក
+                              </span>
+                            )}
+                            {rec.date === todayPhnomPenh && rec.status !== 'Permission' && (
                               <span className="px-1.5 py-0.2 rounded-md text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
                                 ✨ ថ្ងៃនេះ
                               </span>
                             )}
                           </div>
                           <div className="text-[10px] text-slate-400 font-mono mt-0.5">{rec.date} • {rec.shiftType || 'Shift'}</div>
+                          {rec.status === 'Permission' && rec.notes && (
+                            <div className="text-[10px] text-rose-700 font-medium italic mt-1 bg-white/80 px-2 py-0.5 rounded-md border border-rose-200 inline-block max-w-xs truncate" title={rec.notes}>
+                              📝 {rec.notes}
+                            </div>
+                          )}
                         </td>
 
                         {/* Branch */}
@@ -1362,13 +1400,25 @@ export default function AttendanceView({
                         </td>
 
                         {/* Check In */}
-                        <td className="py-3 px-3 text-center font-mono font-bold text-emerald-700">
-                          {rec.checkIn || '--'}
+                        <td className="py-3 px-3 text-center font-mono font-bold">
+                          {rec.status === 'Permission' ? (
+                            <span className="text-[10.5px] font-black text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md border border-rose-200">
+                              សុំច្បាប់
+                            </span>
+                          ) : (
+                            <span className="text-emerald-700">{rec.checkIn || '--'}</span>
+                          )}
                         </td>
 
                         {/* Check Out */}
-                        <td className="py-3 px-3 text-center font-mono font-bold text-rose-700">
-                          {rec.checkOut || '--'}
+                        <td className="py-3 px-3 text-center font-mono font-bold">
+                          {rec.status === 'Permission' ? (
+                            <span className="text-[10.5px] font-black text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md border border-rose-200">
+                              សុំច្បាប់
+                            </span>
+                          ) : (
+                            <span className="text-rose-700">{rec.checkOut || '--'}</span>
+                          )}
                         </td>
 
                         {/* Work Hours Duration */}
@@ -1380,18 +1430,25 @@ export default function AttendanceView({
 
                         {/* Status */}
                         <td className="py-3 px-3 text-center">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold inline-block ${
-                            rec.status === 'Working'
+                          <span className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold inline-flex items-center gap-1 ${
+                            rec.status === 'Permission'
+                              ? 'bg-rose-100 text-rose-800 border-2 border-rose-300 font-black ring-2 ring-rose-200/50 shadow-2xs'
+                              : rec.status === 'Working'
                               ? 'bg-blue-50 text-blue-700 border border-blue-200'
                               : rec.status === 'Completed' || rec.status === 'Present'
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : rec.status === 'Late'
                               ? 'bg-amber-50 text-amber-700 border border-amber-200'
                               : rec.status === 'Absent'
-                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                              ? 'bg-slate-100 text-slate-700 border border-slate-300'
                               : 'bg-slate-100 text-slate-700 border border-slate-200'
                           }`}>
-                            {rec.status === 'Working' ? '⏳ កំពុងធ្វើការ' : rec.status === 'Completed' ? '✓ បានចេញ' : rec.status}
+                            {rec.status === 'Permission' ? '🔴 ច្បាប់សម្រាក (Permission)' :
+                             rec.status === 'Working' ? '⏳ កំពុងធ្វើការ' :
+                             rec.status === 'Completed' ? '✓ បានចេញ' :
+                             rec.status === 'Present' ? '✓ វត្តមាន' :
+                             rec.status === 'Late' ? '⚠️ មកយឺត' :
+                             rec.status === 'Absent' ? '❌ អវត្តមាន' : rec.status}
                           </span>
                         </td>
 
