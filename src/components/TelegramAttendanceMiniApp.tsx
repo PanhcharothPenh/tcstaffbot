@@ -504,7 +504,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
         </div>
         <Loader2 className="animate-spin text-blue-600 mb-2" size={32} />
         <h2 className="text-base font-black text-slate-900">ប្រព័ន្ធគ្រប់គ្រងបុគ្គលិក</h2>
-        <p className="text-xs text-slate-500 mt-1">កំពុងផ្ទៀងផ្ទាត់គណនី Telegram...</p>
+        <p className="text-xs text-slate-500 mt-1">សូមរង់ចាំបន្តិច កំពុងដើរហើយ</p>
       </div>
     );
   }
