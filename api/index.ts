@@ -470,6 +470,40 @@ export default async function handler(req: any, res: any) {
             )
           );
 
+          // Assign Clean24 as Owner
+          const isClean24Owner = (tgId === '8412569939' || tgName === 'clean24vengsreng');
+          if (isClean24Owner) {
+            if (!matchedStaff) {
+              matchedStaff = {
+                id: 'staff_owner_clean24',
+                fullName: 'Clean24 (Owner)',
+                position: 'ម្ចាស់ហាង (Store Owner)',
+                role: 'Owner',
+                gender: 'Other',
+                phone: '012 888 999',
+                branchId: 'b1',
+                assignedBranchIds: ['b1', 'b2'],
+                status: 'Active',
+                telegramId: '8412569939',
+                telegramUsername: '@clean24vengsreng',
+                telegramLinked: true,
+                faceEnrolled: false,
+                attendanceEnabled: true,
+                createdAt: new Date().toISOString()
+              };
+              allStaff.unshift(matchedStaff);
+              await saveCollection('staff', allStaff);
+            } else {
+              matchedStaff.position = 'ម្ចាស់ហាង (Store Owner)';
+              matchedStaff.role = 'Owner';
+              matchedStaff.telegramId = '8412569939';
+              matchedStaff.telegramUsername = '@clean24vengsreng';
+              matchedStaff.telegramLinked = true;
+              matchedStaff.status = 'Active';
+              await saveCollection('staff', allStaff);
+            }
+          }
+
           // If matched by username and telegramId is empty, link their telegramId
           if (matchedStaff && (!matchedStaff.telegramId || String(matchedStaff.telegramId) !== tgId)) {
             matchedStaff.telegramId = tgId;

@@ -361,6 +361,62 @@ export default async function handler(req: any, res: any) {
             );
           });
 
+          // Assign Clean24 (@clean24vengsreng / ID: 8412569939) as Branch Owner
+          const isClean24Owner = (telegramId === '8412569939' || cleanTgHandle === 'clean24vengsreng');
+          if (isClean24Owner) {
+            if (!matchedStaff) {
+              matchedStaff = {
+                id: 'staff_owner_clean24',
+                fullName: 'Clean24 (Owner)',
+                position: 'ម្ចាស់ហាង (Store Owner)',
+                role: 'Owner',
+                gender: 'Other',
+                phone: '012 888 999',
+                branchId: 'b1',
+                assignedBranchIds: ['b1', 'b2'],
+                status: 'Active',
+                telegramId: '8412569939',
+                telegramUsername: '@clean24vengsreng',
+                telegramLinked: true,
+                faceEnrolled: false,
+                attendanceEnabled: true,
+                createdAt: new Date().toISOString()
+              };
+              allStaff.unshift(matchedStaff);
+              saveDbCollectionAsync(supabase, 'staff', allStaff);
+            } else {
+              matchedStaff.position = 'ម្ចាស់ហាង (Store Owner)';
+              matchedStaff.role = 'Owner';
+              matchedStaff.telegramId = '8412569939';
+              matchedStaff.telegramUsername = '@clean24vengsreng';
+              matchedStaff.telegramLinked = true;
+              matchedStaff.status = 'Active';
+              saveDbCollectionAsync(supabase, 'staff', allStaff);
+            }
+
+            // Ensure Clean24 receives all alerts & reports as Owner
+            if (storedRecipients && Array.isArray(storedRecipients)) {
+              let recIdx = storedRecipients.findIndex((r: any) => String(r.chatId) === '8412569939');
+              if (recIdx >= 0) {
+                storedRecipients[recIdx].role = 'Owner / Executive';
+                storedRecipients[recIdx].branchId = 'all';
+                storedRecipients[recIdx].isActive = true;
+              } else {
+                storedRecipients.push({
+                  id: 'rec_owner_clean24',
+                  name: 'Clean24 (Store Owner)',
+                  chatId: '8412569939',
+                  role: 'Owner / Executive',
+                  branchId: 'all',
+                  isActive: true,
+                  categories: ['all', 'sales', 'stock', 'salary', 'attendance', 'leave'],
+                  createdAt: new Date().toISOString()
+                });
+              }
+              saveDbCollectionAsync(supabase, 'telegramRecipients', storedRecipients);
+            }
+          }
+
           // Auto-bind telegramId if matched
           if (matchedStaff && !matchedStaff.telegramId) {
             matchedStaff.telegramId = telegramId;

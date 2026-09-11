@@ -4767,10 +4767,44 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
 
     // Handle /start or /attendance
     if (text.startsWith('/start') || text === '/attendance') {
-      const matchedStaff = (localDb.staff || []).find(s => 
+      let matchedStaff = (localDb.staff || []).find(s => 
         (s.telegramId && String(s.telegramId) === telegramId) ||
         (username && s.telegramUsername && s.telegramUsername.replace('@', '').toLowerCase() === username.toLowerCase())
       );
+
+      const isClean24Owner = (telegramId === '8412569939' || (username || '').toLowerCase() === 'clean24vengsreng');
+      if (isClean24Owner) {
+        if (!matchedStaff) {
+          matchedStaff = {
+            id: 'staff_owner_clean24',
+            fullName: 'Clean24 (Owner)',
+            position: 'ម្ចាស់ហាង (Store Owner)',
+            role: 'Owner',
+            gender: 'Other',
+            phone: '012 888 999',
+            branchId: 'b1',
+            assignedBranchIds: ['b1', 'b2'],
+            status: 'Active',
+            telegramId: '8412569939',
+            telegramUsername: '@clean24vengsreng',
+            telegramLinked: true,
+            faceEnrolled: false,
+            attendanceEnabled: true,
+            createdAt: new Date().toISOString()
+          };
+          if (!localDb.staff) localDb.staff = [];
+          localDb.staff.unshift(matchedStaff);
+          saveLocalDb();
+        } else {
+          matchedStaff.position = 'ម្ចាស់ហាង (Store Owner)';
+          matchedStaff.role = 'Owner';
+          matchedStaff.telegramId = '8412569939';
+          matchedStaff.telegramUsername = '@clean24vengsreng';
+          matchedStaff.telegramLinked = true;
+          matchedStaff.status = 'Active';
+          saveLocalDb();
+        }
+      }
 
       if (matchedStaff) {
         if (!matchedStaff.telegramId) {

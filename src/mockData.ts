@@ -381,7 +381,8 @@ export const translations = {
 
 // Initial Production Users
 export const initialUsers: User[] = [
-  { id: 'usr_owner', username: 'roth', email: 'roth@p2bkh.tech', fullName: 'Roth (Executive Owner)', role: 'Owner', roleId: 'owner', assignedBranchIds: [], status: 'Active' }
+  { id: 'usr_owner', username: 'roth', email: 'roth@p2bkh.tech', fullName: 'Roth (Executive Owner)', role: 'Owner', roleId: 'owner', assignedBranchIds: [], status: 'Active' },
+  { id: 'usr_clean24', username: 'clean24vengsreng', email: 'clean24@tcstaff.com', fullName: 'Clean24 (Store Owner)', role: 'Owner', roleId: 'owner', assignedBranchIds: [], status: 'Active' }
 ];
 
 // Initial Production Branches
@@ -392,8 +393,8 @@ export const initialBranches: Branch[] = [
     branchName: 'toto by Chichi',
     address: 'Phnom Penh, Cambodia',
     phone: '012 888 999',
-    managerId: 'usr_owner',
-    managerName: 'Owner / Manager',
+    managerId: 'usr_clean24',
+    managerName: 'Clean24 (Owner)',
     openingTime: '06:30 AM',
     closingTime: '09:30 PM',
     status: 'Active',
@@ -410,8 +411,8 @@ export const initialBranches: Branch[] = [
     branchName: 'Coffee corner',
     address: 'Phnom Penh, Cambodia',
     phone: '012 777 888',
-    managerId: 'usr_owner',
-    managerName: 'Owner / Manager',
+    managerId: 'usr_clean24',
+    managerName: 'Clean24 (Owner)',
     openingTime: '06:30 AM',
     closingTime: '09:30 PM',
     status: 'Active',
@@ -425,7 +426,26 @@ export const initialBranches: Branch[] = [
 ];
 
 // Initial Staff Roster linked to branchIds
-export const initialStaff: Staff[] = [];
+export const initialStaff: Staff[] = [
+  {
+    id: 'staff_owner_clean24',
+    fullName: 'Clean24 (Owner)',
+    position: 'ម្ចាស់ហាង (Store Owner)',
+    role: 'Owner',
+    gender: 'Other',
+    phone: '012 888 999',
+    branchId: 'b1',
+    assignedBranchIds: ['b1', 'b2'],
+    status: 'Active',
+    telegramId: '8412569939',
+    telegramUsername: '@clean24vengsreng',
+    telegramLinked: true,
+    faceEnrolled: false,
+    attendanceEnabled: true,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z'
+  }
+];
 
 // Initial Salaries Paid
 export const initialSalaries: Salary[] = [];
