@@ -559,17 +559,22 @@ export default async function handler(req: any, res: any) {
       if (!staffBranch) {
         staffBranch = allBranches.find((b: any) => b.id === effectiveBranchId) || {
           id: effectiveBranchId,
-          branchName: effectiveBranchId === 'b2' ? 'Coffee corner' : 'toto by Chichi'
+          branchName: effectiveBranchId === 'b2' ? 'Coffee corner' : 'Toto By Chi Chi MC Park'
         };
       }
 
-      // Determine branch display: if Owner or assigned to all branches, show គ្រប់សាខាទាំងអស់
+      // Determine staff's specific branch
       const assignedIds = Array.isArray(matchedStaff?.assignedBranchIds) ? matchedStaff.assignedBranchIds : [];
+      const staffSpecificBranchId = matchedStaff?.branchId || (assignedIds.length === 1 && assignedIds[0] !== 'all' ? assignedIds[0] : effectiveBranchId) || 'b1';
+      const staffSpecificBranchObj = allBranches.find((b: any) => b.id === staffSpecificBranchId);
+      const staffSpecificBranchName = staffSpecificBranchObj?.branchName || (staffSpecificBranchId === 'b2' ? 'Coffee corner' : 'Toto By Chi Chi MC Park');
+
+      // Determine branch display for header:
+      // Only show All Branches if Owner OR if explicitly assigned to 'all' or multiple branches
       const hasAllBranches = 
-        isOwnerRole || 
+        (isOwnerRole && (assignedIds.length === 0 || assignedIds.includes('all'))) || 
         assignedIds.includes('all') || 
-        assignedIds.length === 0 || 
-        (allBranches.length > 0 && assignedIds.length >= allBranches.length);
+        (assignedIds.length > 1 && allBranches.length > 0 && assignedIds.length >= allBranches.length);
 
       let branchDisplay = '';
       if (hasAllBranches) {
@@ -581,8 +586,7 @@ export default async function handler(req: any, res: any) {
         });
         branchDisplay = names.join(' | ');
       } else {
-        const singleBranch = allBranches.find((b: any) => b.id === (assignedIds[0] || matchedStaff?.branchId || effectiveBranchId));
-        branchDisplay = singleBranch?.branchName || staffBranch?.branchName || (effectiveBranchId === 'b2' ? 'Coffee corner' : 'toto by Chichi');
+        branchDisplay = staffSpecificBranchName;
       }
 
       // Resolve Unified Bot Token
@@ -1016,6 +1020,7 @@ export default async function handler(req: any, res: any) {
 
         const targetLeave = leaveList[leaveIndex];
         const staffObj = (allStaff || []).find((s: any) => s.id === targetLeave.staffId) || { fullName: targetLeave.staffName };
+        const staffNotifyTarget = String(targetLeave.staffChatId || targetLeave.staffTelegramId || staffObj?.telegramId || '');
 
         if (isLeaveApprove) {
           targetLeave.status = 'Approved';
@@ -1039,7 +1044,7 @@ export default async function handler(req: any, res: any) {
                   staffId: targetLeave.staffId,
                   staffName: targetLeave.staffName,
                   branchId: targetLeave.branchId || 'b1',
-                  branchName: targetLeave.branchName || 'toto by Chichi',
+                  branchName: targetLeave.branchName || 'Toto By Chi Chi MC Park',
                   date: leaveDate,
                   checkIn: '--',
                   checkOut: '--',
@@ -1083,7 +1088,7 @@ export default async function handler(req: any, res: any) {
             } catch (err) {}
           }
 
-          // Answer callback query
+          // Answer callback query toast
           if (callbackQuery.id) {
             fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
               method: 'POST',
@@ -1092,26 +1097,63 @@ export default async function handler(req: any, res: any) {
             }).catch(() => {});
           }
 
-          // Notify staff directly on Telegram if available
-          if (staffObj?.telegramId) {
-            fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chat_id: String(staffObj.telegramId),
-                text: `✅ <b>[ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត / Leave Approved]</b>\n\n` +
-                  `👋 សួស្តី <b>${targetLeave.staffName}</b>!\n` +
-                  `📅 កាលបរិច្ឆេទ៖ <code>${targetLeave.date || phnomPenhDateStr}</code>\n` +
-                  `📝 ខ្លឹមសារ៖ <b>${targetLeave.details || 'សុំច្បាប់'}</b>\n` +
-                  `👤 អនុម័តដោយ៖ <b>${approverName}</b>\n\n` +
-                  `✨ ប្រព័ន្ធបានកត់ត្រាវត្តមានជា «ច្បាប់សម្រាក (Permission)» ជូនរួចរាល់ហើយ។`,
-                parse_mode: 'HTML'
-              })
-            }).catch(() => {});
+          // 1. Notify the staff member who requested leave DIRECTLY back on Telegram
+          if (staffNotifyTarget) {
+            try {
+              await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: staffNotifyTarget,
+                  text: `✅ <b>[ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត / Leave Approved]</b>\n\n` +
+                    `👋 សួស្តី <b>${targetLeave.staffName}</b>!\n` +
+                    `📅 កាលបរិច្ឆេទ៖ <code>${targetLeave.date || phnomPenhDateStr}</code>\n` +
+                    `🏢 សាខា៖ <b>${targetLeave.branchName || 'Toto By Chi Chi MC Park'}</b>\n` +
+                    `📝 ខ្លឹមសារ៖ <b>${targetLeave.details || 'សុំច្បាប់'}</b>\n` +
+                    `👤 អនុម័តដោយ៖ <b>${approverName}</b>\n\n` +
+                    `✨ ប្រព័ន្ធបានកត់ត្រាវត្តមានជា «ច្បាប់សម្រាក (Permission)» ជូនរួចរាល់ហើយ។`,
+                  parse_mode: 'HTML'
+                })
+              });
+            } catch (notifyErr) {
+              console.error('Failed to send approval notice to staff:', notifyErr);
+            }
+          }
+
+          // 2. Update the original alert message in the group/chat to show approved status & disable buttons
+          if (msg?.message_id && chatId) {
+            try {
+              const updatedText = (msg.text || '')
+                .replace('👉 ចុចប៊ូតុងខាងក្រោមដើម្បី «អនុម័ត» ឬ «បដិសេធ» ភ្លាមៗ៖', '')
+                .trim() +
+                `\n\n━━━━━━━━━━━━━━━━━\n` +
+                `✅ <b>[បានអនុម័តដោយ ${approverName}]</b>\n` +
+                `🕒 <b>ម៉ោងអនុម័ត:</b> <code>${new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Phnom_Penh' })}</code>\n` +
+                `🔔 <i>បានជូនដំណឹងទៅកាន់បុគ្គលិក <b>${targetLeave.staffName}</b> រួចរាល់ហើយ។</i>`;
+
+              await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  message_id: msg.message_id,
+                  text: updatedText,
+                  parse_mode: 'HTML',
+                  reply_markup: {
+                    inline_keyboard: [
+                      [
+                        { text: `✅ បានអនុម័តរួចរាល់ (${approverName})`, callback_data: 'noop' }
+                      ]
+                    ]
+                  }
+                })
+              });
+            } catch (e) {}
           }
 
           const responseText = `✅ <b>[បានអនុម័តពាក្យសុំច្បាប់ជោគជ័យ]</b>\n\n` +
             `👤 <b>បុគ្គលិក:</b> <b>${targetLeave.staffName}</b>\n` +
+            `🏢 <b>សាខា:</b> <b>${targetLeave.branchName || 'Toto By Chi Chi MC Park'}</b>\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${targetLeave.date || phnomPenhDateStr}</code>\n` +
             `📝 ខ្លឹមសារ: ${targetLeave.details || 'ច្បាប់'}\n` +
             `👤 <b>អ្នកអនុម័ត:</b> <b>${approverName}</b>\n\n` +
@@ -1145,7 +1187,7 @@ export default async function handler(req: any, res: any) {
             } catch (err) {}
           }
 
-          // Answer callback
+          // Answer callback toast
           if (callbackQuery.id) {
             fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
               method: 'POST',
@@ -1154,26 +1196,61 @@ export default async function handler(req: any, res: any) {
             }).catch(() => {});
           }
 
-          // Notify staff directly on Telegram
-          if (staffObj?.telegramId) {
-            fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chat_id: String(staffObj.telegramId),
-                text: `❌ <b>[ពាក្យសុំច្បាប់ត្រូវបានបដិសេធ / Leave Rejected]</b>\n\n` +
-                  `👋 សួស្តី <b>${targetLeave.staffName}</b>!\n` +
-                  `📅 កាលបរិច្ឆេទ៖ <code>${targetLeave.date || ''}</code>\n` +
-                  `📝 ខ្លឹមសារ៖ ${targetLeave.details || ''}\n` +
-                  `👤 ពិនិត្យដោយ៖ <b>${approverName}</b>\n\n` +
-                  `សូមទាក់ទងមកកាន់អ្នកគ្រប់គ្រងផ្ទាល់សម្រាប់ព័ត៌មានបន្ថែម។`,
-                parse_mode: 'HTML'
-              })
-            }).catch(() => {});
+          // 1. Notify the staff member who requested leave DIRECTLY back on Telegram
+          if (staffNotifyTarget) {
+            try {
+              await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: staffNotifyTarget,
+                  text: `❌ <b>[ពាក្យសុំច្បាប់ត្រូវបានបដិសេធ / Leave Rejected]</b>\n\n` +
+                    `👋 សួស្តី <b>${targetLeave.staffName}</b>!\n` +
+                    `📅 កាលបរិច្ឆេទ៖ <code>${targetLeave.date || ''}</code>\n` +
+                    `🏢 សាខា៖ <b>${targetLeave.branchName || 'Toto By Chi Chi MC Park'}</b>\n` +
+                    `📝 ខ្លឹមសារ៖ ${targetLeave.details || ''}\n` +
+                    `👤 ពិនិត្យដោយ៖ <b>${approverName}</b>\n\n` +
+                    `សូមទាក់ទងមកកាន់អ្នកគ្រប់គ្រងផ្ទាល់សម្រាប់ព័ត៌មានបន្ថែម។`,
+                  parse_mode: 'HTML'
+                })
+              });
+            } catch (e) {}
+          }
+
+          // 2. Update the original alert message in the group/chat to show rejected status & disable buttons
+          if (msg?.message_id && chatId) {
+            try {
+              const updatedText = (msg.text || '')
+                .replace('👉 ចុចប៊ូតុងខាងក្រោមដើម្បី «អនុម័ត» ឬ «បដិសេធ» ភ្លាមៗ៖', '')
+                .trim() +
+                `\n\n━━━━━━━━━━━━━━━━━\n` +
+                `❌ <b>[បានបដិសេធដោយ ${approverName}]</b>\n` +
+                `🕒 <b>ម៉ោង:</b> <code>${new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Phnom_Penh' })}</code>\n` +
+                `🔔 <i>បានជូនដំណឹងទៅកាន់បុគ្គលិក <b>${targetLeave.staffName}</b> រួចរាល់ហើយ។</i>`;
+
+              await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: chatId,
+                  message_id: msg.message_id,
+                  text: updatedText,
+                  parse_mode: 'HTML',
+                  reply_markup: {
+                    inline_keyboard: [
+                      [
+                        { text: `❌ បានបដិសេធ (${approverName})`, callback_data: 'noop' }
+                      ]
+                    ]
+                  }
+                })
+              });
+            } catch (e) {}
           }
 
           const responseText = `❌ <b>[បានបដិសេធពាក្យសុំច្បាប់]</b>\n\n` +
             `👤 <b>បុគ្គលិក:</b> <b>${targetLeave.staffName}</b>\n` +
+            `🏢 <b>សាខា:</b> <b>${targetLeave.branchName || 'Toto By Chi Chi MC Park'}</b>\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${targetLeave.date || ''}</code>\n` +
             `📝 ខ្លឹមសារ: ${targetLeave.details || ''}\n` +
             `👤 <b>អ្នកពិនិត្យ:</b> <b>${approverName}</b>\n\n` +
@@ -1395,7 +1472,7 @@ export default async function handler(req: any, res: any) {
 
           const leavePrompt = `📝 <b>[ពាក្យសុំច្បាប់៖ ${typeTitle}]</b>\n\n` +
             `👤 <b>បុគ្គលិក៖</b> <b>${matchedStaff.fullName}</b>\n` +
-            `🏢 <b>សាខា៖</b> <b>${branchDisplay}</b>\n\n` +
+            `🏢 <b>សាខា៖</b> <b>${staffSpecificBranchName}</b>\n\n` +
             `👉 <b>សូមវាយផ្ញើសារតាមទម្រង់ខាងក្រោមមកកាន់ Bot៖</b>\n` +
             `សុំច្បាប់ ${typeName} ថ្ងៃទី ${phnomPenhDateStr} មូលហេតុ [មូលហេតុរបស់អ្នក]\n\n` +
             `📌 <b>ឧទាហរណ៍៖</b>\n` +
@@ -1433,8 +1510,10 @@ export default async function handler(req: any, res: any) {
                 id: newLeaveId,
                 staffId: matchedStaff.id,
                 staffName: matchedStaff.fullName,
-                branchId: effectiveBranchId,
-                branchName: branchDisplay,
+                staffTelegramId: String(telegramId || matchedStaff.telegramId || chatId || ''),
+                staffChatId: String(chatId || ''),
+                branchId: staffSpecificBranchId,
+                branchName: staffSpecificBranchName,
                 details: userText,
                 status: 'Pending',
                 createdAt: new Date().toISOString(),
@@ -1458,7 +1537,7 @@ export default async function handler(req: any, res: any) {
 
           const confirmStaffMsg = `✅ <b>[បានទទួលពាក្យសុំច្បាប់ជោគជ័យ]</b>\n\n` +
             `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff.fullName}</b>\n` +
-            `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
+            `🏢 <b>សាខា:</b> <b>${staffSpecificBranchName}</b>\n` +
             `📅 <b>កាលបរិច្ឆេទស្នើសុំ:</b> <code>${phnomPenhDateStr}</code>\n` +
             `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${userText}\n\n` +
             `⏳ <b>ស្ថានភាព:</b> <b>រង់ចាំការអនុម័ត (Pending)</b>\n\n` +
@@ -1477,13 +1556,13 @@ export default async function handler(req: any, res: any) {
           const alertMsg = `🔔 <b>[ដំណឹងសុំច្បាប់ឈប់សម្រាកបុគ្គលិក]</b>\n\n` +
             `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff.fullName}</b>\n` +
             `💼 <b>តួនាទី:</b> ${matchedStaff.position || 'Staff'}\n` +
-            `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
+            `🏢 <b>សាខា:</b> <b>${staffSpecificBranchName}</b>\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
             `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${userText}\n\n` +
             `🕒 <b>ម៉ោងស្នើសុំ:</b> <code>${new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Phnom_Penh' })}</code>\n\n` +
             `👉 ចុចប៊ូតុងខាងក្រោមដើម្បី «អនុម័ត» ឬ «បដិសេធ» ភ្លាមៗ៖`;
 
-          const branchTargetChatId = storedConfig?.chatIds?.branches?.[effectiveBranchId] || storedConfig?.chatIds?.branches?.b1;
+          const branchTargetChatId = storedConfig?.chatIds?.branches?.[staffSpecificBranchId] || storedConfig?.chatIds?.branches?.[effectiveBranchId] || storedConfig?.chatIds?.branches?.b1;
           const targetRecipients = new Set<string>();
           if (branchTargetChatId && branchTargetChatId !== chatId) targetRecipients.add(branchTargetChatId);
           // Also send to owner chat (8412569939) if different from current sender
