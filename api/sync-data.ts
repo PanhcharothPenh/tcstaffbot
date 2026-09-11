@@ -82,6 +82,7 @@ const DEFAULT_PAYLOAD: Record<string, any> = {
   salarySchedules: [],
   salaryAdvances: [],
   auditLogs: [],
+  leaveRequests: [],
   settings: {
     shopName: 'TC Staff Management',
     openingHours: '6:00 AM – 10:00 PM',

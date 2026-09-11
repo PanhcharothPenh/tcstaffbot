@@ -71,11 +71,38 @@ export default function AttendanceView({
   const [filterBranchId, setFilterBranchId] = useState(activeBranchId);
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  // Leave Requests State
+  const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
+  const [isLoadingLeaves, setIsLoadingLeaves] = useState(false);
+  const [leaveActionLoading, setLeaveActionLoading] = useState<string | null>(null);
+  const [leaveFilterStatus, setLeaveFilterStatus] = useState<string>('all');
+  const [leaveSearchQuery, setLeaveSearchQuery] = useState<string>('');
+
+  const fetchLeaveRequests = async () => {
+    setIsLoadingLeaves(true);
+    try {
+      const res = await fetch('/api/leave-requests');
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json?.data)) {
+          setLeaveRequests(json.data);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch leave requests:', e);
+    } finally {
+      setIsLoadingLeaves(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLeaveRequests();
+  }, []);
 
   const handleManualSync = async () => {
     setIsRefreshing(true);
     try {
+      fetchLeaveRequests().catch(() => {});
       const res = await fetch('/api/sync-data');
       if (res.ok) {
         const json = await res.json();
@@ -84,11 +111,107 @@ export default function AttendanceView({
           setAttendance(s.attendance);
           onAddLog(lang === 'en' ? 'Refreshed latest attendance records' : 'បានទាញយកកំណត់ត្រាវត្តមានចុងក្រោយជោគជ័យ');
         }
+        if (s?.leaveRequests && Array.isArray(s.leaveRequests)) {
+          setLeaveRequests(s.leaveRequests);
+        }
       }
     } catch (e: any) {
       console.error(e);
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const handleApproveLeave = async (leave: any) => {
+    if (!window.confirm(lang === 'kh' ? `តើអ្នកពិតជាចង់អនុម័តពាក្យសុំច្បាប់របស់ ${leave.staffName} មែនទេ?` : `Approve leave request for ${leave.staffName}?`)) {
+      return;
+    }
+    setLeaveActionLoading(leave.id);
+    try {
+      const res = await fetch('/api/leave-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'approve',
+          leaveId: leave.id,
+          approvedBy: currentRole || 'Admin / Owner',
+          note: 'អនុម័តដោយ Admin'
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLeaveRequests(prev => prev.map(l => l.id === leave.id ? { ...l, status: 'Approved', approvedBy: currentRole || 'Admin', approvedAt: new Date().toISOString() } : l));
+        if (Array.isArray(data.attendance)) {
+          setAttendance(data.attendance);
+        } else {
+          const leaveDate = leave.date || getPhnomPenhDateStr();
+          setAttendance(prev => {
+            const copy = [...prev];
+            const idx = copy.findIndex(a => a.staffId === leave.staffId && a.date === leaveDate);
+            if (idx >= 0) {
+              copy[idx] = { ...copy[idx], status: 'Permission', notes: `ច្បាប់ឈប់សម្រាក (${leave.details || 'Approved by Admin'})` };
+            } else {
+              copy.unshift({
+                id: 'att_' + Date.now(),
+                staffId: leave.staffId,
+                staffName: leave.staffName,
+                branchId: leave.branchId || 'b1',
+                branchName: leave.branchName || 'toto by Chichi',
+                date: leaveDate,
+                checkIn: '--',
+                checkOut: '--',
+                workHours: 0,
+                overtimeHours: 0,
+                status: 'Permission',
+                source: 'manual',
+                notes: `ច្បាប់ឈប់សម្រាក (${leave.details || 'Approved by Admin'})`,
+                createdAt: new Date().toISOString()
+              });
+            }
+            return copy;
+          });
+        }
+        onAddLog(lang === 'kh' ? `បានអនុម័តពាក្យសុំច្បាប់របស់ ${leave.staffName}` : `Approved leave for ${leave.staffName}`);
+      } else {
+        alert(data.error || 'Failed to approve');
+      }
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    } finally {
+      setLeaveActionLoading(null);
+    }
+  };
+
+  const handleRejectLeave = async (leave: any) => {
+    const reason = window.prompt(
+      lang === 'kh' ? `សូមបញ្ជាក់មូលហេតុនៃការបដិសេធ (ជាជម្រើស)៖` : `Enter reason for rejection (optional):`,
+      ''
+    );
+    if (reason === null) return;
+
+    setLeaveActionLoading(leave.id);
+    try {
+      const res = await fetch('/api/leave-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'reject',
+          leaveId: leave.id,
+          rejectedBy: currentRole || 'Admin / Owner',
+          note: reason
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLeaveRequests(prev => prev.map(l => l.id === leave.id ? { ...l, status: 'Rejected', rejectedBy: currentRole || 'Admin', rejectedAt: new Date().toISOString(), reviewNote: reason } : l));
+        onAddLog(lang === 'kh' ? `បានបដិសេធពាក្យសុំច្បាប់របស់ ${leave.staffName}` : `Rejected leave for ${leave.staffName}`);
+      } else {
+        alert(data.error || 'Failed to reject');
+      }
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    } finally {
+      setLeaveActionLoading(null);
     }
   };
 
@@ -110,8 +233,8 @@ export default function AttendanceView({
   const [addStatus, setAddStatus] = useState<'Present' | 'Late' | 'Absent' | 'Working' | 'Completed' | 'Manual'>('Present');
   const [addReason, setAddReason] = useState('កត់ត្រាវត្តមានដោយដៃ (Manual Entry)');
 
-  // Main Sub-Tabs State (ដូចទំព័រទឹកក្រអូប Softeners & Detergents)
-  const [activeTab, setActiveTab] = useState<'daily' | 'monthly' | 'printable'>('daily');
+  // Main Sub-Tabs State (រួមទាំង Tab ទី៤៖ ពាក្យសុំច្បាប់ Leave Requests)
+  const [activeTab, setActiveTab] = useState<'daily' | 'monthly' | 'printable' | 'leaves'>('daily');
   const [selectedMonth, setSelectedMonth] = useState<number>(() => new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear());
   const [summaryBranchId, setSummaryBranchId] = useState<string>('all');
@@ -711,13 +834,40 @@ export default function AttendanceView({
     }
   };
 
+  const pendingLeavesCount = useMemo(() => {
+    return (leaveRequests || []).filter(l => l.status === 'Pending').length;
+  }, [leaveRequests]);
+
+  const filteredLeaveRequests = useMemo(() => {
+    let list = Array.isArray(leaveRequests) ? leaveRequests : [];
+
+    if (filterBranchId !== 'all') {
+      list = list.filter(l => l.branchId === filterBranchId);
+    }
+
+    if (leaveFilterStatus !== 'all') {
+      list = list.filter(l => l.status === leaveFilterStatus);
+    }
+
+    if (leaveSearchQuery.trim()) {
+      const q = leaveSearchQuery.toLowerCase();
+      list = list.filter(l => 
+        (l.staffName && l.staffName.toLowerCase().includes(q)) ||
+        (l.details && l.details.toLowerCase().includes(q)) ||
+        (l.date && l.date.includes(q))
+      );
+    }
+
+    return [...list].sort((a, b) => (b.createdAt || b.date || '').localeCompare(a.createdAt || a.date || ''));
+  }, [leaveRequests, filterBranchId, leaveFilterStatus, leaveSearchQuery]);
+
   return (
     <div className="space-y-6">
       {/* SINGLE UNIFIED TOP HEADER */}
       <div className="bg-white p-3 sm:p-4 rounded-3xl border border-slate-200/80 shadow-2xs space-y-3">
         {/* Row 1: Tab Switcher + Quick Actions */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl flex-wrap">
             <button
               onClick={() => setActiveTab('daily')}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
@@ -752,6 +902,23 @@ export default function AttendanceView({
             >
               <Printer size={14} />
               <span>{lang === 'kh' ? '📄 ទម្រង់ក្រដាសបោះពុម្ព & PDF' : 'Printable Form & PDF'}</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('leaves')}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer relative ${
+                activeTab === 'leaves'
+                  ? 'bg-white text-emerald-800 shadow-xs ring-1 ring-emerald-300'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <FileText size={14} className={activeTab === 'leaves' ? 'text-emerald-600' : ''} />
+              <span>{lang === 'kh' ? '📝 ពាក្យសុំច្បាប់' : 'Leave Requests'}</span>
+              {pendingLeavesCount > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 bg-rose-500 text-white text-[10px] font-black rounded-full shadow-xs animate-pulse">
+                  {pendingLeavesCount}
+                </span>
+              )}
             </button>
           </div>
 
@@ -1594,6 +1761,255 @@ export default function AttendanceView({
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 4: LEAVE REQUESTS MANAGEMENT (ពាក្យសុំច្បាប់ឈប់សម្រាក & APPROVE / REJECT) */}
+      {/* ========================================================================= */}
+      {activeTab === 'leaves' && (
+        <div className="space-y-5 animate-in fade-in duration-200">
+          {/* Summary Metric Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3.5 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-medium text-amber-700 block">
+                  {lang === 'kh' ? '⏳ កំពុងរង់ចាំពិនិត្យ' : 'Pending Review'}
+                </span>
+                <span className="text-2xl font-black text-amber-800">
+                  {leaveRequests.filter(l => l.status === 'Pending').length}
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                <AlertCircle size={20} />
+              </div>
+            </div>
+
+            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3.5 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-medium text-emerald-700 block">
+                  {lang === 'kh' ? '✅ បានអនុម័ត' : 'Approved'}
+                </span>
+                <span className="text-2xl font-black text-emerald-800">
+                  {leaveRequests.filter(l => l.status === 'Approved').length}
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                <CheckCircle2 size={20} />
+              </div>
+            </div>
+
+            <div className="bg-rose-50/70 border border-rose-200/80 rounded-2xl p-3.5 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-medium text-rose-700 block">
+                  {lang === 'kh' ? '❌ បានបដិសេធ' : 'Rejected'}
+                </span>
+                <span className="text-2xl font-black text-rose-800">
+                  {leaveRequests.filter(l => l.status === 'Rejected').length}
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold">
+                <XCircle size={20} />
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-medium text-slate-500 block">
+                  {lang === 'kh' ? '📋 សរុបទាំងអស់' : 'Total Requests'}
+                </span>
+                <span className="text-2xl font-black text-slate-800">
+                  {leaveRequests.length}
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-slate-200 text-slate-600 flex items-center justify-center font-bold">
+                <FileText size={20} />
+              </div>
+            </div>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                <Filter size={13} /> {lang === 'kh' ? 'ស្ថានភាព៖' : 'Status:'}
+              </span>
+              {(['all', 'Pending', 'Approved', 'Rejected'] as const).map(st => (
+                <button
+                  key={st}
+                  onClick={() => setLeaveFilterStatus(st)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    leaveFilterStatus === st
+                      ? st === 'Pending'
+                        ? 'bg-amber-500 text-white'
+                        : st === 'Approved'
+                        ? 'bg-emerald-600 text-white'
+                        : st === 'Rejected'
+                        ? 'bg-rose-600 text-white'
+                        : 'bg-[#003D9B] text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {st === 'all' ? (lang === 'kh' ? 'ទាំងអស់' : 'All') :
+                   st === 'Pending' ? (lang === 'kh' ? '⏳ កំពុងរង់ចាំ' : 'Pending') :
+                   st === 'Approved' ? (lang === 'kh' ? '✅ បានអនុម័ត' : 'Approved') :
+                   (lang === 'kh' ? '❌ បានបដិសេធ' : 'Rejected')}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder={lang === 'kh' ? 'ស្វែងរកឈ្មោះ ឬខ្លឹមសារ...' : 'Search staff or reason...'}
+                  value={leaveSearchQuery}
+                  onChange={e => setLeaveSearchQuery(e.target.value)}
+                  className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <button
+                onClick={fetchLeaveRequests}
+                disabled={isLoadingLeaves}
+                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition cursor-pointer"
+                title={lang === 'kh' ? 'ផ្ទុកឡើងវិញ' : 'Refresh'}
+              >
+                <RefreshCw size={14} className={isLoadingLeaves ? 'animate-spin' : ''} />
+              </button>
+            </div>
+          </div>
+
+          {/* Leave Requests Table */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+            {filteredLeaveRequests.length === 0 ? (
+              <div className="p-12 text-center text-slate-400 space-y-2">
+                <FileText size={40} className="mx-auto opacity-30" />
+                <p className="font-bold text-sm text-slate-600">
+                  {lang === 'kh' ? 'មិនមានពាក្យសុំច្បាប់ត្រូវបង្ហាញឡើយ' : 'No leave requests found'}
+                </p>
+                <p className="text-xs text-slate-400">
+                  {lang === 'kh' ? 'បុគ្គលិកអាចផ្ញើសារ «សុំច្បាប់» តាម Telegram Bot បានគ្រប់ពេលវេលា' : 'Staff can submit leave requests via Telegram Bot anytime'}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase text-[10.5px]">
+                    <tr>
+                      <th className="py-3 px-4">#</th>
+                      <th className="py-3 px-4">{lang === 'kh' ? 'បុគ្គលិក' : 'Staff'}</th>
+                      <th className="py-3 px-4">{lang === 'kh' ? 'សាខា' : 'Branch'}</th>
+                      <th className="py-3 px-4">{lang === 'kh' ? 'ថ្ងៃសុំច្បាប់' : 'Leave Date'}</th>
+                      <th className="py-3 px-4">{lang === 'kh' ? 'មូលហេតុ / ខ្លឹមសារ' : 'Reason / Details'}</th>
+                      <th className="py-3 px-4 text-center">{lang === 'kh' ? 'ស្ថានភាព' : 'Status'}</th>
+                      <th className="py-3 px-4 text-center">{lang === 'kh' ? 'សកម្មភាព (Actions)' : 'Actions'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredLeaveRequests.map((leave, idx) => {
+                      const isPending = leave.status === 'Pending';
+                      const isApproved = leave.status === 'Approved';
+                      const isRejected = leave.status === 'Rejected';
+                      const isLoadingThis = leaveActionLoading === leave.id;
+
+                      return (
+                        <tr key={leave.id || idx} className="hover:bg-slate-50/70 transition">
+                          <td className="py-3.5 px-4 font-mono text-slate-400">{idx + 1}</td>
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-full bg-blue-100 text-[#003D9B] font-bold flex items-center justify-center text-xs">
+                                {(leave.staffName || 'S').substring(0, 2).toUpperCase()}
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-900 block">{leave.staffName || 'បុគ្គលិក'}</span>
+                                <span className="text-[10px] text-slate-400">{leave.createdAt ? new Date(leave.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Phnom_Penh' }) : ''}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-600 font-medium">
+                            {leave.branchName || getBranchName(leave.branchId)}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="font-mono font-bold text-blue-900 bg-blue-50 px-2 py-1 rounded-lg border border-blue-100">
+                              {leave.date || '--'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 max-w-xs">
+                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-200/60 text-slate-700 italic text-[11px] leading-relaxed break-words">
+                              {leave.details || leave.reason || 'សុំច្បាប់'}
+                            </div>
+                            {leave.reviewNote && (
+                              <div className="mt-1 text-[10px] text-rose-600">
+                                ចំណាំ៖ {leave.reviewNote}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            {isPending && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">
+                                <AlertCircle size={12} /> {lang === 'kh' ? 'រង់ចាំអនុម័ត' : 'Pending'}
+                              </span>
+                            )}
+                            {isApproved && (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  <CheckCircle2 size={12} /> {lang === 'kh' ? 'បានអនុម័ត' : 'Approved'}
+                                </span>
+                                {leave.approvedBy && (
+                                  <span className="block text-[9.5px] text-slate-400">
+                                    ដោយ {leave.approvedBy}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {isRejected && (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                  <XCircle size={12} /> {lang === 'kh' ? 'បានបដិសេធ' : 'Rejected'}
+                                </span>
+                                {leave.rejectedBy && (
+                                  <span className="block text-[9.5px] text-slate-400">
+                                    ដោយ {leave.rejectedBy}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            {isPending ? (
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => handleApproveLeave(leave)}
+                                  disabled={isLoadingThis}
+                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                                >
+                                  {isLoadingThis ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+                                  <span>{lang === 'kh' ? 'អនុម័ត' : 'Approve'}</span>
+                                </button>
+                                <button
+                                  onClick={() => handleRejectLeave(leave)}
+                                  disabled={isLoadingThis}
+                                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border border-rose-200 rounded-xl text-xs transition cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                                >
+                                  <X size={12} />
+                                  <span>{lang === 'kh' ? 'បដិសេធ' : 'Reject'}</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 italic">
+                                {lang === 'kh' ? 'រួចរាល់' : 'Processed'}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

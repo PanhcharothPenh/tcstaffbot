@@ -5448,6 +5448,110 @@ app.post('/api/telegram/link', (req, res) => {
   }
 });
 
+// 2c. Leave Requests Endpoint
+app.get(['/api/leave-requests', '/api/leave-requests/'], (req, res) => {
+  return res.json({ success: true, leaveRequests: localDb.leaveRequests || [] });
+});
+
+app.post(['/api/leave-requests', '/api/leave-requests/'], async (req, res) => {
+  try {
+    const { action, leaveId, approvedBy, rejectedBy, note, leaveData } = req.body;
+    if (!localDb.leaveRequests) localDb.leaveRequests = [];
+
+    if (action === 'approve') {
+      const idx = localDb.leaveRequests.findIndex((l: any) => l.id === leaveId);
+      if (idx === -1) return res.status(404).json({ success: false, error: 'Leave request not found' });
+
+      const leave = localDb.leaveRequests[idx];
+      leave.status = 'Approved';
+      leave.approvedBy = approvedBy || 'Admin / Owner';
+      leave.approvedAt = new Date().toISOString();
+      if (note) leave.reviewNote = note;
+
+      // Add to attendance
+      if (!localDb.attendance) localDb.attendance = [];
+      const leaveDate = leave.date || new Date().toISOString().substring(0, 10);
+      const existingAttIdx = localDb.attendance.findIndex((a: any) => a.staffId === leave.staffId && a.date === leaveDate);
+      if (existingAttIdx >= 0) {
+        localDb.attendance[existingAttIdx].status = 'Permission';
+        localDb.attendance[existingAttIdx].notes = `ច្បាប់ឈប់សម្រាក (${leave.details || 'Approved by Admin'})`;
+      } else {
+        localDb.attendance.unshift({
+          id: 'att_perm_' + Date.now(),
+          staffId: leave.staffId,
+          staffName: leave.staffName,
+          branchId: leave.branchId || 'b1',
+          date: leaveDate,
+          checkIn: '--',
+          checkOut: '--',
+          workHours: 0,
+          overtimeHours: 0,
+          status: 'Permission',
+          source: 'manual',
+          notes: `ច្បាប់ឈប់សម្រាក (${leave.details || 'Approved by Admin'})`,
+          createdAt: new Date().toISOString()
+        });
+      }
+      saveLocalDb();
+
+      // Notify on Telegram
+      const token = resolveTelegramBotToken();
+      const matchedStaff = (localDb.staff || []).find((s: any) => s.id === leave.staffId);
+      if (token && matchedStaff?.telegramId) {
+        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: String(matchedStaff.telegramId),
+            text: `✅ <b>[ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត / Leave Approved]</b>\n\n👋 សួស្តី <b>${matchedStaff.fullName}</b>!\n📅 កាលបរិច្ឆេទ៖ <code>${leaveDate}</code>\n📝 ខ្លឹមសារ៖ <i>${leave.details || ''}</i>\n👤 អនុម័តដោយ៖ <b>${leave.approvedBy}</b>\n\nប្រព័ន្ធបានកត់ត្រាវត្តមានជា «ច្បាប់សម្រាក (Permission)» ជូនរួចរាល់ហើយ។`,
+            parse_mode: 'HTML'
+          })
+        }).catch(() => {});
+      }
+
+      return res.json({ success: true, message: 'Leave request approved', leave, attendance: localDb.attendance });
+    }
+
+    if (action === 'reject') {
+      const idx = localDb.leaveRequests.findIndex((l: any) => l.id === leaveId);
+      if (idx === -1) return res.status(404).json({ success: false, error: 'Leave request not found' });
+
+      const leave = localDb.leaveRequests[idx];
+      leave.status = 'Rejected';
+      leave.rejectedBy = rejectedBy || 'Admin / Owner';
+      leave.rejectedAt = new Date().toISOString();
+      if (note) leave.reviewNote = note;
+      saveLocalDb();
+
+      const token = resolveTelegramBotToken();
+      const matchedStaff = (localDb.staff || []).find((s: any) => s.id === leave.staffId);
+      if (token && matchedStaff?.telegramId) {
+        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: String(matchedStaff.telegramId),
+            text: `❌ <b>[ពាក្យសុំច្បាប់ត្រូវបានបដិសេធ / Leave Rejected]</b>\n\n👋 សួស្តី <b>${matchedStaff.fullName}</b>!\n📅 កាលបរិច្ឆេទ៖ <code>${leave.date || ''}</code>\n📝 ខ្លឹមសារ៖ <i>${leave.details || ''}</i>\n👤 ពិនិត្យដោយ៖ <b>${leave.rejectedBy}</b>\n\nសូមទាក់ទងមកកាន់អ្នកគ្រប់គ្រងផ្ទាល់សម្រាប់ព័ត៌មានបន្ថែម។`,
+            parse_mode: 'HTML'
+          })
+        }).catch(() => {});
+      }
+
+      return res.json({ success: true, message: 'Leave request rejected', leave });
+    }
+
+    if (action === 'create' && leaveData) {
+      localDb.leaveRequests.unshift(leaveData);
+      saveLocalDb();
+      return res.json({ success: true, leave: leaveData });
+    }
+
+    return res.status(400).json({ success: false, error: 'Invalid action' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 3. Face Enrollment Endpoint
 app.post('/api/face/enroll', (req, res) => {
   try {
