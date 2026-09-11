@@ -118,33 +118,10 @@ export default async function handler(req: any, res: any) {
           if (!error && Array.isArray(data)) tcRows = data;
         } catch (e) {}
 
-        let c24Rows: any[] = [];
-        try {
-          const { data, error } = await supabase.from('clean24_collections').select('*');
-          if (!error && Array.isArray(data)) c24Rows = data;
-        } catch (e) {}
-
-        // Build reconciled map: for each collection id, pick whichever has later updated_at
         const collectionMap: Record<string, any> = {};
         for (const r of tcRows) {
           if (r && r.id && r.data !== undefined) {
             collectionMap[r.id] = r;
-          }
-        }
-        for (const r of c24Rows) {
-          if (r && r.id && r.data !== undefined) {
-            const existing = collectionMap[r.id];
-            if (!existing) {
-              collectionMap[r.id] = r;
-            } else if (r.updated_at && existing.updated_at) {
-              const rTime = new Date(r.updated_at).getTime();
-              const existTime = new Date(existing.updated_at).getTime();
-              if (rTime > existTime) {
-                collectionMap[r.id] = r;
-              }
-            } else if (!existing.updated_at && r.updated_at) {
-              collectionMap[r.id] = r;
-            }
           }
         }
 
@@ -189,9 +166,7 @@ export default async function handler(req: any, res: any) {
           updated_at: nowIso
         }));
         if (rows.length > 0) {
-          // Upsert to both collections to guarantee no stale cache or desync
           try { await supabase.from('tc_collections').upsert(rows); } catch (e) {}
-          try { await supabase.from('clean24_collections').upsert(rows); } catch (e) {}
         }
         return res.status(200).json({
           success: true,

@@ -47,10 +47,6 @@ export default async function handler(req: any, res: any) {
     try {
       // 2a. Check users
       let { data: uData } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
-      if (!uData || !uData.data) {
-        const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
-        if (alt.data) uData = alt;
-      }
       if (uData && Array.isArray(uData.data)) {
         for (const u of uData.data) {
           const uId = String(u.telegramChatId || u.telegramId || '').trim();
@@ -69,10 +65,6 @@ export default async function handler(req: any, res: any) {
 
       // 2b. Check staff
       let { data: sData } = await supabase.from('tc_collections').select('data').eq('id', 'staff').maybeSingle();
-      if (!sData || !sData.data) {
-        const alt = await supabase.from('clean24_collections').select('data').eq('id', 'staff').maybeSingle();
-        if (alt.data) sData = alt;
-      }
       if (sData && Array.isArray(sData.data)) {
         for (const s of sData.data) {
           const sId = String(s.telegramId || s.telegramChatId || '').trim();
@@ -91,10 +83,6 @@ export default async function handler(req: any, res: any) {
       // 2c. Check telegramConfig
       if (chatIdsToSend.size === 0 && (cleanUsername === 'roth' || cleanUsername === 'owner')) {
         let { data: cfgRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
-        if (!cfgRow || !cfgRow.data) {
-          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
-          if (alt.data) cfgRow = alt;
-        }
         if (cfgRow && cfgRow.data) {
           const cid = cfgRow.data.chatIds?.owner || cfgRow.data.adminChatId || cfgRow.data.lastPrivateChatId || cfgRow.data.lastChatId;
           if (cid && /^-?\d+$/.test(String(cid))) chatIdsToSend.add(String(cid));
@@ -104,10 +92,6 @@ export default async function handler(req: any, res: any) {
       // 2d. Check telegram_chat_registry
       if (chatIdsToSend.size === 0 && (cleanUsername === 'roth' || cleanUsername === 'owner')) {
         let { data: regRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
-        if (!regRow || !regRow.data) {
-          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
-          if (alt.data) regRow = alt;
-        }
         if (regRow && Array.isArray(regRow.data) && regRow.data.length > 0) {
           const matchEntry = regRow.data.find((r: any) => r.isOwner || r.username === 'roth' || r.username === 'millerppc') || regRow.data[regRow.data.length - 1];
           if (matchEntry && /^-?\d+$/.test(String(matchEntry.chatId))) {

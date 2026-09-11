@@ -57,32 +57,16 @@ export default async function handler(req: any, res: any) {
 
     if (supabase) {
       try {
-        let { data: sData } = await supabase.from('tc_collections').select('data').eq('id', 'staff').maybeSingle();
-        if (!sData || !sData.data) {
-          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'staff').maybeSingle();
-          if (alt.data) sData = alt;
-        }
+        const { data: sData } = await supabase.from('tc_collections').select('data').eq('id', 'staff').maybeSingle();
         if (sData && Array.isArray(sData.data)) allStaff = sData.data;
 
-        let { data: uData } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
-        if (!uData || !uData.data) {
-          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
-          if (alt.data) uData = alt;
-        }
+        const { data: uData } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
         if (uData && Array.isArray(uData.data)) allUsers = uData.data;
 
-        let { data: cfgData } = await supabase.from('tc_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
-        if (!cfgData || !cfgData.data) {
-          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
-          if (alt.data) cfgData = alt;
-        }
+        const { data: cfgData } = await supabase.from('tc_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
         if (cfgData?.data) storedConfig = cfgData.data;
 
-        let { data: regData } = await supabase.from('tc_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
-        if (!regData || !regData.data) {
-          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
-          if (alt.data) regData = alt;
-        }
+        const { data: regData } = await supabase.from('tc_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
         if (regData && Array.isArray(regData.data)) chatRegistry = regData.data;
       } catch (e) {
         console.warn('Supabase fetch collections warning:', e);

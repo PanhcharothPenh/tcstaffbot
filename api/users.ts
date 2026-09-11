@@ -29,10 +29,6 @@ async function loadUsers(): Promise<any[]> {
   if (supabase) {
     try {
       let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
-      if (error || !data) {
-        const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
-        if (alt.data) data = alt.data;
-      }
       if (!error && data && Array.isArray(data.data) && data.data.length > 0) {
         return data.data;
       }
@@ -55,11 +51,6 @@ async function saveUsers(users: any[]) {
       await supabase.from('tc_collections').upsert(payload);
     } catch (e) {
       console.warn('[users.ts] Failed to upsert to tc_collections:', e);
-    }
-    try {
-      await supabase.from('clean24_collections').upsert(payload);
-    } catch (e) {
-      console.warn('[users.ts] Failed to upsert to clean24_collections:', e);
     }
   }
 }

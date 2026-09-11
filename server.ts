@@ -142,13 +142,6 @@ async function pullCollectionsFromSupabase() {
   if (!supabase) return;
   try {
     let { data, error } = await supabase.from('tc_collections').select('*');
-    if (error) {
-      const alt = await supabase.from('clean24_collections').select('*');
-      if (!alt.error) {
-        data = alt.data;
-        error = null;
-      }
-    }
     if (error) throw error;
     
     const existingIds = new Set();
@@ -187,10 +180,7 @@ async function pushCollectionToSupabase(collectionId: string) {
   if (!supabase) return;
   try {
     const row = { id: collectionId, data: localDb[collectionId], updated_at: new Date().toISOString() };
-    await Promise.allSettled([
-      supabase.from('tc_collections').upsert(row),
-      supabase.from('clean24_collections').upsert(row)
-    ]);
+    await supabase.from('tc_collections').upsert(row);
   } catch (err: any) {
     console.error(`[TC Staff Server] Supabase push for ${collectionId} failed:`, err.message);
   }
@@ -642,7 +632,7 @@ app.get('/api/debug-supabase', async (req, res) => {
   if (supabase) {
     try {
       // 1. Test Select
-      const { data, error } = await supabase.from('clean24_collections').select('*');
+      const { data, error } = await supabase.from('tc_collections').select('*');
       if (error) {
         testSelectError = error.message || error;
       } else {
@@ -651,7 +641,7 @@ app.get('/api/debug-supabase', async (req, res) => {
 
       // 2. Test Upsert Write
       const { data: wData, error: wError } = await supabase
-        .from('clean24_collections')
+        .from('tc_collections')
         .upsert({ id: 'test_sync_write', data: { time: new Date().toISOString(), status: 'success' } })
         .select();
 

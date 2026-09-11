@@ -267,11 +267,7 @@ export default async function handler(req: any, res: any) {
   const getCollection = async (id: string): Promise<any[]> => {
     if (!supabase) return [];
     try {
-      let { data, error } = await supabase.from('tc_collections').select('data').eq('id', id).maybeSingle();
-      if (error || !data) {
-        const alt = await supabase.from('clean24_collections').select('data').eq('id', id).maybeSingle();
-        if (alt.data) data = alt.data;
-      }
+      let { data } = await supabase.from('tc_collections').select('data').eq('id', id).maybeSingle();
       return (data && Array.isArray(data.data)) ? data.data : [];
     } catch {
       return [];
@@ -283,18 +279,10 @@ export default async function handler(req: any, res: any) {
     if (!supabase) return false;
     const item = { id, data: list, updated_at: new Date().toISOString() };
     try {
-      const res = await supabase.from('tc_collections').upsert(item);
-      if (res.error) {
-        await supabase.from('clean24_collections').upsert(item);
-      }
+      await supabase.from('tc_collections').upsert(item);
       return true;
     } catch {
-      try {
-        await supabase.from('clean24_collections').upsert(item);
-        return true;
-      } catch {
-        return false;
-      }
+      return false;
     }
   };
 

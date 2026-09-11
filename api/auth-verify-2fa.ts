@@ -106,10 +106,6 @@ export default async function handler(req: any, res: any) {
     if (supabase) {
       try {
         let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
-        if (error || !data || !data.data || (Array.isArray(data.data) && data.data.length === 0)) {
-          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
-          if (alt && alt.data) data = alt.data;
-        }
         const parsed = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
         if (parsed.length > 0) users = parsed;
       } catch (e) {}
@@ -148,10 +144,6 @@ export default async function handler(req: any, res: any) {
       // Only fall back to owner chat ID if the user logging in is Roth
       if ((!notifyChatId || !/^-?\d+$/.test(notifyChatId)) && supabase && isPrimaryRoth) {
         let { data: cfgRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
-        if (!cfgRow || !cfgRow.data) {
-          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
-          if (alt?.data) cfgRow = alt;
-        }
         if (cfgRow?.data?.chatIds?.owner) notifyChatId = String(cfgRow.data.chatIds.owner);
         if (!notifyChatId && cfgRow?.data?.lastPrivateChatId) notifyChatId = String(cfgRow.data.lastPrivateChatId);
       }

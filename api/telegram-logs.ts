@@ -19,7 +19,7 @@ export default async function handler(req: any, res: any) {
   let logs: any[] = [];
   if (supabase) {
     try {
-      const { data } = await supabase.from('clean24_collections').select('data').eq('id', 'telegramLogs').maybeSingle();
+      const { data } = await supabase.from('tc_collections').select('data').eq('id', 'telegramLogs').maybeSingle();
       if (data && Array.isArray(data.data)) logs = data.data;
     } catch (e) {}
   }

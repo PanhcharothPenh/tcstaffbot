@@ -9,24 +9,8 @@ function getSupabase() {
 async function loadDbCollection(supabase: any, id: string): Promise<any> {
   if (!supabase) return null;
   try {
-    const [{ data: tcRow }, { data: c24Row }] = await Promise.all([
-      supabase.from('tc_collections').select('data, updated_at').eq('id', id).maybeSingle().catch(() => ({ data: null })),
-      supabase.from('clean24_collections').select('data, updated_at').eq('id', id).maybeSingle().catch(() => ({ data: null }))
-    ]);
-
-    const tcData = tcRow?.data;
-    const c24Data = c24Row?.data;
-
-    if (Array.isArray(tcData) && Array.isArray(c24Data)) {
-      if (tcData.length > 0 && c24Data.length === 0) return tcData;
-      if (c24Data.length > 0 && tcData.length === 0) return c24Data;
-      const tcTime = tcRow?.updated_at ? new Date(tcRow.updated_at).getTime() : 0;
-      const c24Time = c24Row?.updated_at ? new Date(c24Row.updated_at).getTime() : 0;
-      return tcTime >= c24Time ? tcData : c24Data;
-    }
-    if (Array.isArray(tcData) && tcData.length > 0) return tcData;
-    if (Array.isArray(c24Data) && c24Data.length > 0) return c24Data;
-    return (tcData !== undefined && tcData !== null) ? tcData : (c24Data ?? null);
+    const { data: tcRow } = await supabase.from('tc_collections').select('data, updated_at').eq('id', id).maybeSingle().catch(() => ({ data: null }));
+    return tcRow?.data ?? null;
   } catch (e) {
     return null;
   }
@@ -36,10 +20,7 @@ async function saveDbCollection(supabase: any, id: string, payload: any): Promis
   if (!supabase) return;
   const item = { id, data: payload, updated_at: new Date().toISOString() };
   try {
-    await Promise.allSettled([
-      supabase.from('tc_collections').upsert(item),
-      supabase.from('clean24_collections').upsert(item)
-    ]);
+    await supabase.from('tc_collections').upsert(item);
   } catch (_) {}
 }
 
@@ -87,44 +68,16 @@ async function loadMultipleCollections(supabase: any, ids: string[], ttlMs = 300
   if (missingIds.length === 0) return result;
 
   try {
-    const [{ data: tcRows }, { data: c24Rows }] = await Promise.all([
-      supabase.from('tc_collections').select('id, data, updated_at').in('id', missingIds).catch(() => ({ data: null })),
-      supabase.from('clean24_collections').select('id, data, updated_at').in('id', missingIds).catch(() => ({ data: null }))
-    ]);
+    const { data: tcRows } = await supabase.from('tc_collections').select('id, data, updated_at').in('id', missingIds).catch(() => ({ data: null }));
 
     const tcMap: Record<string, any> = {};
     if (Array.isArray(tcRows)) {
       for (const r of tcRows) if (r && r.id) tcMap[r.id] = r;
     }
-    const c24Map: Record<string, any> = {};
-    if (Array.isArray(c24Rows)) {
-      for (const r of c24Rows) if (r && r.id) c24Map[r.id] = r;
-    }
 
     for (const id of missingIds) {
       const tc = tcMap[id];
-      const c24 = c24Map[id];
-      let chosenData: any = null;
-
-      if (tc && c24) {
-        const tcArr = Array.isArray(tc.data) ? tc.data : null;
-        const c24Arr = Array.isArray(c24.data) ? c24.data : null;
-        if (tcArr && c24Arr) {
-          if (tcArr.length > 0 && c24Arr.length === 0) chosenData = tcArr;
-          else if (c24Arr.length > 0 && tcArr.length === 0) chosenData = c24Arr;
-          else {
-            const tcT = tc.updated_at ? new Date(tc.updated_at).getTime() : 0;
-            const c24T = c24.updated_at ? new Date(c24.updated_at).getTime() : 0;
-            chosenData = tcT >= c24T ? tcArr : c24Arr;
-          }
-        } else {
-          chosenData = tc.data ?? c24.data;
-        }
-      } else if (tc) {
-        chosenData = tc.data;
-      } else if (c24) {
-        chosenData = c24.data;
-      }
+      const chosenData = tc?.data ?? null;
 
       if (chosenData !== null && chosenData !== undefined) {
         result[id] = chosenData;
@@ -1490,7 +1443,7 @@ export default async function handler(req: any, res: any) {
           let originalAlertChatId = null;
           if (supabase) {
             try {
-              const { data: pRow } = await supabase.from('clean24_collections').select('data').eq('id', 'pending_rej_' + telegramId).maybeSingle();
+              const { data: pRow } = await supabase.from('tc_collections').select('data').eq('id', 'pending_rej_' + telegramId).maybeSingle();
               if (pRow?.data) {
                 originalAlertMsgId = pRow.data.originalMsgId;
                 originalAlertChatId = pRow.data.originalChatId;

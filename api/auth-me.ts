@@ -88,10 +88,6 @@ export default async function handler(req: any, res: any) {
   if (supabase) {
     try {
       let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
-      if (error || !data) {
-        const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
-        if (alt.data) data = alt.data;
-      }
       if (data && Array.isArray(data.data) && data.data.length > 0) {
         users = data.data;
       }

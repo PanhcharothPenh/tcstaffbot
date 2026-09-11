@@ -23,7 +23,7 @@ export default async function handler(req: any, res: any) {
   let templates: any[] = [];
   if (supabase) {
     try {
-      const { data } = await supabase.from('clean24_collections').select('data').eq('id', 'telegramTemplates').maybeSingle();
+      const { data } = await supabase.from('tc_collections').select('data').eq('id', 'telegramTemplates').maybeSingle();
       if (data && Array.isArray(data.data)) templates = data.data;
     } catch (e) {}
   }
@@ -45,7 +45,7 @@ export default async function handler(req: any, res: any) {
     templates.push(newTemplate);
     if (supabase) {
       try {
-        await supabase.from('clean24_collections').upsert({ id: 'telegramTemplates', data: templates, updated_at: new Date().toISOString() });
+        await supabase.from('tc_collections').upsert({ id: 'telegramTemplates', data: templates, updated_at: new Date().toISOString() });
       } catch (e) {}
     }
     return res.status(201).json(newTemplate);
@@ -57,7 +57,7 @@ export default async function handler(req: any, res: any) {
     templates[idx] = { ...templates[idx], ...req.body, id: targetId };
     if (supabase) {
       try {
-        await supabase.from('clean24_collections').upsert({ id: 'telegramTemplates', data: templates, updated_at: new Date().toISOString() });
+        await supabase.from('tc_collections').upsert({ id: 'telegramTemplates', data: templates, updated_at: new Date().toISOString() });
       } catch (e) {}
     }
     return res.status(200).json(templates[idx]);
@@ -67,7 +67,7 @@ export default async function handler(req: any, res: any) {
     const filtered = templates.filter(t => t.id !== targetId);
     if (supabase) {
       try {
-        await supabase.from('clean24_collections').upsert({ id: 'telegramTemplates', data: filtered, updated_at: new Date().toISOString() });
+        await supabase.from('tc_collections').upsert({ id: 'telegramTemplates', data: filtered, updated_at: new Date().toISOString() });
       } catch (e) {}
     }
     return res.status(200).json({ success: true });

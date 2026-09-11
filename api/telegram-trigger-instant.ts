@@ -78,17 +78,9 @@ export default async function handler(req: any, res: any) {
   if (supabase) {
     try {
       let { data: cfg } = await supabase.from('tc_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
-      if (!cfg || !cfg.data) {
-        const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
-        if (alt.data) cfg = alt;
-      }
       if (cfg && cfg.data) storedConfig = cfg.data;
 
       let { data: recs } = await supabase.from('tc_collections').select('data').eq('id', 'telegramRecipients').maybeSingle();
-      if (!recs || !recs.data) {
-        const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegramRecipients').maybeSingle();
-        if (alt.data) recs = alt;
-      }
       if (recs && Array.isArray(recs.data)) recipientsList = recs.data;
 
       let { data: reg } = await supabase.from('tc_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
@@ -265,7 +257,7 @@ export default async function handler(req: any, res: any) {
   // 5. Record audit log in Supabase
   if (supabase) {
     try {
-      const { data } = await supabase.from('clean24_collections').select('data').eq('id', 'telegramLogs').maybeSingle();
+      const { data } = await supabase.from('tc_collections').select('data').eq('id', 'telegramLogs').maybeSingle();
       const logs = (data && Array.isArray(data.data)) ? data.data : [];
       logs.unshift({
         id: 'log_' + Date.now(),
@@ -279,7 +271,7 @@ export default async function handler(req: any, res: any) {
         createdAt: new Date().toISOString()
       });
       if (logs.length > 500) logs.length = 500;
-      await supabase.from('clean24_collections').upsert({ id: 'telegramLogs', data: logs, updated_at: new Date().toISOString() });
+      await supabase.from('tc_collections').upsert({ id: 'telegramLogs', data: logs, updated_at: new Date().toISOString() });
     } catch (e) {}
   }
 

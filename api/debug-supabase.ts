@@ -24,14 +24,6 @@ export default async function handler(req: any, res: any) {
       const start = Date.now();
       const supabase = createClient(supabaseUrl, supabaseKey);
       let { data, error } = await supabase.from('tc_collections').select('id');
-      if (error) {
-        const alt = await supabase.from('clean24_collections').select('id');
-        if (!alt.error) {
-          data = alt.data;
-          error = null;
-          tableInUse = 'clean24_collections';
-        }
-      }
       latencyMs = Date.now() - start;
 
       if (error) {

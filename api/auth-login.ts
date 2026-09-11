@@ -67,10 +67,6 @@ export default async function handler(req: any, res: any) {
     if (supabase) {
       try {
         let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
-        if (error || !data || !data.data || (Array.isArray(data.data) && data.data.length === 0)) {
-          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
-          if (alt && alt.data) data = alt.data;
-        }
         const parsed = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
         if (parsed.length > 0) users = parsed;
       } catch (e) {}
@@ -147,10 +143,6 @@ export default async function handler(req: any, res: any) {
     if (!resolvedChatId && supabase) {
       try {
         let { data: uRow } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
-        if (!uRow || !uRow.data) {
-          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
-          if (alt?.data) uRow = alt;
-        }
         const uArr = Array.isArray(uRow?.data) ? uRow.data : [];
         const found = uArr.find((u: any) => u.id === userId || (u.username && u.username.toLowerCase() === cleanUsername.toLowerCase()));
         if (found && /^-?\d+$/.test(String(found.telegramChatId || ''))) {
@@ -163,10 +155,6 @@ export default async function handler(req: any, res: any) {
     if (!resolvedChatId && supabase) {
       try {
         let { data: staffColl } = await supabase.from('tc_collections').select('data').eq('id', 'staff').maybeSingle();
-        if (!staffColl || !staffColl.data) {
-          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'staff').maybeSingle();
-          if (alt?.data) staffColl = alt;
-        }
         const sArr = Array.isArray(staffColl?.data) ? staffColl.data : [];
         const matchedSt = sArr.find((s: any) => {
           const sUser = (s.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
@@ -186,10 +174,6 @@ export default async function handler(req: any, res: any) {
     if (!resolvedChatId && supabase && userTgHandle) {
       try {
         let { data: regRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
-        if (!regRow || !regRow.data) {
-          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
-          if (alt?.data) regRow = alt;
-        }
         const rArr = Array.isArray(regRow?.data) ? regRow.data : [];
         const matchEntry = rArr.find((r: any) => {
           const rUser = String(r.username || '').replace(/^@/, '').toLowerCase().trim();
@@ -206,10 +190,6 @@ export default async function handler(req: any, res: any) {
       if (supabase) {
         try {
           let { data: cfgRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
-          if (!cfgRow || !cfgRow.data) {
-            const alt = await supabase.from('clean24_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
-            if (alt?.data) cfgRow = alt;
-          }
           const cfg = cfgRow?.data;
           const ownerCid = cfg?.chatIds?.owner || cfg?.adminChatId || cfg?.lastPrivateChatId || cfg?.lastChatId;
           if (ownerCid && /^-?\d+$/.test(String(ownerCid))) {

@@ -23,7 +23,7 @@ export default async function handler(req: any, res: any) {
   let recipients: any[] = [];
   if (supabase) {
     try {
-      const { data } = await supabase.from('clean24_collections').select('data').eq('id', 'telegramRecipients').maybeSingle();
+      const { data } = await supabase.from('tc_collections').select('data').eq('id', 'telegramRecipients').maybeSingle();
       if (data && Array.isArray(data.data)) recipients = data.data;
     } catch (e) {}
   }
@@ -47,7 +47,7 @@ export default async function handler(req: any, res: any) {
     recipients.push(newRec);
     if (supabase) {
       try {
-        await supabase.from('clean24_collections').upsert({ id: 'telegramRecipients', data: recipients, updated_at: new Date().toISOString() });
+        await supabase.from('tc_collections').upsert({ id: 'telegramRecipients', data: recipients, updated_at: new Date().toISOString() });
       } catch (e) {}
     }
     return res.status(201).json(newRec);
@@ -59,7 +59,7 @@ export default async function handler(req: any, res: any) {
     recipients[idx] = { ...recipients[idx], ...req.body, id: targetId };
     if (supabase) {
       try {
-        await supabase.from('clean24_collections').upsert({ id: 'telegramRecipients', data: recipients, updated_at: new Date().toISOString() });
+        await supabase.from('tc_collections').upsert({ id: 'telegramRecipients', data: recipients, updated_at: new Date().toISOString() });
       } catch (e) {}
     }
     return res.status(200).json(recipients[idx]);
@@ -69,7 +69,7 @@ export default async function handler(req: any, res: any) {
     const filtered = recipients.filter(r => r.id !== targetId);
     if (supabase) {
       try {
-        await supabase.from('clean24_collections').upsert({ id: 'telegramRecipients', data: filtered, updated_at: new Date().toISOString() });
+        await supabase.from('tc_collections').upsert({ id: 'telegramRecipients', data: filtered, updated_at: new Date().toISOString() });
       } catch (e) {}
     }
     return res.status(200).json({ success: true });

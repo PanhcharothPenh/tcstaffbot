@@ -73,16 +73,12 @@ export default async function handler(req: any, res: any) {
     const supabase = getSupabase();
     if (supabase && targetUserId) {
       try {
-        let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
-        if (error || !data) {
-          const alt = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
-          if (alt.data) data = alt.data;
-        }
+        let { data } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
         const users = (data && Array.isArray(data.data)) ? data.data : [];
         const idx = users.findIndex((u: any) => u.id === targetUserId);
         if (idx !== -1) {
           users[idx].passwordChangedAt = new Date().toISOString();
-          await supabase.from('clean24_collections').upsert({ id: 'users', data: users, updated_at: new Date().toISOString() });
+          await supabase.from('tc_collections').upsert({ id: 'users', data: users, updated_at: new Date().toISOString() });
         }
       } catch (e) {}
     }

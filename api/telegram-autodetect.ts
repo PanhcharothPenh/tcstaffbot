@@ -27,7 +27,7 @@ export default async function handler(req: any, res: any) {
   const supabase = getSupabase();
   if (supabase) {
     try {
-      const { data } = await supabase.from('clean24_collections').select('data').eq('id', 'telegramRecentUsers').maybeSingle();
+      const { data } = await supabase.from('tc_collections').select('data').eq('id', 'telegramRecentUsers').maybeSingle();
       if (data && data.data && data.data.chatId) {
         return res.status(200).json({
           success: true,
