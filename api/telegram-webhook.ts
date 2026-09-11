@@ -148,16 +148,28 @@ function formatWorkDuration(hours: number): string {
   return `${m} នាទី`;
 }
 
-function getTargetBots(): Array<{ token: string; branchId: string; name: string }> {
+async function getTargetBots(supabase?: any): Promise<Array<{ token: string; branchId: string; name: string }>> {
   const bots: Array<{ token: string; branchId: string; name: string }> = [];
-  const unifiedToken = (
+  let unifiedToken = (
     process.env.TELEGRAM_BOT_TOKEN_COFFEE ||
     process.env.TELEGRAM_BOT_TOKEN ||
     process.env.TELEGRAM_BOT_TOKEN_CODE ||
     process.env.BOT_TOKEN ||
     process.env.TELEGRAM_BOT_TOKEN_ATTENDANCE ||
+    process.env.TELEGRAM_BOT_TOKEN_ATTENDENT ||
+    process.env.TELEGRAM_ATTENDANCE_BOT_TOKEN ||
     ''
   ).trim();
+
+  if (!unifiedToken && supabase) {
+    try {
+      const cfg = await loadDbCollection(supabase, 'telegramConfig');
+      if (cfg?.botToken) unifiedToken = cfg.botToken.trim();
+      else if (cfg?.token) unifiedToken = cfg.token.trim();
+      else if (cfg?.attendanceBotToken) unifiedToken = cfg.attendanceBotToken.trim();
+      else if (cfg?.bot_token) unifiedToken = cfg.bot_token.trim();
+    } catch (_) {}
+  }
 
   if (unifiedToken) {
     bots.push({ token: unifiedToken, branchId: 'all', name: 'TC Staff Management Bot' });
@@ -166,18 +178,35 @@ function getTargetBots(): Array<{ token: string; branchId: string; name: string 
 }
 
 
-// Fast Webhook Response helper: Uses direct HTTP 200 JSON return for 0ms roundtrip to Telegram!
-function sendOrReply(res: any, botToken: string, payload: any) {
+// Real Webhook Dispatch helper: Sends directly to Telegram REST API and returns 200 OK
+async function sendOrReply(res: any, botToken: string, payload: any) {
   const method = payload.method || 'sendMessage';
-  const fullPayload = { method, ...payload };
-  if (res && !res.headersSent) {
-    return res.status(200).json(fullPayload);
+  if (botToken) {
+    try {
+      const resp = await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data: any = await resp.json();
+      if (!data.ok) {
+        console.warn(`[Telegram API Warning] ${method}:`, data.description);
+        if (data.description && data.description.includes("can't parse entities") && payload.text) {
+          const plainText = String(payload.text).replace(/<[^>]*>/g, '');
+          await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, text: plainText, parse_mode: undefined })
+          }).catch(() => {});
+        }
+      }
+    } catch (err: any) {
+      console.error('[Telegram Network Error]', err.message);
+    }
   }
-  return fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  }).catch(() => {});
+  if (res && !res.headersSent) {
+    return res.status(200).json({ ok: true });
+  }
 }
 
 export default async function handler(req: any, res: any) {
@@ -189,7 +218,8 @@ export default async function handler(req: any, res: any) {
     return res.status(200).end();
   }
 
-  const allTargetBots = getTargetBots();
+  const supabase = getSupabase();
+  const allTargetBots = await getTargetBots(supabase);
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'p2bkh.tech';
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const baseUrl = `${protocol}://${host}`;
@@ -203,7 +233,7 @@ export default async function handler(req: any, res: any) {
     if (allTargetBots.length === 0) {
       return res.status(200).json({ 
         success: false, 
-        error: 'No Telegram bot tokens configured in environment' 
+        error: 'No Telegram bot tokens configured in environment or database' 
       });
     }
 
@@ -594,12 +624,20 @@ export default async function handler(req: any, res: any) {
         process.env.TELEGRAM_BOT_TOKEN ||
         process.env.TELEGRAM_BOT_TOKEN_CODE ||
         process.env.BOT_TOKEN ||
+        process.env.TELEGRAM_BOT_TOKEN_ATTENDANCE ||
+        process.env.TELEGRAM_BOT_TOKEN_ATTENDENT ||
+        process.env.TELEGRAM_ATTENDANCE_BOT_TOKEN ||
         storedConfig?.botToken ||
+        storedConfig?.token ||
+        storedConfig?.attendanceBotToken ||
+        storedConfig?.bot_token ||
+        allTargetBots[0]?.token ||
         ''
       ).trim();
 
       if (!botToken) {
-        return res.status(200).json({ ok: true });
+        console.error('[TC Staff Webhook] Missing Bot Token! Neither process.env nor storedConfig provided a token.');
+        return res.status(200).json({ ok: true, error: 'no_bot_token' });
       }
 
       // ---------------------------------------------------------------------------------
