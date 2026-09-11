@@ -1102,9 +1102,9 @@ export default async function handler(req: any, res: any) {
                 text: `✅ <b>[ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត / Leave Approved]</b>\n\n` +
                   `👋 សួស្តី <b>${targetLeave.staffName}</b>!\n` +
                   `📅 កាលបរិច្ឆេទ៖ <code>${targetLeave.date || phnomPenhDateStr}</code>\n` +
-                  `📝 ខ្លឹមសារ៖ <i>${targetLeave.details || 'សុំច្បាប់'}</i>\n` +
+                  `📝 ខ្លឹមសារ៖ <b>${targetLeave.details || 'សុំច្បាប់'}</b>\n` +
                   `👤 អនុម័តដោយ៖ <b>${approverName}</b>\n\n` +
-                  `✨ <i>ប្រព័ន្ធបានកត់ត្រាវត្តមានជា «ច្បាប់សម្រាក (Permission)» ជូនរួចរាល់ហើយ។</i>`,
+                  `✨ ប្រព័ន្ធបានកត់ត្រាវត្តមានជា «ច្បាប់សម្រាក (Permission)» ជូនរួចរាល់ហើយ។`,
                 parse_mode: 'HTML'
               })
             }).catch(() => {});
@@ -1113,9 +1113,9 @@ export default async function handler(req: any, res: any) {
           const responseText = `✅ <b>[បានអនុម័តពាក្យសុំច្បាប់ជោគជ័យ]</b>\n\n` +
             `👤 <b>បុគ្គលិក:</b> <b>${targetLeave.staffName}</b>\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${targetLeave.date || phnomPenhDateStr}</code>\n` +
-            `📝 <b>ខ្លឹមសារ:</b> <i>${targetLeave.details || 'ច្បាប់'}</i>\n` +
+            `📝 ខ្លឹមសារ: ${targetLeave.details || 'ច្បាប់'}\n` +
             `👤 <b>អ្នកអនុម័ត:</b> <b>${approverName}</b>\n\n` +
-            `✨ <i>ប្រព័ន្ធបានកត់ត្រាវត្តមាន និងបានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់ហើយ។</i>`;
+            `✨ ប្រព័ន្ធបានកត់ត្រាវត្តមាន និងបានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់ហើយ។`;
 
           return sendOrReply(res, botToken, {
             chat_id: chatId,
@@ -1164,9 +1164,9 @@ export default async function handler(req: any, res: any) {
                 text: `❌ <b>[ពាក្យសុំច្បាប់ត្រូវបានបដិសេធ / Leave Rejected]</b>\n\n` +
                   `👋 សួស្តី <b>${targetLeave.staffName}</b>!\n` +
                   `📅 កាលបរិច្ឆេទ៖ <code>${targetLeave.date || ''}</code>\n` +
-                  `📝 ខ្លឹមសារ៖ <i>${targetLeave.details || ''}</i>\n` +
+                  `📝 ខ្លឹមសារ៖ ${targetLeave.details || ''}\n` +
                   `👤 ពិនិត្យដោយ៖ <b>${approverName}</b>\n\n` +
-                  `<i>សូមទាក់ទងមកកាន់អ្នកគ្រប់គ្រងផ្ទាល់សម្រាប់ព័ត៌មានបន្ថែម។</i>`,
+                  `សូមទាក់ទងមកកាន់អ្នកគ្រប់គ្រងផ្ទាល់សម្រាប់ព័ត៌មានបន្ថែម។`,
                 parse_mode: 'HTML'
               })
             }).catch(() => {});
@@ -1175,9 +1175,9 @@ export default async function handler(req: any, res: any) {
           const responseText = `❌ <b>[បានបដិសេធពាក្យសុំច្បាប់]</b>\n\n` +
             `👤 <b>បុគ្គលិក:</b> <b>${targetLeave.staffName}</b>\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${targetLeave.date || ''}</code>\n` +
-            `📝 <b>ខ្លឹមសារ:</b> <i>${targetLeave.details || ''}</i>\n` +
+            `📝 ខ្លឹមសារ: ${targetLeave.details || ''}\n` +
             `👤 <b>អ្នកពិនិត្យ:</b> <b>${approverName}</b>\n\n` +
-            `<i>បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់ហើយ។</i>`;
+            `បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់ហើយ។`;
 
           return sendOrReply(res, botToken, {
             chat_id: chatId,
@@ -1215,7 +1215,7 @@ export default async function handler(req: any, res: any) {
           pendingLeaves.forEach((l: any, idx: number) => {
             leaveMsg += `${idx + 1}. 👤 <b>${l.staffName || 'បុគ្គលិក'}</b> (${l.branchName || ''})\n` +
               `📅 ថ្ងៃ៖ <code>${l.date || ''}</code>\n` +
-              `📝 មូលហេតុ៖ <i>${l.details || l.reason || 'ច្បាប់'}</i>\n` +
+              `📝 មូលហេតុ៖ ${l.details || l.reason || 'ច្បាប់'}\n` +
               `──────────────\n`;
 
             inlineKeyboardButtons.push([
@@ -1223,7 +1223,7 @@ export default async function handler(req: any, res: any) {
               { text: `❌ បដិសេធ`, callback_data: `leave_rejc_${l.id}` }
             ]);
           });
-          leaveMsg += `👉 <i>ចុចប៊ូតុងខាងក្រោមដើម្បី «អនុម័ត» ឬ «បដិសេធ» ភ្លាមៗ៖</i>`;
+          leaveMsg += `👉 ចុចប៊ូតុងខាងក្រោមដើម្បី «អនុម័ត» ឬ «បដិសេធ» ភ្លាមៗ៖`;
         }
 
         return sendOrReply(res, botToken, {
@@ -1384,17 +1384,22 @@ export default async function handler(req: any, res: any) {
         if (isLeaveCallback) {
           const typeCode = callbackQuery.data.replace('leave_', '');
           const typeName = 
+            typeCode === 'sick' ? 'ឈឺ' :
+            typeCode === 'personal' ? 'ធុរៈផ្ទាល់ខ្លួន' :
+            typeCode === 'annual' ? 'សម្រាកប្រចាំឆ្នាំ' : 'ច្បាប់ទូទៅ';
+
+          const typeTitle = 
             typeCode === 'sick' ? 'ឈឺ (Sick Leave)' :
             typeCode === 'personal' ? 'ធុរៈផ្ទាល់ខ្លួន (Personal Leave)' :
             typeCode === 'annual' ? 'សម្រាកប្រចាំឆ្នាំ (Annual Leave)' : 'ច្បាប់ទូទៅ';
 
-          const leavePrompt = `📝 <b>[ពាក្យសុំច្បាប់៖ ${typeName}]</b>\n\n` +
-            `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff.fullName}</b>\n` +
-            `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n\n` +
+          const leavePrompt = `📝 <b>[ពាក្យសុំច្បាប់៖ ${typeTitle}]</b>\n\n` +
+            `👤 <b>បុគ្គលិក៖</b> <b>${matchedStaff.fullName}</b>\n` +
+            `🏢 <b>សាខា៖</b> <b>${branchDisplay}</b>\n\n` +
             `👉 <b>សូមវាយផ្ញើសារតាមទម្រង់ខាងក្រោមមកកាន់ Bot៖</b>\n` +
-            `<code>សុំច្បាប់ ${typeName} ថ្ងៃទី [កាលបរិច្ឆេទ] មូលហេតុ [មូលហេតុ]</code>\n\n` +
-            `<i>ឧទាហរណ៍៖</i>\n` +
-            `<code>សុំច្បាប់ ${typeName} ថ្ងៃទី ${phnomPenhDateStr} មូលហេតុ ឈឺក្បាលក្តៅខ្លួនមិនអាចមកធ្វើការបាន</code>`;
+            `សុំច្បាប់ ${typeName} ថ្ងៃទី ${phnomPenhDateStr} មូលហេតុ [មូលហេតុរបស់អ្នក]\n\n` +
+            `📌 <b>ឧទាហរណ៍៖</b>\n` +
+            `សុំច្បាប់ ${typeName} ថ្ងៃទី ${phnomPenhDateStr} មូលហេតុ ឈឺក្បាលក្តៅខ្លួនមិនអាចមកធ្វើការបាន`;
 
           return sendOrReply(res, botToken, {
             chat_id: chatId,
@@ -1457,7 +1462,7 @@ export default async function handler(req: any, res: any) {
             `📅 <b>កាលបរិច្ឆេទស្នើសុំ:</b> <code>${phnomPenhDateStr}</code>\n` +
             `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${userText}\n\n` +
             `⏳ <b>ស្ថានភាព:</b> <b>រង់ចាំការអនុម័ត (Pending)</b>\n\n` +
-            `🔔 <i>ប្រព័ន្ធបានកត់ត្រា និងជូនដំណឹងទៅកាន់អ្នកគ្រប់គ្រងរួចរាល់ហើយ។</i>`;
+            `🔔 ប្រព័ន្ធបានកត់ត្រា និងជូនដំណឹងទៅកាន់អ្នកគ្រប់គ្រងរួចរាល់ហើយ។`;
 
           // Forward notification with Approve & Reject buttons to Branch Group & Owner
           const leaveActionButtons = {
@@ -1476,7 +1481,7 @@ export default async function handler(req: any, res: any) {
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
             `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${userText}\n\n` +
             `🕒 <b>ម៉ោងស្នើសុំ:</b> <code>${new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Phnom_Penh' })}</code>\n\n` +
-            `👉 <i>ចុចប៊ូតុងខាងក្រោមដើម្បី «អនុម័ត» ឬ «បដិសេធ» ភ្លាមៗ៖</i>`;
+            `👉 ចុចប៊ូតុងខាងក្រោមដើម្បី «អនុម័ត» ឬ «បដិសេធ» ភ្លាមៗ៖`;
 
           const branchTargetChatId = storedConfig?.chatIds?.branches?.[effectiveBranchId] || storedConfig?.chatIds?.branches?.b1;
           const targetRecipients = new Set<string>();

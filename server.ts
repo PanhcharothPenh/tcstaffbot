@@ -4970,7 +4970,12 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chat_id: chatId,
-            text: `📝 <b>[ពាក្យសុំច្បាប់ឈប់សម្រាក / Leave Request]</b>\n\n👤 <b>បុគ្គលិក:</b> <b>${matchedStaff.fullName}</b>\n\n👉 សូមវាយផ្ញើសារតាមទម្រង់ខាងក្រោមមកកាន់ Bot៖\n<code>សុំច្បាប់ [ប្រភេទច្បាប់] ថ្ងៃទី [កាលបរិច្ឆេទ] មូលហេតុ [មូលហេតុ]</code>\n\n<i>ឧទាហរណ៍៖</i>\n<code>សុំច្បាប់ឈឺ ថ្ងៃទី ${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' })} មូលហេតុ ឈឺក្បាលមិនស្រួលខ្លួន</code>`,
+            text: `📝 <b>[ពាក្យសុំច្បាប់ឈប់សម្រាក / Leave Request]</b>\n\n` +
+              `👤 <b>បុគ្គលិក៖</b> <b>${matchedStaff.fullName}</b>\n\n` +
+              `👉 <b>សូមវាយផ្ញើសារតាមទម្រង់ខាងក្រោមមកកាន់ Bot៖</b>\n` +
+              `សុំច្បាប់ [ប្រភេទច្បាប់] ថ្ងៃទី [កាលបរិច្ឆេទ] មូលហេតុ [មូលហេតុ]\n\n` +
+              `📌 <b>ឧទាហរណ៍៖</b>\n` +
+              `សុំច្បាប់ ឈឺ ថ្ងៃទី ${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' })} មូលហេតុ ឈឺក្បាលមិនស្រួលខ្លួន`,
             parse_mode: 'HTML',
             reply_markup: persistentKb
           })
