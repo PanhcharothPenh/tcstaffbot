@@ -441,6 +441,29 @@ export default async function handler(req: any, res: any) {
       }
 
       // =================================================================================
+      // ACTION: 🧹 REMOVE UNWANTED OLD KEYBOARD (e.g. Hospital VPNs, NSSF Branches, etc.)
+      // =================================================================================
+      const isUnwantedKeyboard = 
+        userText.toLowerCase().includes('hospital') ||
+        userText.toLowerCase().includes('vpn') ||
+        userText.toLowerCase().includes('nssf') ||
+        userText.toLowerCase().includes('subnet') ||
+        userText.toLowerCase().includes('reopen') ||
+        userText === '/clear' ||
+        userText === '/clean' ||
+        userText === '/remove_keyboard' ||
+        userText === '/reset';
+
+      if (isUnwantedKeyboard) {
+        return sendOrReply(res, botToken, {
+          chat_id: chatId,
+          text: `🗑️ <b>[បានលុបប៊ូតុងចាស់ៗចេញជោគជ័យ]</b>\n\nប្រព័ន្ធបានដកចេញនូវ Keyboard ចាស់ៗរួចរាល់ហើយ។ សូមវាយ <code>/start</code> ដើម្បីប្រើប្រាស់ម៉ឺនុយ <b>TC Staff</b>។`,
+          parse_mode: 'HTML',
+          reply_markup: { remove_keyboard: true }
+        });
+      }
+
+      // =================================================================================
       // ACTION: ☕ BIND GROUP TO CAFE BRANCH (/bind, /bind b1, /bind b2, or callback query)
       // =================================================================================
       const isBindCallback = isCallback && (callbackQuery.data === 'bind_branch_b1' || callbackQuery.data === 'bind_branch_b2');
@@ -844,6 +867,20 @@ export default async function handler(req: any, res: any) {
       // =================================================================================
       // DEFAULT: 🌟 MAIN MENU / START GREETING (/start or /menu)
       // =================================================================================
+      if (userText.startsWith('/start') || userText === '/menu') {
+        try {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: '✨ ស្វាគមន៍មកកាន់ប្រព័ន្ធ TC Staff...',
+              reply_markup: { remove_keyboard: true }
+            })
+          });
+        } catch {}
+      }
+
       if (!matchedStaff) {
         const unlinkedMenuButtons = {
           inline_keyboard: [

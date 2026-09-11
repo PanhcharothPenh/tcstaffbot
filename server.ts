@@ -4653,8 +4653,46 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
     const protocol = req.protocol === 'https' || host.includes('p2bkh.tech') ? 'https' : 'http';
     const baseUrl = `${protocol}://${host}`;
 
+    // Handle removing unwanted legacy keyboards (Hospital VPNs, NSSF Branches, etc.)
+    const isUnwantedKeyboard = 
+      text.toLowerCase().includes('hospital') ||
+      text.toLowerCase().includes('vpn') ||
+      text.toLowerCase().includes('nssf') ||
+      text.toLowerCase().includes('subnet') ||
+      text.toLowerCase().includes('reopen') ||
+      text === '/clear' ||
+      text === '/clean' ||
+      text === '/remove_keyboard' ||
+      text === '/reset';
+
+    if (isUnwantedKeyboard && botToken) {
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: '🗑️ បានលុបប៊ូតុងចាស់ៗចេញជោគជ័យ! សូមវាយ /start ដើម្បីប្រើប្រាស់ម៉ឺនុយ TC Staff។',
+          parse_mode: 'HTML',
+          reply_markup: { remove_keyboard: true }
+        })
+      });
+      return res.json({ ok: true });
+    }
+
     // Handle /start or /attendance
     if (text.startsWith('/start') || text === '/attendance') {
+      if (botToken) {
+        // Clear any old keyboard on device
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: '✨ ស្វាគមន៍មកកាន់ប្រព័ន្ធ TC Staff...',
+            reply_markup: { remove_keyboard: true }
+          })
+        }).catch(() => {});
+      }
       const matchedStaff = (localDb.staff || []).find(s => 
         (s.telegramId && String(s.telegramId) === telegramId) ||
         (username && s.telegramUsername && s.telegramUsername.replace('@', '').toLowerCase() === username.toLowerCase())
