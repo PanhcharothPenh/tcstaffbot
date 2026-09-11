@@ -599,9 +599,11 @@ export default async function handler(req: any, res: any) {
             { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
           ],
           [
-            { text: '📊 វត្តមានរបស់ខ្ញុំ', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
-            { text: '👤 គណនីបុគ្គលិក' },
-            { text: '❓ របៀបប្រើប្រាស់' }
+            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+            { text: '👤 ព័ត៌មានបុគ្គលិក' }
+          ],
+          [
+            { text: '📝 សុំច្បាប់' }
           ]
         ],
         resize_keyboard: true,
@@ -865,22 +867,160 @@ export default async function handler(req: any, res: any) {
       }
 
       // =================================================================================
-      // DEFAULT: 🌟 MAIN MENU / START GREETING (/start or /menu)
+      // ACTION: 📝 សុំច្បាប់ឈប់សម្រាក (LEAVE REQUEST)
       // =================================================================================
-      if (userText.startsWith('/start') || userText === '/menu') {
-        try {
-          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: chatId,
-              text: '✨ ស្វាគមន៍មកកាន់ប្រព័ន្ធ TC Staff...',
-              reply_markup: { remove_keyboard: true }
-            })
+      const isLeaveCallback = isCallback && (callbackQuery.data?.startsWith('leave_'));
+      const isLeaveCmd = 
+        userText === '📝 សុំច្បាប់' || 
+        userText === 'សុំច្បាប់' || 
+        userText === '/leave' || 
+        userText.toLowerCase().includes('leave') || 
+        userText.includes('សុំច្បាប់') ||
+        userText.includes('សុំឈប់');
+
+      if (isLeaveCallback || isLeaveCmd) {
+        if (!matchedStaff) {
+          return sendOrReply(res, botToken, {
+            chat_id: chatId,
+            text: unlinkedStaffNotice,
+            parse_mode: 'HTML',
+            reply_markup: persistentReplyKeyboard
           });
-        } catch {}
+        }
+
+        // 1. Handle specific leave type button clicks
+        if (isLeaveCallback) {
+          const typeCode = callbackQuery.data.replace('leave_', '');
+          const typeName = 
+            typeCode === 'sick' ? 'ឈឺ (Sick Leave)' :
+            typeCode === 'personal' ? 'ធុរៈផ្ទាល់ខ្លួន (Personal Leave)' :
+            typeCode === 'annual' ? 'សម្រាកប្រចាំឆ្នាំ (Annual Leave)' : 'ច្បាប់ទូទៅ';
+
+          const leavePrompt = `📝 <b>[ពាក្យសុំច្បាប់៖ ${typeName}]</b>\n\n` +
+            `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff.fullName}</b>\n` +
+            `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n\n` +
+            `👉 <b>សូមវាយផ្ញើសារតាមទម្រង់ខាងក្រោមមកកាន់ Bot៖</b>\n` +
+            `<code>សុំច្បាប់ ${typeName} ថ្ងៃទី [កាលបរិច្ឆេទ] មូលហេតុ [មូលហេតុ]</code>\n\n` +
+            `<i>ឧទាហរណ៍៖</i>\n` +
+            `<code>សុំច្បាប់ ${typeName} ថ្ងៃទី ${phnomPenhDateStr} មូលហេតុ ឈឺក្បាលក្តៅខ្លួនមិនអាចមកធ្វើការបាន</code>`;
+
+          return sendOrReply(res, botToken, {
+            chat_id: chatId,
+            text: leavePrompt,
+            parse_mode: 'HTML',
+            reply_markup: persistentReplyKeyboard
+          });
+        }
+
+        // 2. Handle detailed leave submission text (e.g. "សុំច្បាប់ឈឺ ថ្ងៃទី... មូលហេតុ...")
+        const isDetailedLeaveSubmission = userText.length > 10 && (
+          userText.includes('ថ្ងៃ') || 
+          userText.includes('មូលហេតុ') || 
+          userText.includes('ឈឺ') || 
+          userText.includes('ធុរៈ') || 
+          userText.includes('ខែ')
+        );
+
+        if (isDetailedLeaveSubmission) {
+          // Record leave request into database
+          if (supabase) {
+            try {
+              const { data: leaveRow } = await supabase.from('clean24_collections').select('data').eq('id', 'leaveRequests').maybeSingle();
+              let leaveList = Array.isArray(leaveRow?.data) ? leaveRow.data : [];
+              const newLeave = {
+                id: 'leave_' + Date.now(),
+                staffId: matchedStaff.id,
+                staffName: matchedStaff.fullName,
+                branchId: effectiveBranchId,
+                branchName: branchDisplay,
+                details: userText,
+                status: 'Pending',
+                createdAt: new Date().toISOString(),
+                date: phnomPenhDateStr
+              };
+              leaveList.unshift(newLeave);
+              await supabase.from('clean24_collections').upsert({
+                id: 'leaveRequests',
+                data: leaveList,
+                updated_at: new Date().toISOString()
+              });
+            } catch (err) {
+              console.error('Failed to save leave request:', err);
+            }
+          }
+
+          const confirmStaffMsg = `✅ <b>[បានទទួលពាក្យសុំច្បាប់ជោគជ័យ]</b>\n\n` +
+            `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff.fullName}</b>\n` +
+            `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
+            `📅 <b>កាលបរិច្ឆេទស្នើសុំ:</b> <code>${phnomPenhDateStr}</code>\n` +
+            `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${userText}\n\n` +
+            `⏳ <b>ស្ថានភាព:</b> <b>រង់ចាំការអនុម័ត (Pending)</b>\n\n` +
+            `🔔 <i>ប្រព័ន្ធបានកត់ត្រា និងជូនដំណឹងទៅកាន់អ្នកគ្រប់គ្រងរួចរាល់ហើយ។</i>`;
+
+          // Forward notification to Branch Group / Owner Channel if configured
+          const branchTargetChatId = storedConfig?.chatIds?.branches?.[effectiveBranchId] || storedConfig?.chatIds?.branches?.b1;
+          if (branchTargetChatId && branchTargetChatId !== chatId) {
+            try {
+              const alertMsg = `🔔 <b>[ដំណឹងសុំច្បាប់ឈប់សម្រាកបុគ្គលិក]</b>\n\n` +
+                `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff.fullName}</b>\n` +
+                `💼 <b>តួនាទី:</b> ${matchedStaff.position || 'Staff'}\n` +
+                `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
+                `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
+                `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${userText}\n\n` +
+                `🕒 <b>ម៉ោងស្នើសុំ:</b> <code>${new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Phnom_Penh' })}</code>`;
+
+              await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: branchTargetChatId,
+                  text: alertMsg,
+                  parse_mode: 'HTML'
+                })
+              });
+            } catch (e) {}
+          }
+
+          return sendOrReply(res, botToken, {
+            chat_id: chatId,
+            text: confirmStaffMsg,
+            parse_mode: 'HTML',
+            reply_markup: persistentReplyKeyboard
+          });
+        }
+
+        // 3. If staff clicked "📝 សុំច្បាប់", provide interactive leave type options
+        const leaveMenuMsg = `📝 <b>[ទម្រង់សុំច្បាប់ឈប់សម្រាក / Leave Request]</b>\n\n` +
+          `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff.fullName}</b>\n` +
+          `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
+          `📅 <b>ថ្ងៃនេះ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
+          `👇 <b>សូមជ្រើសរើសប្រភេទច្បាប់ដែលអ្នកចង់ស្នើសុំ៖</b>`;
+
+        const leaveButtons = {
+          inline_keyboard: [
+            [
+              { text: '🤒 សុំច្បាប់ឈឺ (Sick Leave)', callback_data: 'leave_sick' }
+            ],
+            [
+              { text: '👨‍👩‍👧 ធុរៈផ្ទាល់ខ្លួន (Personal Leave)', callback_data: 'leave_personal' }
+            ],
+            [
+              { text: '🏖️ ឈប់សម្រាកប្រចាំឆ្នាំ (Annual Leave)', callback_data: 'leave_annual' }
+            ]
+          ]
+        };
+
+        return sendOrReply(res, botToken, {
+          chat_id: chatId,
+          text: leaveMenuMsg,
+          parse_mode: 'HTML',
+          reply_markup: leaveButtons
+        });
       }
 
+      // =================================================================================
+      // DEFAULT: 🌟 MAIN MENU / START GREETING (/start or /menu)
+      // =================================================================================
       if (!matchedStaff) {
         const unlinkedMenuButtons = {
           inline_keyboard: [
@@ -907,27 +1047,15 @@ export default async function handler(req: any, res: any) {
         `🏢 <b>សាខា:</b> ${branchDisplay}\n` +
         `💼 <b>តួនាទី:</b> ${staffPos}\n` +
         `📅 <b>ថ្ងៃនេះ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
-        `⏱️ <b>វត្តមាន:</b> 🟢 <code>${checkInTime}</code> → 🔴 <code>${checkOutTime}</code>`;
+        `⏱️ <b>វត្តមាន:</b> 🟢 <code>${checkInTime}</code> → 🔴 <code>${checkOutTime}</code>\n\n` +
+        `👇 <i>ជ្រើសរើសមុខងារពីប៊ូតុងម៉ឺនុយខាងក្រោម៖</i>`;
 
-      const interactiveMenuButtons = {
-        inline_keyboard: [
-          [
-            { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
-            { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
-          ],
-          [
-            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
-            { text: '👤 ព័ត៌មានបុគ្គលិក', callback_data: 'profile' }
-          ]
-        ]
-      };
-
-      // Send unified instant greeting with interactive action buttons in ONE request
+      // Set the 5 persistent bottom reply keyboard buttons for instant access
       return sendOrReply(res, botToken, {
           chat_id: chatId,
           text: welcomeText,
           parse_mode: 'HTML',
-          reply_markup: interactiveMenuButtons
+          reply_markup: persistentReplyKeyboard
         });
     } catch (e: any) {
       return res.status(200).json({ ok: true, error: e?.message });

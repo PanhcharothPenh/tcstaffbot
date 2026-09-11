@@ -4679,20 +4679,94 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
       return res.json({ ok: true });
     }
 
-    // Handle /start or /attendance
-    if (text.startsWith('/start') || text === '/attendance') {
+    const persistentKb = {
+      keyboard: [
+        [
+          { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
+          { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+        ],
+        [
+          { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+          { text: '👤 ព័ត៌មានបុគ្គលិក' }
+        ],
+        [
+          { text: '📝 សុំច្បាប់' }
+        ]
+      ],
+      resize_keyboard: true,
+      is_persistent: true
+    };
+
+    // Handle Leave Request (សុំច្បាប់)
+    if (text.includes('សុំច្បាប់') || text.includes('សុំឈប់') || text === '/leave' || text === '📝 សុំច្បាប់') {
+      const matchedStaff = (localDb.staff || []).find(s => 
+        (s.telegramId && String(s.telegramId) === telegramId) ||
+        (username && s.telegramUsername && s.telegramUsername.replace('@', '').toLowerCase() === username.toLowerCase())
+      );
+
+      if (!matchedStaff) {
+        if (botToken) {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: `⚠️ <b>គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិក TC Staff ណាម្នាក់ឡើយ។</b>\n\nTelegram ID: <code>${telegramId}</code>`,
+              parse_mode: 'HTML',
+              reply_markup: persistentKb
+            })
+          });
+        }
+        return res.json({ ok: true });
+      }
+
+      if (text.length > 10 && (text.includes('ថ្ងៃ') || text.includes('មូលហេតុ') || text.includes('ឈឺ') || text.includes('ធុរៈ'))) {
+        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
+        if (!localDb.leaveRequests) localDb.leaveRequests = [];
+        localDb.leaveRequests.unshift({
+          id: 'leave_' + Date.now(),
+          staffId: matchedStaff.id,
+          staffName: matchedStaff.fullName,
+          branchId: matchedStaff.branchId || 'b1',
+          details: text,
+          status: 'Pending',
+          createdAt: new Date().toISOString(),
+          date: todayStr
+        });
+        saveLocalDb();
+
+        if (botToken) {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: `✅ <b>[បានទទួលពាក្យសុំច្បាប់ជោគជ័យ]</b>\n\n👤 <b>បុគ្គលិក:</b> <b>${matchedStaff.fullName}</b>\n📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n📝 <b>ខ្លឹមសារ:</b>\n${text}\n\n⏳ <b>ស្ថានភាព:</b> <b>រង់ចាំការអនុម័ត (Pending)</b>`,
+              parse_mode: 'HTML',
+              reply_markup: persistentKb
+            })
+          });
+        }
+        return res.json({ ok: true });
+      }
+
       if (botToken) {
-        // Clear any old keyboard on device
         await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chat_id: chatId,
-            text: '✨ ស្វាគមន៍មកកាន់ប្រព័ន្ធ TC Staff...',
-            reply_markup: { remove_keyboard: true }
+            text: `📝 <b>[ពាក្យសុំច្បាប់ឈប់សម្រាក / Leave Request]</b>\n\n👤 <b>បុគ្គលិក:</b> <b>${matchedStaff.fullName}</b>\n\n👉 សូមវាយផ្ញើសារតាមទម្រង់ខាងក្រោមមកកាន់ Bot៖\n<code>សុំច្បាប់ [ប្រភេទច្បាប់] ថ្ងៃទី [កាលបរិច្ឆេទ] មូលហេតុ [មូលហេតុ]</code>\n\n<i>ឧទាហរណ៍៖</i>\n<code>សុំច្បាប់ឈឺ ថ្ងៃទី ${new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' })} មូលហេតុ ឈឺក្បាលមិនស្រួលខ្លួន</code>`,
+            parse_mode: 'HTML',
+            reply_markup: persistentKb
           })
-        }).catch(() => {});
+        });
       }
+      return res.json({ ok: true });
+    }
+
+    // Handle /start or /attendance
+    if (text.startsWith('/start') || text === '/attendance') {
       const matchedStaff = (localDb.staff || []).find(s => 
         (s.telegramId && String(s.telegramId) === telegramId) ||
         (username && s.telegramUsername && s.telegramUsername.replace('@', '').toLowerCase() === username.toLowerCase())
@@ -4713,18 +4787,6 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
 
         const replyText = `<b>TC Staff Attendance</b>\n\nសួស្តី <b>${matchedStaff.fullName}</b>\n\n<b>ថ្ងៃនេះ</b>\nចូល: <code>${checkInTime}</code>\nចេញ: <code>${checkOutTime}</code>`;
 
-        const keyboard = {
-          inline_keyboard: [
-            [
-              { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
-              { text: '📸 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
-            ],
-            [
-              { text: '📊 ប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } }
-            ]
-          ]
-        };
-
         if (botToken) {
           await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
             method: 'POST',
@@ -4733,7 +4795,7 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
               chat_id: chatId,
               text: replyText,
               parse_mode: 'HTML',
-              reply_markup: keyboard
+              reply_markup: persistentKb
             })
           });
         }
