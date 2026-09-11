@@ -352,27 +352,8 @@ export default async function handler(req: any, res: any) {
 
       if (supabase) {
         try {
-          const isAttRelated = 
-            userText === '/attendance' || 
-            userText === '/history' || 
-            userText === '/report' || 
-            userText.includes('វត្តមាន') || 
-            userText.toLowerCase().includes('attendance') ||
-            userText.toLowerCase().includes('report') ||
-            userText === '/start' ||
-            userText === '/menu';
-
-          // Ultra-Fast Targeted Loading (Only load what is needed for this request)
-          const neededIds = ['staff', 'branches', 'users'];
-          const isBind = userText.startsWith('/bind') || userText === '/id' || userText === '/chatid';
-          if (isBind) {
-            neededIds.push('telegramConfig');
-            neededIds.push('telegramRecipients');
-          }
-          if (isAttRelated) {
-            neededIds.push('attendance');
-          }
-
+          // Ultra-Fast Targeted Loading: Always load essential collections so botToken, config, and recipients are never empty
+          const neededIds = ['staff', 'branches', 'users', 'telegramConfig', 'telegramRecipients', 'attendance', 'leaveRequests'];
           const batch = await loadMultipleCollections(supabase, neededIds, 60000);
 
           const rawStaff = Array.isArray(batch['staff']) ? batch['staff'] : [];
@@ -621,6 +602,46 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({ ok: true });
       }
 
+      // ---------------------------------------------------------------------------------
+      // PERSISTENT BOTTOM REPLY KEYBOARD FOR TC STAFF MINI APP
+      // ---------------------------------------------------------------------------------
+      const staffReplyKeyboard = {
+        keyboard: [
+          [
+            { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
+            { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+          ],
+          [
+            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+            { text: '📝 សុំច្បាប់' }
+          ]
+        ],
+        resize_keyboard: true,
+        is_persistent: true
+      };
+
+      const ownerReplyKeyboard = {
+        keyboard: [
+          [
+            { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
+            { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+          ],
+          [
+            { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
+            { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
+          ],
+          [
+            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+            { text: '👤 ព័ត៌មានគណនី' },
+            { text: '❓ របៀបប្រើប្រាស់' }
+          ]
+        ],
+        resize_keyboard: true,
+        is_persistent: true
+      };
+
+      const persistentReplyKeyboard = isOwnerRole ? ownerReplyKeyboard : staffReplyKeyboard;
+
       // Answer callback query if any
       if (isCallback && callbackQuery.id) {
         try {
@@ -638,9 +659,9 @@ export default async function handler(req: any, res: any) {
       let pendingRejectionSession: any = null;
       if (supabase && !isCallback && userText && !userText.startsWith('/')) {
         try {
-          const { data: pRow } = await supabase.from('clean24_collections').select('data').eq('id', 'pending_rej_' + telegramId).maybeSingle();
-          if (pRow?.data?.leaveId) {
-            pendingRejectionSession = pRow.data;
+          const pRow: any = await loadDbCollection(supabase, 'pending_rej_' + telegramId);
+          if (pRow?.leaveId) {
+            pendingRejectionSession = pRow;
           }
         } catch (_) {}
       }
@@ -994,47 +1015,6 @@ export default async function handler(req: any, res: any) {
           });
       }
 
-      // ---------------------------------------------------------------------------------
-      // PERSISTENT BOTTOM REPLY KEYBOARD FOR TC STAFF MINI APP
-      // ---------------------------------------------------------------------------------
-      // 1. Staff Keyboard: Strictly Check In/Out, Attendance List, and Leave Request (សុំច្បាប់)
-      const staffReplyKeyboard = {
-        keyboard: [
-          [
-            { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
-            { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
-          ],
-          [
-            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
-            { text: '📝 សុំច្បាប់' }
-          ]
-        ],
-        resize_keyboard: true,
-        is_persistent: true
-      };
-
-      // 2. Owner & Manager Keyboard: Full Options (Check In/Out, All Staff Attendance, Leave Requests, Account Info, Guide)
-      const ownerReplyKeyboard = {
-        keyboard: [
-          [
-            { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
-            { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
-          ],
-          [
-            { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
-            { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
-          ],
-          [
-            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
-            { text: '👤 ព័ត៌មានគណនី' },
-            { text: '❓ របៀបប្រើប្រាស់' }
-          ]
-        ],
-        resize_keyboard: true,
-        is_persistent: true
-      };
-
-      const persistentReplyKeyboard = isOwnerRole ? ownerReplyKeyboard : staffReplyKeyboard;
 
       // =================================================================================
       // NOTICE: ⚠️ គណនីមិនទាន់បានភ្ជាប់ (Item 1 ខ)
