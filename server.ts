@@ -5499,6 +5499,14 @@ app.post(['/api/leave-requests', '/api/leave-requests/'], async (req, res) => {
       }
       saveLocalDb();
 
+      const formatDisplayDate = (dt?: string): string => {
+        if (!dt) return '';
+        if (dt.includes('/')) return dt;
+        const p = dt.split('-');
+        if (p.length === 3) return `${p[2]}/${p[1]}/${p[0]}`;
+        return dt;
+      };
+
       // Notify staff on Telegram directly back
       const token = resolveTelegramBotToken();
       const matchedStaff = (localDb.staff || []).find((s: any) => s.id === leave.staffId);
@@ -5509,13 +5517,36 @@ app.post(['/api/leave-requests', '/api/leave-requests/'], async (req, res) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chat_id: staffChatTarget,
-            text: `✅ <b>[ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត / Leave Approved]</b>\n\n` +
-              `👋 សួស្តី <b>${leave.staffName || matchedStaff?.fullName || 'បុគ្គលិក'}</b>!\n` +
-              `📅 កាលបរិច្ឆេទ៖ <code>${leaveDate}</code>\n` +
-              `🏢 សាខា៖ <b>${leave.branchName || 'Toto By Chi Chi MC Park'}</b>\n` +
-              `📝 ខ្លឹមសារ៖ <b>${leave.details || 'សុំច្បាប់'}</b>\n` +
-              `👤 អនុម័តដោយ៖ <b>${leave.approvedBy}</b>\n\n` +
+            text: `✅ <b>ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត</b>\n\n` +
+              `👋 សួស្តី <b>${leave.staffName || matchedStaff?.fullName || 'បុគ្គលិក'}</b>!\n\n` +
+              `ពាក្យសុំច្បាប់របស់អ្នកត្រូវបាន <b>អនុម័ត</b>។\n\n` +
+              `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leave.date || leaveDate)}</code>\n` +
+              `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n\n` +
+              `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${leave.details || 'សុំច្បាប់'}\n\n` +
+              `👤 <b>អនុម័តដោយ:</b> ${leave.approvedBy}\n` +
+              `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>\n\n` +
               `✨ ប្រព័ន្ធបានកត់ត្រាវត្តមានជា «ច្បាប់សម្រាក (Permission)» ជូនរួចរាល់ហើយ។`,
+            parse_mode: 'HTML'
+          })
+        }).catch(() => {});
+      }
+
+      // Also broadcast notification to Branch Telegram Group
+      const branchGroupChatId = localDb?.telegramConfig?.chatIds?.branches?.[leave.branchId] || localDb?.telegramConfig?.chatIds?.branches?.b1;
+      if (token && branchGroupChatId && branchGroupChatId !== staffChatTarget) {
+        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: branchGroupChatId,
+            text: `✅ <b>ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត</b>\n\n` +
+              `👤 <b>បុគ្គលិក:</b> ${leave.staffName || matchedStaff?.fullName || 'បុគ្គលិក'}\n` +
+              `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n` +
+              `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leave.date || leaveDate)}</code>\n\n` +
+              `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${leave.details || 'សុំច្បាប់'}\n\n` +
+              `👤 <b>អ្នកអនុម័ត:</b> ${leave.approvedBy}\n` +
+              `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>\n\n` +
+              `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`,
             parse_mode: 'HTML'
           })
         }).catch(() => {});
@@ -5535,6 +5566,14 @@ app.post(['/api/leave-requests', '/api/leave-requests/'], async (req, res) => {
       if (note) leave.reviewNote = note;
       saveLocalDb();
 
+      const formatDisplayDate = (dt?: string): string => {
+        if (!dt) return '';
+        if (dt.includes('/')) return dt;
+        const p = dt.split('-');
+        if (p.length === 3) return `${p[2]}/${p[1]}/${p[0]}`;
+        return dt;
+      };
+
       const token = resolveTelegramBotToken();
       const matchedStaff = (localDb.staff || []).find((s: any) => s.id === leave.staffId);
       const staffChatTarget = String(leave.staffChatId || leave.staffTelegramId || matchedStaff?.telegramId || '');
@@ -5544,14 +5583,38 @@ app.post(['/api/leave-requests', '/api/leave-requests/'], async (req, res) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chat_id: staffChatTarget,
-            text: `❌ <b>[ពាក្យសុំច្បាប់ត្រូវបានបដិសេធ / Leave Rejected]</b>\n\n` +
-              `👋 សួស្តី <b>${leave.staffName || matchedStaff?.fullName || 'បុគ្គលិក'}</b>!\n` +
-              `📅 កាលបរិច្ឆេទ៖ <code>${leave.date || ''}</code>\n` +
-              `🏢 សាខា៖ <b>${leave.branchName || 'Toto By Chi Chi MC Park'}</b>\n` +
-              `📝 ខ្លឹមសារ៖ ${leave.details || ''}\n` +
-              `👤 ពិនិត្យដោយ៖ <b>${leave.rejectedBy}</b>\n` +
-              (note ? `💬 មូលហេតុបដិសេធ៖ ${note}\n\n` : '\n') +
-              `សូមទាក់ទងមកកាន់អ្នកគ្រប់គ្រងផ្ទាល់សម្រាប់ព័ត៌មានបន្ថែម។`,
+            text: `❌ <b>ពាក្យសុំច្បាប់ត្រូវបានបដិសេធ</b>\n\n` +
+              `👋 សួស្តី <b>${leave.staffName || matchedStaff?.fullName || 'បុគ្គលិក'}</b>!\n\n` +
+              `ពាក្យសុំច្បាប់របស់អ្នកត្រូវបាន <b>បដិសេធ</b>។\n\n` +
+              `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leave.date)}</code>\n` +
+              `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n\n` +
+              `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${leave.details || ''}\n\n` +
+              `💬 <b>មូលហេតុបដិសេធ:</b>\n${note || '[មូលហេតុពីអ្នកគ្រប់គ្រង]'}\n\n` +
+              `👤 <b>ពិនិត្យដោយ:</b> ${leave.rejectedBy}\n` +
+              `🔴 <b>ស្ថានភាព:</b> <b>បដិសេធ</b>\n\n` +
+              `ℹ️ សម្រាប់ព័ត៌មានបន្ថែម សូមទាក់ទងអ្នកគ្រប់គ្រងដោយផ្ទាល់។`,
+            parse_mode: 'HTML'
+          })
+        }).catch(() => {});
+      }
+
+      // Also broadcast rejection to Branch Telegram Group
+      const branchGroupChatId = localDb?.telegramConfig?.chatIds?.branches?.[leave.branchId] || localDb?.telegramConfig?.chatIds?.branches?.b1;
+      if (token && branchGroupChatId && branchGroupChatId !== staffChatTarget) {
+        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: branchGroupChatId,
+            text: `❌ <b>ពាក្យសុំច្បាប់ត្រូវបានបដិសេធ</b>\n\n` +
+              `👤 <b>បុគ្គលិក:</b> ${leave.staffName || matchedStaff?.fullName || 'បុគ្គលិក'}\n` +
+              `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n` +
+              `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leave.date)}</code>\n\n` +
+              `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${leave.details || ''}\n\n` +
+              `💬 <b>មូលហេតុបដិសេធ:</b>\n${note || '[បញ្ចូលមូលហេតុបដិសេធ]'}\n\n` +
+              `👤 <b>អ្នកពិនិត្យ:</b> ${leave.rejectedBy}\n` +
+              `🔴 <b>ស្ថានភាព:</b> <b>បដិសេធ</b>\n\n` +
+              `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`,
             parse_mode: 'HTML'
           })
         }).catch(() => {});
