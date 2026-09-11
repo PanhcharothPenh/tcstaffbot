@@ -1,7 +1,23 @@
-import React, { StrictMode, ReactNode, ErrorInfo } from 'react';
+import React, { StrictMode, ReactNode, ErrorInfo, Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App.tsx';
 import './index.css';
+
+// Check if current session is Telegram Attendance Mini App for isolated ultra-fast mobile loading
+const isMiniAppSession = typeof window !== 'undefined' && (
+  window.location.pathname.startsWith('/attendance-app') ||
+  window.location.pathname === '/attendance-app' ||
+  window.location.pathname.startsWith('/mini') ||
+  window.location.pathname.startsWith('/app') ||
+  Boolean((window as any).Telegram?.WebApp?.initData) ||
+  window.location.hash.includes('tgWebAppData') ||
+  window.location.search.includes('tgWebAppData') ||
+  window.location.search.includes('tgWebAppPlatform') ||
+  (window.location.search.includes('action=') && (window.location.search.includes('checkin') || window.location.search.includes('checkout') || window.location.search.includes('history')))
+);
+
+// Code-split: mobile users NEVER download desktop ERP code or initialize ERP database
+const TelegramAttendanceMiniApp = isMiniAppSession ? lazy(() => import('./components/TelegramAttendanceMiniApp')) : null;
+const App = !isMiniAppSession ? lazy(() => import('./App.tsx')) : null;
 
 // Global Fetch Interceptor to attach Authorization Bearer Header automatically for /api requests
 const originalFetch = window.fetch.bind(window);
@@ -108,7 +124,18 @@ class RootErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundar
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <RootErrorBoundary>
-      <App />
+      <Suspense fallback={
+        <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-white text-center font-sans">
+          <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+          <p className="text-xs text-slate-400 font-bold">TC Staff Loading...</p>
+        </div>
+      }>
+        {isMiniAppSession && TelegramAttendanceMiniApp ? (
+          <TelegramAttendanceMiniApp />
+        ) : App ? (
+          <App />
+        ) : null}
+      </Suspense>
     </RootErrorBoundary>
   </StrictMode>,
 );

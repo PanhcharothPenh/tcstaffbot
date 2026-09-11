@@ -27,6 +27,9 @@ export default defineConfig(() => {
             if (id.includes('node_modules/tesseract.js')) {
               return 'vendor-ocr';
             }
+            if (id.includes('TelegramAttendanceMiniApp')) {
+              return 'telegram-miniapp';
+            }
             if (id.includes('node_modules/lucide-react')) {
               return 'vendor-icons';
             }

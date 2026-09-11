@@ -103,33 +103,60 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     // Validate in background if cached, or with spinner if cold start
     validateSession(rawInitData, Boolean(cachedData));
 
-    // Get device GPS location with fast cache allowance (maximumAge: 60s)
+    // Read cached GPS coordinates instantly for 0ms waiting
+    try {
+      const savedGps = localStorage.getItem('tc_last_gps_coords');
+      if (savedGps) {
+        setLocationCoords(JSON.parse(savedGps));
+      }
+    } catch {}
+
+    // Get fresh device GPS with 2.5s high accuracy timeout and instant coarse fallback
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          setLocationCoords({
+          const coords = {
             lat: pos.coords.latitude,
             lng: pos.coords.longitude
-          });
+          };
+          setLocationCoords(coords);
+          try {
+            localStorage.setItem('tc_last_gps_coords', JSON.stringify(coords));
+          } catch {}
         },
         (err) => {
-          console.warn('Geolocation warning:', err.message);
-          setLocationError('មិនអាចទទួលទីតាំង GPS បានទេ។');
+          console.warn('High accuracy geolocation timed out/failed, trying coarse location:', err.message);
+          navigator.geolocation.getCurrentPosition(
+            (posCoarse) => {
+              const coords = {
+                lat: posCoarse.coords.latitude,
+                lng: posCoarse.coords.longitude
+              };
+              setLocationCoords(coords);
+              try {
+                localStorage.setItem('tc_last_gps_coords', JSON.stringify(coords));
+              } catch {}
+            },
+            (err2) => {
+              console.warn('Geolocation unavailable:', err2.message);
+            },
+            { enableHighAccuracy: false, timeout: 2500, maximumAge: 300000 }
+          );
         },
-        { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+        { enableHighAccuracy: true, timeout: 2500, maximumAge: 120000 }
       );
     }
   }, []);
 
-  // Auto-start camera as soon as UI is fully rendered and activeView is action
+  // Auto-start camera as soon as UI mounts in parallel with auth check
   useEffect(() => {
-    if (!isLoadingUser && !authError && activeView === 'action' && !resultData && !capturedImage && !isCameraActive) {
+    if (!authError && activeView === 'action' && !resultData && !capturedImage && !isCameraActive) {
       const timer = setTimeout(() => {
         startCamera();
-      }, 100);
+      }, 50);
       return () => clearTimeout(timer);
     }
-  }, [isLoadingUser, authError, activeView, resultData, capturedImage, isCameraActive]);
+  }, [authError, activeView, resultData, capturedImage, isCameraActive]);
 
   const validateSession = async (dataStr: string, isSilent: boolean = false) => {
     if (!isSilent) {
@@ -204,8 +231,9 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: 'user',
-            width: { ideal: 640 },
-            height: { ideal: 640 }
+            width: { ideal: 480 },
+            height: { ideal: 480 },
+            frameRate: { ideal: 24, max: 30 }
           },
           audio: false
         });
@@ -365,7 +393,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     }
     ctx.drawImage(video, startX, startY, minDim, minDim, 0, 0, targetDim, targetDim);
 
-    const photoDataUrl = canvas.toDataURL('image/jpeg', 0.80);
+    const photoDataUrl = canvas.toDataURL('image/jpeg', 0.70);
     const vector = generateFaceDescriptorFromCanvas(canvas);
 
     setCapturedImage(photoDataUrl);
