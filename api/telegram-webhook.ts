@@ -354,7 +354,7 @@ export default async function handler(req: any, res: any) {
       if (supabase) {
         try {
           // Ultra-Fast Targeted Loading: Always load essential collections so botToken, config, and recipients are never empty
-          const neededIds = ['staff', 'branches', 'users', 'telegramConfig', 'telegramRecipients', 'attendance', 'leaveRequests'];
+          const neededIds = ['staff', 'branches', 'users', 'telegramConfig', 'telegramRecipients', 'attendance', 'leaveRequests', 'telegram_chat_registry'];
           const batch = await loadMultipleCollections(supabase, neededIds, 60000);
 
           const rawStaff = Array.isArray(batch['staff']) ? batch['staff'] : [];
@@ -363,6 +363,7 @@ export default async function handler(req: any, res: any) {
           allBranches = Array.isArray(batch['branches']) ? batch['branches'] : [];
           allAtt = Array.isArray(batch['attendance']) ? batch['attendance'] : [];
           allUsers = Array.isArray(batch['users']) ? batch['users'] : [];
+          chatRegistry = Array.isArray(batch['telegram_chat_registry']) ? batch['telegram_chat_registry'] : [];
           storedConfig = batch['telegramConfig'] || { chatIds: { branches: {} } };
           storedRecipients = Array.isArray(batch['telegramRecipients']) ? batch['telegramRecipients'] : [];
 
@@ -398,6 +399,41 @@ export default async function handler(req: any, res: any) {
 
           // 3. Search in storedRecipients (Configured notification recipients)
           matchedRecipient = storedRecipients.find((r: any) => isNotInactive(r) && String(r.chatId) === telegramId);
+
+          // 4. Automatic Owner Recognition:
+          // Check if this Telegram account is configured as Owner/Admin in telegramConfig or telegram_chat_registry or default primary owner
+          const isRegistryOwner = chatRegistry.some((reg: any) => 
+            (String(reg.chatId || reg.telegramId) === telegramId || (cleanTgHandle && normalizeTg(reg.username) === cleanTgHandle)) && reg.isOwner
+          );
+          const isConfigOwner = Boolean(
+            (storedConfig?.chatIds?.owner && String(storedConfig.chatIds.owner) === telegramId) ||
+            (storedConfig?.chatIds?.admin && String(storedConfig.chatIds.admin) === telegramId) ||
+            telegramId === '7818150707' ||
+            cleanTgHandle === 'millerppc' ||
+            isRegistryOwner
+          );
+
+          if (!matchedStaff && !matchedUser && !matchedRecipient && isConfigOwner) {
+            matchedUser = allUsers.find((u: any) => u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_owner') || allUsers[0];
+            if (!matchedUser) {
+              matchedUser = {
+                id: 'usr_owner',
+                username: 'roth',
+                fullName: firstName || 'Owner / Administrator',
+                role: 'Owner',
+                roleId: 'owner',
+                telegramId: telegramId,
+                telegramChatId: telegramId,
+                telegramUsername: cleanTgHandle ? `@${cleanTgHandle}` : undefined
+              };
+              allUsers.push(matchedUser);
+            } else {
+              matchedUser.telegramId = telegramId;
+              matchedUser.telegramChatId = telegramId;
+              if (cleanTgHandle) matchedUser.telegramUsername = `@${cleanTgHandle}`;
+            }
+            saveDbCollectionAsync(supabase, 'users', allUsers);
+          }
 
           if (!matchedStaff && matchedUser) {
             const userRole = matchedUser.role || (matchedUser.roleId === 'owner' ? 'Owner' : 'Admin');
@@ -863,12 +899,17 @@ export default async function handler(req: any, res: any) {
           String(u.username || '').toLowerCase() === targetUsernameOrPhone ||
           String(u.email || '').toLowerCase().startsWith(targetUsernameOrPhone) ||
           String(u.phone || '').replace(/[\s\-]/g, '') === targetUsernameOrPhone ||
-          String(u.fullName || '').toLowerCase() === targetUsernameOrPhone
+          String(u.fullName || '').toLowerCase() === targetUsernameOrPhone ||
+          String(u.id || '').toLowerCase() === targetUsernameOrPhone ||
+          (targetUsernameOrPhone === 'owner' && (u.role === 'Owner' || u.roleId === 'owner')) ||
+          (targetUsernameOrPhone === 'admin' && (u.role === 'Admin' || u.roleId === 'admin' || u.role === 'Owner' || u.roleId === 'owner'))
         );
 
         const targetStaffObj = rawStaffList.find((s: any) => 
           String(s.fullName || '').toLowerCase() === targetUsernameOrPhone ||
-          String(s.phone || '').replace(/[\s\-]/g, '') === targetUsernameOrPhone
+          String(s.phone || '').replace(/[\s\-]/g, '') === targetUsernameOrPhone ||
+          String(s.id || '').toLowerCase() === targetUsernameOrPhone ||
+          String(s.telegramUsername || '').replace(/^@/, '').toLowerCase() === targetUsernameOrPhone
         );
 
         if (targetUserObj) {
@@ -1943,6 +1984,10 @@ export default async function handler(req: any, res: any) {
       if (!matchedStaff) {
         const unlinkedMenuButtons = {
           inline_keyboard: [
+            [
+              { text: '👑 ភ្ជាប់ជាម្ចាស់ហាង (Link Owner)', callback_data: '/link roth' },
+              { text: '☕ ភ្ជាប់ជាបុគ្គលិក Noch', callback_data: '/link noch' }
+            ],
             [
               { text: '🆔 ពិនិត្យ Chat ID / Telegram ID', callback_data: '/id' }
             ]
