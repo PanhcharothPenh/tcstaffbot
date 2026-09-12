@@ -110,13 +110,21 @@ export default async function handler(req: any, res: any) {
   const supabase = await getSupabaseClient();
 
   if (req.method === 'GET') {
+    let lastError = null;
     try {
       if (supabase) {
         let tcRows: any[] = [];
         try {
           const { data, error } = await supabase.from('tc_collections').select('*');
-          if (!error && Array.isArray(data)) tcRows = data;
-        } catch (e) {}
+          if (error) {
+            lastError = error.message;
+            console.error('[sync-data] Supabase select error:', error);
+          } else if (Array.isArray(data)) {
+            tcRows = data;
+          }
+        } catch (e: any) {
+          lastError = e.message;
+        }
 
         const collectionMap: Record<string, any> = {};
         for (const r of tcRows) {
@@ -135,19 +143,22 @@ export default async function handler(req: any, res: any) {
             success: true,
             data: db,
             db,
-            source: 'supabase'
+            source: 'supabase',
+            collectionsCount: keys.length
           });
         }
       }
     } catch (err: any) {
       lastSupabaseErrorTime = Date.now();
+      lastError = err.message;
     }
 
     return res.status(200).json({
       success: true,
       data: DEFAULT_PAYLOAD,
       db: DEFAULT_PAYLOAD,
-      source: 'fallback'
+      source: 'fallback',
+      supabaseError: lastError
     });
   }
 
@@ -158,13 +169,33 @@ export default async function handler(req: any, res: any) {
     }
     try {
       if (supabase) {
+        // Fetch existing collections first to prevent uninitialized clients from wiping data
+        const { data: existingRows } = await supabase.from('tc_collections').select('id, data');
+        const existingMap: Record<string, any> = {};
+        if (Array.isArray(existingRows)) {
+          for (const row of existingRows) {
+            if (row && row.id) existingMap[row.id] = row.data;
+          }
+        }
+
         const entries = Object.entries(body);
         const nowIso = new Date().toISOString();
-        const rows = entries.map(([collectionId, collectionData]) => ({
-          id: collectionId,
-          data: collectionData,
-          updated_at: nowIso
-        }));
+        const rows: any[] = [];
+
+        for (const [collectionId, collectionData] of entries) {
+          const existingData = existingMap[collectionId];
+          // SAFETY GUARD: If existing database has non-empty array and incoming is empty array, DO NOT WIPE!
+          if (Array.isArray(existingData) && existingData.length > 0 && Array.isArray(collectionData) && collectionData.length === 0) {
+            console.warn(`[sync-data] Blocked empty overwrite for "${collectionId}". Existing has ${existingData.length} items.`);
+            continue;
+          }
+          rows.push({
+            id: collectionId,
+            data: collectionData,
+            updated_at: nowIso
+          });
+        }
+
         if (rows.length > 0) {
           try { await supabase.from('tc_collections').upsert(rows); } catch (e) {}
         }
@@ -172,7 +203,8 @@ export default async function handler(req: any, res: any) {
           success: true,
           data: body,
           db: body,
-          source: 'supabase_upserted'
+          source: 'supabase_upserted',
+          updatedCount: rows.length
         });
       }
     } catch (err: any) {
