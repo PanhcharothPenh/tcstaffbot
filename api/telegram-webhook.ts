@@ -144,12 +144,28 @@ async function sendOrReply(res: any, botToken: string, payload: any) {
       const data: any = await resp.json();
       if (!data.ok) {
         console.warn(`[Telegram API Warning] ${method}:`, data.description);
+        const plainText = String(payload.text || '').replace(/<[^>]*>/g, '');
+        // Fallback 1: Entity parse error -> retry without HTML parse_mode
         if (data.description && data.description.includes("can't parse entities") && payload.text) {
-          const plainText = String(payload.text).replace(/<[^>]*>/g, '');
-          await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
+          const retry1 = await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...payload, text: plainText, parse_mode: undefined })
+          }).then(r => r.json()).catch(() => null);
+          if (retry1 && !retry1.ok && payload.reply_markup) {
+            // Fallback 2: Keyboard error -> retry without reply_markup
+            await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chat_id: payload.chat_id, text: plainText })
+            }).catch(() => {});
+          }
+        } else if (payload.reply_markup) {
+          // Fallback 2: Keyboard/button error -> retry without reply_markup
+          await fetch(`https://api.telegram.org/bot${botToken}/${method}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: payload.chat_id, text: plainText, parse_mode: undefined })
           }).catch(() => {});
         }
       }
@@ -321,6 +337,8 @@ export default async function handler(req: any, res: any) {
       // Supabase context
       const supabase = getSupabase();
       let matchedStaff: any = null;
+      let matchedUser: any = null;
+      let matchedRecipient: any = null;
       let allStaff: any[] = [];
       let allBranches: any[] = [];
       let todayAttendance: any = null;
@@ -344,7 +362,7 @@ export default async function handler(req: any, res: any) {
           allStaff = rawStaff.filter((s: any) => s && s.role !== 'Owner' && s.roleId !== 'owner' && !String(s.position || '').toLowerCase().includes('owner') && s.id !== 'staff_owner_clean24');
           allBranches = Array.isArray(batch['branches']) ? batch['branches'] : [];
           allAtt = Array.isArray(batch['attendance']) ? batch['attendance'] : [];
-          const allUsers = Array.isArray(batch['users']) ? batch['users'] : [];
+          allUsers = Array.isArray(batch['users']) ? batch['users'] : [];
           storedConfig = batch['telegramConfig'] || { chatIds: { branches: {} } };
           storedRecipients = Array.isArray(batch['telegramRecipients']) ? batch['telegramRecipients'] : [];
 
@@ -376,10 +394,10 @@ export default async function handler(req: any, res: any) {
           matchedStaff = rawStaff.find((s: any) => isNotInactive(s) && isTgMatch(s.telegramId, s.telegramUsername, s.phone));
 
           // 2. Search in allUsers (User Management: Owner, Admin, Manager)
-          const matchedUser = allUsers.find((u: any) => isNotInactive(u) && isTgMatch(u.telegramChatId || u.telegramId, u.telegramUsername, u.phone, u.username));
+          matchedUser = allUsers.find((u: any) => isNotInactive(u) && isTgMatch(u.telegramChatId || u.telegramId, u.telegramUsername, u.phone, u.username));
 
           // 3. Search in storedRecipients (Configured notification recipients)
-          const matchedRecipient = storedRecipients.find((r: any) => isNotInactive(r) && String(r.chatId) === telegramId);
+          matchedRecipient = storedRecipients.find((r: any) => isNotInactive(r) && String(r.chatId) === telegramId);
 
           if (!matchedStaff && matchedUser) {
             const userRole = matchedUser.role || (matchedUser.roleId === 'owner' ? 'Owner' : 'Admin');
@@ -596,7 +614,7 @@ export default async function handler(req: any, res: any) {
       // ---------------------------------------------------------------------------------
       // PERSISTENT BOTTOM REPLY KEYBOARD FOR TC STAFF MINI APP
       // ---------------------------------------------------------------------------------
-      const staffReplyKeyboard = {
+      const staffReplyKeyboard = isPrivateChat ? {
         keyboard: [
           [
             { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
@@ -609,9 +627,22 @@ export default async function handler(req: any, res: any) {
         ],
         resize_keyboard: true,
         is_persistent: true
+      } : {
+        keyboard: [
+          [
+            { text: '📸 ចុះឈ្មោះចូល' },
+            { text: '🚪 ចុះឈ្មោះចេញ' }
+          ],
+          [
+            { text: '📊 មើលប្រវត្តិវត្តមាន' },
+            { text: '📝 សុំច្បាប់' }
+          ]
+        ],
+        resize_keyboard: true,
+        is_persistent: true
       };
 
-      const ownerReplyKeyboard = {
+      const ownerReplyKeyboard = isPrivateChat ? {
         keyboard: [
           [
             { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
@@ -623,6 +654,24 @@ export default async function handler(req: any, res: any) {
           ],
           [
             { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+            { text: '👤 ព័ត៌មានគណនី' },
+            { text: '❓ របៀបប្រើប្រាស់' }
+          ]
+        ],
+        resize_keyboard: true,
+        is_persistent: true
+      } : {
+        keyboard: [
+          [
+            { text: '📸 ចុះឈ្មោះចូល' },
+            { text: '🚪 ចុះឈ្មោះចេញ' }
+          ],
+          [
+            { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
+            { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
+          ],
+          [
+            { text: '📊 មើលប្រវត្តិវត្តមាន' },
             { text: '👤 ព័ត៌មានគណនី' },
             { text: '❓ របៀបប្រើប្រាស់' }
           ]
