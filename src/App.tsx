@@ -1227,10 +1227,6 @@ export default function App() {
                  activeTab === 'salary' ? (lang === 'en' ? 'Salary Management' : 'ការបើកប្រាក់បៀវត្សរ៍') :
                  getActiveBranchLabel()}
               </h1>
-              <p className="text-[11px] text-slate-500 font-bold leading-none mt-1 hidden sm:flex items-center gap-1.5">
-                <span>👥 TC Staff Management Suite</span>
-                <span className="text-[9px] bg-blue-50 text-blue-700 border border-blue-200 font-extrabold px-1.5 py-0.5 rounded-full">TC Staff</span>
-              </p>
             </div>
           </div>
 
