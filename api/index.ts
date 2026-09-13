@@ -548,15 +548,16 @@ export default async function handler(req: any, res: any) {
           isStaffNotInactive(s) && isMatchingTg(s.telegramId, s.telegramUsername)
         );
 
-        // 2. Check allUsers (User Management: only bridge Manager or Staff, NOT Owner)
+        // 2. Check allUsers (User Management)
         if (!matchedStaff) {
           const matchedUser = allUsers.find((u: any) => 
             isStaffNotInactive(u) && isMatchingTg(u.telegramChatId || u.telegramId, u.telegramUsername)
           );
 
-          if (matchedUser && matchedUser.role !== 'Owner' && matchedUser.roleId !== 'owner') {
-            const userRole = matchedUser.role || 'Staff';
+          if (matchedUser) {
+            const userRole = matchedUser.role || (matchedUser.roleId === 'owner' ? 'Owner' : 'Staff');
             const roleTitle = 
+              userRole === 'Owner' ? 'ម្ចាស់ហាង (Store Owner)' :
               userRole === 'Admin' ? 'អ្នកគ្រប់គ្រងជាន់ខ្ពស់ (Admin)' :
               userRole === 'Manager' ? 'អ្នកគ្រប់គ្រងសាខា (Manager)' :
               userRole === 'Staff' ? 'បុគ្គលិក (Staff)' : userRole;
@@ -566,6 +567,7 @@ export default async function handler(req: any, res: any) {
               fullName: matchedUser.fullName || matchedUser.username,
               position: roleTitle,
               role: userRole,
+              roleId: userRole.toLowerCase(),
               gender: 'Other',
               phone: matchedUser.phone || '012 888 999',
               branchId: matchedUser.assignedBranchIds?.[0] || 'b1',
@@ -580,6 +582,39 @@ export default async function handler(req: any, res: any) {
             };
             allStaff.unshift(matchedStaff);
             await saveCollection('staff', allStaff);
+          }
+        }
+
+        // 3. Check if this Telegram ID/username is the owner in telegramConfig or registry
+        if (!matchedStaff) {
+          const isConfigOwner = 
+            cleanTgId === '7818150707' || 
+            cleanTgName === 'millerppc' || 
+            cleanTgId === '366357620' || 
+            cleanTgName === 'p6c5r';
+
+          if (isConfigOwner) {
+            const ownerUser = allUsers.find((u: any) => u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_owner') || allUsers[0];
+            if (ownerUser) {
+              matchedStaff = {
+                id: 'staff_usr_' + (ownerUser.id || 'owner'),
+                fullName: ownerUser.fullName || ownerUser.username || 'Owner',
+                position: 'ម្ចាស់ហាង (Store Owner)',
+                role: 'Owner',
+                roleId: 'owner',
+                gender: 'Other',
+                phone: ownerUser.phone || '',
+                branchId: 'b1',
+                assignedBranchIds: ['b1', 'b2'],
+                status: 'Active',
+                telegramId: cleanTgId,
+                telegramUsername: cleanTgName ? `@${cleanTgName}` : undefined,
+                telegramLinked: true,
+                faceEnrolled: false,
+                attendanceEnabled: true,
+                createdAt: new Date().toISOString()
+              };
+            }
           }
         }
 
@@ -607,9 +642,14 @@ export default async function handler(req: any, res: any) {
 
       // Check if user is assigned to all branches or owner
       const isOwner = Boolean(
+        cleanTgId === '7818150707' ||
+        cleanTgName === 'millerppc' ||
+        cleanTgId === '366357620' ||
+        cleanTgName === 'p6c5r' ||
         cleanTgId === '8412569939' || 
         cleanTgName === 'clean24vengsreng' || 
         matchedStaff.role === 'Owner' || 
+        matchedStaff.roleId === 'owner' ||
         (matchedStaff.position && matchedStaff.position.toLowerCase().includes('owner'))
       );
 

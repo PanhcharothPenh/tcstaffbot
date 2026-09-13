@@ -4670,6 +4670,14 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
     }
 
     const cleanTgHandle = username.replace(/^@/, '').toLowerCase();
+    const isClean24Owner = Boolean(
+      telegramId === '7818150707' || 
+      cleanTgHandle === 'millerppc' || 
+      telegramId === '366357620' || 
+      cleanTgHandle === 'p6c5r' || 
+      telegramId === '8412569939' || 
+      cleanTgHandle === 'clean24vengsreng'
+    );
     let matchedStaff = (localDb.staff || []).find((s: any) => 
       (s.telegramId && String(s.telegramId) === telegramId) ||
       (cleanTgHandle && s.telegramUsername && s.telegramUsername.replace(/^@/, '').toLowerCase() === cleanTgHandle)
@@ -5024,7 +5032,14 @@ async function pollTelegramAttendanceBot() {
           (cleanTgHandle && s.telegramUsername && s.telegramUsername.replace(/^@/, '').toLowerCase() === cleanTgHandle)
         );
 
-        const isClean24Owner = (telegramId === '8412569939' || cleanTgHandle === 'clean24vengsreng');
+        const isClean24Owner = Boolean(
+          telegramId === '7818150707' || 
+          cleanTgHandle === 'millerppc' || 
+          telegramId === '366357620' || 
+          cleanTgHandle === 'p6c5r' || 
+          telegramId === '8412569939' || 
+          cleanTgHandle === 'clean24vengsreng'
+        );
         const matchedUser = (localDb.users || []).find((u: any) =>
           (u.telegramId && String(u.telegramId) === telegramId) ||
           (cleanTgHandle && u.telegramUsername && u.telegramUsername.replace(/^@/, '').toLowerCase() === cleanTgHandle)
@@ -5200,9 +5215,10 @@ app.post('/api/telegram/validate-init-data', (req, res) => {
           isStaffNotInactive(u) && isMatchingTg(u.telegramChatId || u.telegramId, u.telegramUsername)
         );
 
-        if (matchedUser && matchedUser.role !== 'Owner' && matchedUser.roleId !== 'owner') {
-          const userRole = matchedUser.role || 'Staff';
+        if (matchedUser) {
+          const userRole = matchedUser.role || (matchedUser.roleId === 'owner' ? 'Owner' : 'Staff');
           const roleTitle = 
+            userRole === 'Owner' ? 'ម្ចាស់ហាង (Store Owner)' :
             userRole === 'Admin' ? 'អ្នកគ្រប់គ្រងជាន់ខ្ពស់ (Admin)' :
             userRole === 'Manager' ? 'អ្នកគ្រប់គ្រងសាខា (Manager)' :
             userRole === 'Staff' ? 'បុគ្គលិក (Staff)' : userRole;
@@ -5212,6 +5228,7 @@ app.post('/api/telegram/validate-init-data', (req, res) => {
             fullName: matchedUser.fullName || matchedUser.username,
             position: roleTitle,
             role: userRole,
+            roleId: userRole.toLowerCase(),
             gender: 'Other',
             phone: matchedUser.phone || '012 888 999',
             branchId: matchedUser.assignedBranchIds?.[0] || 'b1',
@@ -5257,9 +5274,14 @@ app.post('/api/telegram/validate-init-data', (req, res) => {
     }
 
     const isOwner = Boolean(
+      cleanTgId === '7818150707' ||
+      cleanTgName === 'millerppc' ||
+      cleanTgId === '366357620' ||
+      cleanTgName === 'p6c5r' ||
       cleanTgId === '8412569939' || 
       cleanTgName === 'clean24vengsreng' || 
       staff.role === 'Owner' || 
+      staff.roleId === 'owner' ||
       (staff.position && staff.position.toLowerCase().includes('owner'))
     );
 
