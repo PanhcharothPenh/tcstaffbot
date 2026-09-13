@@ -981,89 +981,26 @@ export default async function handler(req: any, res: any) {
       }
 
       // =================================================================================
-      // ACTION: ☕ BIND GROUP TO CAFE BRANCH (/bind, /bind b1, /bind b2, or callback query)
+      // ACTION: ☕ INFO: CONFIGURATION IS ON WEB ONLY (/bind)
       // =================================================================================
       const isBindCallback = isCallback && (callbackQuery.data === 'bind_branch_b1' || callbackQuery.data === 'bind_branch_b2');
-      const isBindCmd = userText === '/bind' || userText === '/bind b1' || userText === '/bind b2' || userText.startsWith('/bind ');
+      const isBindCmd = userText === '/bind' || userText.startsWith('/bind ');
 
       if (isBindCallback || isBindCmd) {
-        let targetBranchToBind = '';
-        if (isBindCallback) {
-          targetBranchToBind = callbackQuery.data === 'bind_branch_b1' ? 'b1' : 'b2';
-        } else if (userText.includes('b1') || userText.toLowerCase().includes('toto') || userText.toLowerCase().includes('chichi')) {
-          targetBranchToBind = 'b1';
-        } else if (userText.includes('b2') || userText.toLowerCase().includes('corner') || userText.toLowerCase().includes('coffee')) {
-          targetBranchToBind = 'b2';
-        }
+        const webOnlyMsg = `ℹ️ <b>[ការកំណត់សាខា និងគណនី / Web Configuration Only]</b>\n\n` +
+          `ការភ្ជាប់សាខាកាហ្វេ និងគណនី ត្រូវបានកំណត់តាមរយៈ <b>គេហទំព័រគ្រប់គ្រង (Web Management)</b> តែប៉ុណ្ណោះ ដោយមិនមានការ Bind តាម Telegram ឡើយ។\n\n` +
+          `🆔 <b>Chat ID បច្ចុប្បន្ន:</b> <code>${chatId}</code>\n` +
+          `🆔 <b>Telegram ID:</b> <code>${telegramId}</code>\n\n` +
+          `👉 <b>របៀបកំណត់លើគេហទំព័រ៖</b>\n` +
+          `• <b>ភ្ជាប់ Group ទៅសាខា:</b> ចូល Web > <b>Settings > Telegram Config</b> ហើយបញ្ចូល Chat ID ខាងលើ\n` +
+          `• <b>ភ្ជាប់បុគ្គលិក:</b> ចូល Web > <b>Staff Management</b>\n` +
+          `• <b>ភ្ជាប់អ្នកគ្រប់គ្រង:</b> ចូល Web > <b>User Management</b>`;
 
-        // If target branch is chosen, save and confirm
-        if (targetBranchToBind) {
-          const boundName = targetBranchToBind === 'b1' ? 'toto by Chichi' : 'Coffee corner';
-          if (supabase) {
-            try {
-              const currentCfg = (await loadDbCollection(supabase, 'telegramConfig')) || { chatIds: { branches: {} } };
-              if (!currentCfg.chatIds) currentCfg.chatIds = { branches: {} };
-              if (!currentCfg.chatIds.branches) currentCfg.chatIds.branches = {};
-
-              currentCfg.chatIds.branches[targetBranchToBind] = chatId;
-              if (targetBranchToBind === 'b1') currentCfg.chatIds.branches['toto'] = chatId;
-              if (targetBranchToBind === 'b2') currentCfg.chatIds.branches['corner'] = chatId;
-
-              await saveDbCollection(supabase, 'telegramConfig', currentCfg);
-
-              let recs = (await loadDbCollection(supabase, 'telegramRecipients')) || [];
-              const chatTitle = msg.chat?.title || firstName;
-              const targetName = `${boundName} (${chatTitle})`;
-              const existingIdx = recs.findIndex((r: any) => String(r.chatId) === chatId);
-              if (existingIdx >= 0) {
-                recs[existingIdx].branchId = targetBranchToBind;
-                recs[existingIdx].name = targetName;
-                recs[existingIdx].isActive = true;
-              } else {
-                recs.push({
-                  id: 'rec_' + targetBranchToBind + '_' + Date.now(),
-                  name: targetName,
-                  chatId: chatId,
-                  role: 'Branch Channel',
-                  branchId: targetBranchToBind,
-                  isActive: true,
-                  categories: ['all', 'sales', 'stock', 'salary', 'attendance'],
-                  createdAt: new Date().toISOString()
-                });
-              }
-              await saveDbCollection(supabase, 'telegramRecipients', recs);
-            } catch (e) {
-              console.error('Failed to bind branch in DB:', e);
-            }
-          }
-
-          const successMsg = `✅ <b>[ភ្ជាប់សាខាកាហ្វេបានជោគជ័យ / Cafe Branch Linked]</b>\n\n` +
-            `☕ <b>សាខា:</b> <b>${boundName}</b> (Branch ID: <code>${targetBranchToBind}</code>)\n` +
-            `🆔 <b>Chat ID:</b> <code>${chatId}</code>\n\n` +
-            `🔔 <b>ប្រព័ន្ធបានកត់ត្រាជោគជ័យ៖</b> ចាប់ពីពេលនេះតទៅ រាល់កំណត់ត្រា <b>ការលក់កាហ្វេប្រចាំថ្ងៃ</b>, <b>ស្តុកគ្រាប់កាហ្វេ & វត្ថុធាតុដើម</b>, <b>វត្តមាន Barista</b>, និង <b>ថ្ងៃបើកប្រាក់ខែ</b> របស់ <b>${boundName}</b> នឹងត្រូវបញ្ជូនមកកាន់ Group នេះដោយស្វ័យប្រវត្តិ (ដាច់ដោយឡែកពីសាខាផ្សេង)!`;
-
-          return sendOrReply(res, botToken, { chat_id: chatId, text: successMsg, parse_mode: 'HTML' });
-        }
-
-        // If no target branch specified, present interactive selection buttons
-        const promptMsg = `☕ <b>[កំណត់សាខាសម្រាប់ Telegram Chat នេះ / Bind Cafe Branch]</b>\n\n` +
-          `🆔 <b>Chat ID បច្ចុប្បន្ន:</b> <code>${chatId}</code>\n\n` +
-          `សូមជ្រើសរើសសាខាកាហ្វេដែលលោកអ្នកចង់ភ្ជាប់ជាមួយ Chat នេះ ដើម្បីឱ្យប្រព័ន្ធផ្ញើរបាយការណ៍លក់កាហ្វេ ស្តុកគ្រាប់ និងប្រាក់ខែមកកាន់ទីនេះ៖`;
-
-        const bindButtons = {
-          inline_keyboard: [
-            [
-              { text: '☕ ភ្ជាប់ទៅ toto by Chichi (b1)', callback_data: 'bind_branch_b1' },
-              { text: '☕ ភ្ជាប់ទៅ Coffee corner (b2)', callback_data: 'bind_branch_b2' }
-            ]
-          ]
-        };
-
-        return sendOrReply(res, botToken, { chat_id: chatId, text: promptMsg, parse_mode: 'HTML', reply_markup: bindButtons });
+        return sendOrReply(res, botToken, { chat_id: chatId, text: webOnlyMsg, parse_mode: 'HTML' });
       }
 
       // =================================================================================
-      // ACTION: 📌 ពិនិត្យ CHAT ID & BINDING (/id, /chatid)
+      // ACTION: 📌 ពិនិត្យ CHAT ID & TELEGRAM ID (/id, /chatid)
       // =================================================================================
       if (userText === '/id' || userText === '/chatid') {
         const chatType = msg.chat?.type || 'private';
@@ -1072,27 +1009,16 @@ export default async function handler(req: any, res: any) {
 
         const idMsg = `📌 <b>[ព័ត៌មាន Telegram Chat / Chat ID Info]</b>\n\n` +
           `🆔 <b>Chat ID:</b> <code>${chatId}</code>\n` +
+          `🆔 <b>Telegram ID:</b> <code>${telegramId}</code>\n` +
           `👥 <b>ប្រភេទ Chat:</b> <code>${chatType}</code>\n` +
           `☕ <b>សាខាដែលបានភ្ជាប់:</b> <b>${currentBoundBranch}</b>\n` +
           `👤 <b>អ្នកផ្ញើ:</b> ${firstName} (${cleanTgHandle ? '@' + cleanTgHandle : 'គ្មាន Username'})\n\n` +
-          (isCurrentlyBound 
-            ? `✅ <b>ស្ថានភាព:</b> បានភ្ជាប់រួចរាល់! រាល់កំណត់ត្រាលក់កាហ្វេ ស្តុក និងប្រាក់ខែនៃសាខានេះ នឹងត្រូវផ្ញើមកទីនេះ។` 
-            : `⚠️ <b>សម្គាល់:</b> Chat នេះមិនទាន់បានភ្ជាប់ទៅកាន់សាខាកាហ្វេណាមួយនៅឡើយទេ។ សូមវាយពាក្យ <code>/bind</code> ដើម្បីជ្រើសរើសសាខាភ្ជាប់!`);
-
-        const idButtons = !isCurrentlyBound ? {
-          inline_keyboard: [
-            [
-              { text: '☕ ភ្ជាប់ទៅ toto by Chichi (b1)', callback_data: 'bind_branch_b1' },
-              { text: '☕ ភ្ជាប់ទៅ Coffee corner (b2)', callback_data: 'bind_branch_b2' }
-            ]
-          ]
-        } : undefined;
+          `ℹ️ <i>សូមចម្លង Chat ID / Telegram ID ខាងលើ ដើម្បីយកទៅកំណត់លើផ្ទាំងគ្រប់គ្រងគេហទំព័រ (Settings > Telegram Config)។</i>`;
 
         return sendOrReply(res, botToken, { 
             chat_id: chatId, 
             text: idMsg, 
-            parse_mode: 'HTML',
-            reply_markup: idButtons 
+            parse_mode: 'HTML'
           });
       }
 
@@ -1102,14 +1028,16 @@ export default async function handler(req: any, res: any) {
       // =================================================================================
       const cleanUsername = cleanTgHandle ? `@${cleanTgHandle}` : 'គ្មាន';
       const unlinkedStaffNotice = `👋 <b>សួស្តី ${firstName}!</b>\n\n` +
-        `⚠️ <b>គណនីមិនទាន់បានភ្ជាប់</b>\n\n` +
+        `⚠️ <b>គណនីមិនទាន់បានភ្ជាប់ក្នុងប្រព័ន្ធ (Not Connected)</b>\n\n` +
         `គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយព័ត៌មានបុគ្គលិក ឬអ្នកគ្រប់គ្រងក្នុងប្រព័ន្ធនៅឡើយទេ។\n\n` +
         `🆔 <b>Telegram ID:</b> <code>${telegramId}</code>\n` +
         `💬 <b>Chat ID:</b> <code>${chatId}</code>\n` +
         `👤 <b>Username:</b> ${cleanUsername}\n\n` +
-        `👉 <b>របៀបភ្ជាប់គណនីងាយស្រួល៖</b>\n` +
-        `១. វាយពាក្យ <code>/link &lt;username&gt;</code> (ឧ. <code>/link roth</code> ឬ <code>/link admin</code>) ដើម្បីភ្ជាប់ភ្លាមៗ!\n` +
-        `២. ឬបញ្ចូល Telegram ID ខាងលើទៅក្នុងគណនីរបស់អ្នកនៅផ្ទាំង <b>User Management</b>។`;
+        `ℹ️ <b>របៀបភ្ជាប់គណនី (កំណត់លើ Web តែប៉ុណ្ណោះ)៖</b>\n` +
+        `សូមចម្លង <b>Telegram ID</b> ខាងលើ ហើយយកទៅបញ្ចូលក្នុងគណនីរបស់អ្នកតាមរយៈគេហទំព័រ (Web Admin Panel)៖\n` +
+        `• <b>បុគ្គលិក:</b> ផ្ទាំង Staff Management\n` +
+        `• <b>អ្នកគ្រប់គ្រង:</b> ផ្ទាំង User Management\n` +
+        `• <b>សាខា / Channel:</b> ផ្ទាំង Telegram Config`;
 
       // =================================================================================
       // ACTION: 📸 ចុះឈ្មោះចូល (CHECK IN)
@@ -1982,23 +1910,10 @@ export default async function handler(req: any, res: any) {
       // DEFAULT: 🌟 MAIN MENU / START GREETING (/start or /menu)
       // =================================================================================
       if (!matchedStaff) {
-        const unlinkedMenuButtons = {
-          inline_keyboard: [
-            [
-              { text: '👑 ភ្ជាប់ជាម្ចាស់ហាង (Link Owner)', callback_data: '/link roth' },
-              { text: '☕ ភ្ជាប់ជាបុគ្គលិក Noch', callback_data: '/link noch' }
-            ],
-            [
-              { text: '🆔 ពិនិត្យ Chat ID / Telegram ID', callback_data: '/id' }
-            ]
-          ]
-        };
-
         return sendOrReply(res, botToken, {
             chat_id: chatId,
             text: unlinkedStaffNotice,
-            parse_mode: 'HTML',
-            reply_markup: unlinkedMenuButtons
+            parse_mode: 'HTML'
           });
       }
 
