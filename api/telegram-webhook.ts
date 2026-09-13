@@ -1169,7 +1169,13 @@ export default async function handler(req: any, res: any) {
       // =================================================================================
       if (userText.includes('វត្តមានបុគ្គលិកទាំងអស់') || (userText.includes('វត្តមានបុគ្គលិក') && isOwnerRole)) {
         const todayRecords = allAtt.filter((a: any) => a.date === phnomPenhDateStr);
-        const presentStaff = todayRecords.filter((a: any) => a.checkIn && a.checkIn !== '--' && a.status !== 'Permission' && a.status !== 'Absent');
+        const presentStaff = todayRecords.filter((a: any) => {
+          if (!a.checkIn || a.checkIn === '--' || a.status === 'Permission' || a.status === 'Absent' || a.isOwner) return false;
+          const isOwnerRec = a.staffId === 'usr_owner' || String(a.staffId || '').startsWith('staff_usr_usr_owner') || a.staffId === 'staff_owner_clean24';
+          if (isOwnerRec) return false;
+          const st = allStaff.find((s: any) => s.id === a.staffId);
+          return Boolean(st);
+        });
         const permissionStaff = todayRecords.filter((a: any) => a.status === 'Permission');
         const absentStaff = allStaff.filter((s: any) => 
           s.status === 'Active' && 

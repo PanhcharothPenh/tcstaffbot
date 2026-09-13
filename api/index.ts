@@ -775,6 +775,16 @@ export default async function handler(req: any, res: any) {
         return res.status(400).json({ success: false, error: `អ្នកបានចុះឈ្មោះចូលរួចហើយនៅម៉ោង ${allAtt[existingIndex].checkIn}!` });
       }
 
+      const isOwnerStaff = Boolean(
+        staff.role === 'Owner' || 
+        staff.roleId === 'owner' || 
+        String(staff.position || '').toLowerCase().includes('owner') ||
+        staff.id?.startsWith('staff_usr_usr_owner') ||
+        staff.id === 'usr_owner' ||
+        String(val?.user?.id) === '7818150707' ||
+        (val?.user?.username || '').toLowerCase() === 'millerppc'
+      );
+
       const newRecord: any = {
         id: 'att_' + Date.now(),
         branchId: branch?.id || staff.branchId,
@@ -793,6 +803,8 @@ export default async function handler(req: any, res: any) {
         checkInLatitude: latitude,
         checkInLongitude: longitude,
         checkInDistance: distance,
+        isOwner: isOwnerStaff,
+        notes: isOwnerStaff ? 'ម្ចាស់ហាងតេស្តស្កេន (Owner Test Scan)' : undefined,
         createdAt: now.toISOString(),
         updatedAt: now.toISOString()
       };
@@ -926,6 +938,21 @@ export default async function handler(req: any, res: any) {
         hoursStr = `${h}h ${String(m).padStart(2, '0')}m`;
       } catch {}
 
+      const isOwnerStaff = Boolean(
+        staff.role === 'Owner' || 
+        staff.roleId === 'owner' || 
+        String(staff.position || '').toLowerCase().includes('owner') ||
+        staff.id?.startsWith('staff_usr_usr_owner') ||
+        staff.id === 'usr_owner' ||
+        String(val?.user?.id) === '7818150707' ||
+        (val?.user?.username || '').toLowerCase() === 'millerppc' ||
+        attRecord.isOwner
+      );
+
+      attRecord.isOwner = isOwnerStaff;
+      if (isOwnerStaff && !attRecord.notes) {
+        attRecord.notes = 'ម្ចាស់ហាងតេស្តស្កេន (Owner Test Scan)';
+      }
       attRecord.checkOut = timeStr;
       attRecord.workHours = workHours;
       attRecord.status = 'Completed';

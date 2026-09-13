@@ -291,6 +291,15 @@ export default function AttendanceView({
   const filteredRecords = useMemo(() => {
     let list = Array.isArray(attendance) ? attendance : [];
 
+    // Filter out Owner test check-in scans so they never count in the staff attendance list
+    list = list.filter(a => {
+      if (a.isOwner) return false;
+      if (a.staffId === 'usr_owner' || a.staffId?.startsWith('staff_usr_usr_owner') || a.staffId === 'staff_owner_clean24') return false;
+      const st = staffList.find(s => s.id === a.staffId);
+      if (st && (st.role === 'Owner' || st.roleId === 'owner' || String(st.position || '').toLowerCase().includes('owner'))) return false;
+      return true;
+    });
+
     if (filterBranchId !== 'all') {
       list = list.filter(a => a.branchId === filterBranchId);
     }
@@ -316,12 +325,16 @@ export default function AttendanceView({
     }
 
     return [...list].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  }, [attendance, filterBranchId, selectedDate, filterStaffId, filterStatus, searchQuery]);
+  }, [attendance, filterBranchId, selectedDate, filterStaffId, filterStatus, searchQuery, staffList]);
 
   // Summary Metrics
   const summaryMetrics = useMemo(() => {
     const todayTarget = (selectedDate && selectedDate !== 'all') ? selectedDate : todayPhnomPenh;
     const todayList = (attendance || []).filter(a => {
+      if (a.isOwner) return false;
+      if (a.staffId === 'usr_owner' || a.staffId?.startsWith('staff_usr_usr_owner') || a.staffId === 'staff_owner_clean24') return false;
+      const st = staffList.find(s => s.id === a.staffId);
+      if (st && (st.role === 'Owner' || st.roleId === 'owner' || String(st.position || '').toLowerCase().includes('owner'))) return false;
       const matchesBranch = filterBranchId === 'all' || a.branchId === filterBranchId;
       return matchesBranch && a.date === todayTarget;
     });
