@@ -1689,49 +1689,84 @@ export default function AttendanceView({
               id="attendance-printable-a4-ledger"
               className="w-full max-w-[840px] bg-white text-slate-900 p-8 sm:p-10 shadow-xl rounded-2xl space-y-6 font-sans antialiased border border-slate-100"
             >
-              {/* Header Top Bar */}
-              <div className="border-b-2 border-[#003D9B] pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <h1 className="text-xl font-black text-[#003D9B] tracking-wide">
-                    TC STAFF MANAGEMENT SYSTEM
-                  </h1>
-                  <h2 className="text-sm font-bold text-slate-700 mt-0.5">
-                    STAFF ATTENDANCE & WORKING HOURS LEDGER / សៀវភៅបញ្ជីវត្តមានបុគ្គលិក
-                  </h2>
-                </div>
-                <div className="text-right text-xs">
-                  <div className="font-bold text-slate-800">
-                    {monthNamesKh[selectedMonth - 1]} ឆ្នាំ {selectedYear} ({monthNamesEn[selectedMonth - 1]} {selectedYear})
+              {/* Official Kingdom Header & Company Details */}
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-4 border-b-2 border-slate-900">
+                  {/* Left Side: Organization / Enterprise Info */}
+                  <div className="space-y-1 text-left">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-11 h-11 rounded-2xl bg-[#003D9B] text-white flex items-center justify-center font-black text-lg shadow-xs shrink-0">
+                        TC
+                      </div>
+                      <div>
+                        <h1 className="text-base font-black text-slate-900 tracking-tight leading-tight">
+                          TC STAFF MANAGEMENT SYSTEM
+                        </h1>
+                        <div className="text-xs font-bold text-slate-700 mt-0.5">
+                          {printableBranchObj ? printableBranchObj.branchName : 'គ្រប់សាខា (All Branches)'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-[10.5px] text-slate-500 pt-1 space-y-0.5 leading-relaxed">
+                      <div>📍 <b>អាសយដ្ឋាន៖</b> {printableBranchObj?.address || 'រាជធានីភ្នំពេញ, ព្រះរាជាណាចក្រកម្ពុជា'}</div>
+                      <div>📞 <b>ទូរស័ព្ទ៖</b> {printableBranchObj?.phone || '012 345 678'}</div>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
-                    កាលបរិច្ឆេទបង្កើត៖ {new Date().toLocaleDateString('en-GB')}
+
+                  {/* Right Side: Official Kingdom of Cambodia Motto */}
+                  <div className="text-center sm:text-right self-center sm:self-start">
+                    <div className="text-sm sm:text-base font-black text-slate-900 tracking-wider">
+                      ព្រះរាជាណាចក្រកម្ពុជា
+                    </div>
+                    <div className="text-xs sm:text-sm font-black text-slate-800 tracking-widest mt-0.5">
+                      ជាតិ  សាសនា  ព្រះមហាក្សត្រ
+                    </div>
+                    {/* Traditional ornamental flourish symbol */}
+                    <div className="flex items-center justify-center sm:justify-end gap-1.5 mt-1 text-slate-600">
+                      <span className="h-[1.5px] w-7 bg-slate-500 rounded-full inline-block"></span>
+                      <span className="text-[11px] leading-none select-none">𖣔</span>
+                      <span className="h-[1.5px] w-7 bg-slate-500 rounded-full inline-block"></span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Document Title Banner */}
+                <div className="text-center py-2 space-y-1">
+                  <h2 className="text-lg sm:text-xl font-black text-[#003D9B] tracking-wide">
+                    សៀវភៅបញ្ជីវត្តមានបុគ្គលិក និងម៉ោងធ្វើការ
+                  </h2>
+                  <h3 className="text-xs font-black text-slate-600 tracking-widest uppercase">
+                    STAFF ATTENDANCE &amp; WORKING HOURS LEDGER
+                  </h3>
+                  <div className="inline-flex items-center gap-2 mt-1 px-3 py-1 bg-slate-100 border border-slate-200 rounded-full text-xs font-bold text-slate-800 shadow-2xs">
+                    <span>🗓️ ប្រចាំខែ៖ <b>{monthNamesKh[selectedMonth - 1]} ឆ្នាំ {selectedYear}</b> ({monthNamesEn[selectedMonth - 1]} {selectedYear})</span>
                   </div>
                 </div>
               </div>
 
               {/* Report Info Grid */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div>
-                  <span className="text-[10.5px] font-bold text-slate-400 block">ឈ្មោះបុគ្គលិក (Staff)</span>
+              <div className="bg-slate-50/90 p-4 rounded-2xl border border-slate-200/90 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="border-r border-slate-200/80 pr-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">ឈ្មោះបុគ្គលិក (Staff)</span>
                   <span className="font-black text-slate-900 text-sm block mt-0.5">
                     {printableStaffObj ? printableStaffObj.fullName : 'បុគ្គលិកទាំងអស់ (All Staff)'}
                   </span>
                 </div>
-                <div>
-                  <span className="text-[10.5px] font-bold text-slate-400 block">តួនាទី / វេន</span>
-                  <span className="font-bold text-slate-700 block mt-0.5">
-                    {printableStaffObj ? `${printableStaffObj.position || 'Staff'} • ${printableStaffObj.shift || 'Full Time'}` : 'គ្រប់តួនាទី'}
+                <div className="border-r border-slate-200/80 pr-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">តួនាទី / វេនធ្វើការ</span>
+                  <span className="font-bold text-slate-800 block mt-0.5">
+                    {printableStaffObj ? `${printableStaffObj.position || 'Staff'} • ${printableStaffObj.shift || 'Full Time'}` : 'គ្រប់តួនាទី (All Roles)'}
                   </span>
                 </div>
-                <div>
-                  <span className="text-[10.5px] font-bold text-slate-400 block">សាខា (Branch)</span>
-                  <span className="font-bold text-slate-700 block mt-0.5">
+                <div className="border-r border-slate-200/80 pr-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">សាខាប្រតិបត្តិការ</span>
+                  <span className="font-bold text-slate-800 block mt-0.5">
                     {printableBranchObj ? printableBranchObj.branchName : 'គ្រប់សាខា (All Branches)'}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10.5px] font-bold text-slate-400 block">លេខសម្គាល់ (ID Card)</span>
-                  <span className="font-mono font-bold text-slate-700 block mt-0.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">លេខសម្គាល់ (ID Card)</span>
+                  <span className="font-mono font-bold text-slate-800 block mt-0.5">
                     {printableStaffObj?.idCardNumber || printableStaffObj?.phone || 'N/A'}
                   </span>
                 </div>
@@ -1739,28 +1774,28 @@ export default function AttendanceView({
 
               {/* 4 Summary Stat Badges */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div className="bg-blue-50/60 border border-blue-200 rounded-xl p-3 text-center">
+                <div className="bg-white border border-blue-200 rounded-xl p-3 text-center shadow-2xs">
                   <span className="text-[10.5px] font-bold text-blue-700 block">ចំនួនថ្ងៃសរុប (Days)</span>
                   <span className="text-xl font-black text-blue-900 mt-1 block">{printableTotals.totalDays}</span>
                 </div>
-                <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3 text-center">
+                <div className="bg-white border border-emerald-200 rounded-xl p-3 text-center shadow-2xs">
                   <span className="text-[10.5px] font-bold text-emerald-700 block">ម៉ោងសរុប (Hours)</span>
                   <span className="text-xl font-black text-emerald-900 mt-1 block">
                     {formatWorkDuration(printableTotals.totalWorkHours)}
                   </span>
                 </div>
-                <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-3 text-center">
+                <div className="bg-white border border-amber-200 rounded-xl p-3 text-center shadow-2xs">
                   <span className="text-[10.5px] font-bold text-amber-700 block">ម៉ោងបន្ថែម (OT)</span>
                   <span className="text-xl font-black text-amber-900 mt-1 block">{printableTotals.totalOtHours}h</span>
                 </div>
-                <div className="bg-purple-50/60 border border-purple-200 rounded-xl p-3 text-center">
+                <div className="bg-white border border-purple-200 rounded-xl p-3 text-center shadow-2xs">
                   <span className="text-[10.5px] font-bold text-purple-700 block">វត្តមានទាន់ពេល</span>
                   <span className="text-xl font-black text-purple-900 mt-1 block">{printableTotals.presentCount} ថ្ងៃ</span>
                 </div>
               </div>
 
               {/* Full Detailed Day-by-Day Table */}
-              <div className="rounded-xl border border-slate-300 overflow-hidden">
+              <div className="rounded-xl border border-slate-300 overflow-hidden shadow-2xs">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-[#003D9B] text-white text-[10.5px] font-bold">
@@ -1780,7 +1815,7 @@ export default function AttendanceView({
                   <tbody className="divide-y divide-slate-200 text-slate-800">
                     {printableLedgerRecords.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="py-8 text-center text-slate-400 font-bold">
+                        <td colSpan={9} className="py-10 text-center text-slate-400 font-bold">
                           មិនមានទិន្នន័យវត្តមានសម្រាប់ខែ {selectedMonth}/{selectedYear} ឡើយ
                         </td>
                       </tr>
@@ -1854,22 +1889,41 @@ export default function AttendanceView({
                 </table>
               </div>
 
-              {/* Signatures Footer */}
-              <div className="pt-6 grid grid-cols-3 gap-6 text-center text-xs">
-                <div>
-                  <div className="font-bold text-slate-900">អ្នករៀបចំ (Prepared By)</div>
-                  <div className="h-14 border-b border-dashed border-slate-300 mt-2" />
-                  <div className="text-[10.5px] text-slate-400 mt-1">បុគ្គលិក / រដ្ឋបាល</div>
+              {/* Official Signatures Footer */}
+              <div className="pt-6 space-y-4">
+                <div className="flex justify-end text-xs font-semibold text-slate-700">
+                  <div>
+                    រាជធានីភ្នំពេញ, ថ្ងៃទី {new Date().getDate().toString().padStart(2, '0')} ខែ {monthNamesKh[new Date().getMonth()]} ឆ្នាំ {new Date().getFullYear()}
+                  </div>
                 </div>
-                <div>
-                  <div className="font-bold text-slate-900">អ្នកត្រួតពិនិត្យ (Checked By)</div>
-                  <div className="h-14 border-b border-dashed border-slate-300 mt-2" />
-                  <div className="text-[10.5px] text-slate-400 mt-1">ប្រធានផ្នែក / Supervisor</div>
-                </div>
-                <div>
-                  <div className="font-bold text-slate-900">អ្នកអនុម័ត (Approved By)</div>
-                  <div className="h-14 border-b border-dashed border-slate-300 mt-2" />
-                  <div className="text-[10.5px] text-slate-400 mt-1">ប្រធានសាខា / ម្ចាស់ហាង</div>
+
+                <div className="grid grid-cols-3 gap-6 text-center text-xs pt-1">
+                  <div className="space-y-1">
+                    <div className="font-black text-slate-900 text-sm">អ្នករៀបចំ</div>
+                    <div className="text-[10px] text-slate-500 italic">(Prepared By)</div>
+                    <div className="h-20 border-b border-dashed border-slate-300 mt-1 flex items-end justify-center pb-1 text-[10px] text-slate-400">
+                      ហត្ថលេខា &amp; ឈ្មោះ
+                    </div>
+                    <div className="text-[11px] font-bold text-slate-700 pt-1">បុគ្គលិក / រដ្ឋបាល</div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="font-black text-slate-900 text-sm">អ្នកត្រួតពិនិត្យ</div>
+                    <div className="text-[10px] text-slate-500 italic">(Checked By)</div>
+                    <div className="h-20 border-b border-dashed border-slate-300 mt-1 flex items-end justify-center pb-1 text-[10px] text-slate-400">
+                      ហត្ថលេខា &amp; ឈ្មោះ
+                    </div>
+                    <div className="text-[11px] font-bold text-slate-700 pt-1">ប្រធានផ្នែក / Supervisor</div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="font-black text-slate-900 text-sm">អ្នកអនុម័ត / ម្ចាស់ហាង</div>
+                    <div className="text-[10px] text-slate-500 italic">(Approved By)</div>
+                    <div className="h-20 border-b border-dashed border-slate-300 mt-1 flex items-end justify-center pb-1 text-[10px] text-slate-400">
+                      ហត្ថលេខា និងត្រា
+                    </div>
+                    <div className="text-[11px] font-bold text-slate-700 pt-1">ប្រធានសាខា / ម្ចាស់ហាង</div>
+                  </div>
                 </div>
               </div>
             </div>
