@@ -980,7 +980,7 @@ export default function SalaryManagementView({
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Branch Selector */}
-            {branches.length > 1 ? (
+            {activeBranchId === 'all' && branches.length > 1 ? (
               <select
                 value={selectedBranchId}
                 onChange={e => setSelectedBranchId(e.target.value)}
@@ -991,8 +991,9 @@ export default function SalaryManagementView({
                 ))}
               </select>
             ) : (
-              <div className="px-3.5 py-2 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-xs font-bold shadow-2xs">
-                {branches[0]?.branchName || 'Branch'}
+              <div className="px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-800 text-xs font-bold shadow-2xs flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                <span>{branches.find(b => b.id === selectedBranchId)?.branchName || branches[0]?.branchName || 'Branch'}</span>
               </div>
             )}
 

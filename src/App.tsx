@@ -1263,7 +1263,11 @@ export default function App() {
                  activeTab === 'shifts' ? (lang === 'en' ? 'Shift Calendar' : 'ប្រតិទិនវេនការងារ') :
                  activeTab === 'attendance' ? (lang === 'en' ? 'Staff Attendance' : 'វត្តមានបុគ្គលិក') :
                  activeTab === 'salary' ? (lang === 'en' ? 'Salary Management' : 'ការបើកប្រាក់បៀវត្សរ៍') :
-                 getActiveBranchLabel()}
+                 activeTab === 'branches' ? (lang === 'en' ? 'Branch & GPS Setup' : 'សាខា & ទីតាំងស្កេន GPS') :
+                 activeTab === 'users' ? (lang === 'en' ? 'User Accounts & Roles' : 'គណនី & សិទ្ធិប្រើប្រាស់') :
+                 activeTab === 'telegram_config' ? (lang === 'en' ? 'Telegram Config' : 'កំណត់ Telegram Bot') :
+                 activeTab === 'settings' ? (lang === 'en' ? 'Settings' : 'ការកំណត់') :
+                 (lang === 'en' ? 'Staff & Barista' : 'បុគ្គលិក & Barista')}
               </h1>
 
               {/* Quick Branch Switcher in top bar */}
