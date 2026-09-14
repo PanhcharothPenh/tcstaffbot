@@ -320,7 +320,8 @@ export default function UserManagementView({
     setEmail('');
     setPhone('');
     setTelegramUsername('');
-    setTwoFactorMethod('disabled');
+    setDetectedChatId('');
+    setTwoFactorMethod('telegram');
     setPassword('');
     setSelectedRoleId('staff');
     setAssignedBranchIds(branches.length > 0 ? [branches[0].id] : []);

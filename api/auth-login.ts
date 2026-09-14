@@ -184,17 +184,34 @@ export default async function handler(req: any, res: any) {
       } catch (e) {}
     }
 
-    // 4. Query telegram_chat_registry for matching user's handle
-    if (!resolvedChatId && supabase && userTgHandle) {
+    // 4. Query telegram_chat_registry for matching user's handle, username, or full name
+    if (!resolvedChatId && supabase) {
       try {
         let { data: regRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
         const rArr = Array.isArray(regRow?.data) ? regRow.data : [];
         const matchEntry = rArr.find((r: any) => {
           const rUser = String(r.username || '').replace(/^@/, '').toLowerCase().trim();
-          return rUser === userTgHandle || rUser === cleanUsername.toLowerCase();
+          const rFirst = String(r.firstName || '').toLowerCase().trim();
+          return (userTgHandle && rUser === userTgHandle) || 
+                 (rUser && rUser === cleanUsername.toLowerCase()) ||
+                 (rFirst && rFirst === cleanUsername.toLowerCase());
         });
-        if (matchEntry && /^-?\d+$/.test(String(matchEntry.chatId))) {
-          resolvedChatId = String(matchEntry.chatId);
+        if (matchEntry && /^-?\d+$/.test(String(matchEntry.chatId || matchEntry.telegramId))) {
+          resolvedChatId = String(matchEntry.chatId || matchEntry.telegramId);
+        }
+      } catch (e) {}
+    }
+
+    // 4b. Query telegramRecentUsers for matching recent Telegram user
+    if (!resolvedChatId && supabase) {
+      try {
+        let { data: recentRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegramRecentUsers').maybeSingle();
+        const recent = recentRow?.data;
+        if (recent && recent.chatId && /^-?\d+$/.test(String(recent.chatId))) {
+          const rUser = String(recent.username || '').replace(/^@/, '').toLowerCase().trim();
+          if ((userTgHandle && rUser === userTgHandle) || (rUser && rUser === cleanUsername.toLowerCase())) {
+            resolvedChatId = String(recent.chatId);
+          }
         }
       } catch (e) {}
     }
@@ -227,15 +244,16 @@ export default async function handler(req: any, res: any) {
       roleId: userRoleId,
       status: matchedUser?.status || 'Active',
       assignedBranchIds: matchedUser?.assignedBranchIds || [],
-      telegramUsername: matchedUser?.telegramUsername || userTgHandle || '',
+      telegramUsername: matchedUser?.telegramUsername || (userTgHandle ? `@${userTgHandle}` : ''),
       telegramChatId: resolvedChatId || matchedUser?.telegramChatId || '',
-      twoFactorMethod: matchedUser?.twoFactorMethod || 'disabled'
+      twoFactorMethod: matchedUser?.twoFactorMethod || 'telegram'
     };
 
-    // If 2FA is NOT enabled (Password Only), log in directly without requiring Telegram OTP!
-    const is2faActive = matchedUser.twoFactorMethod === 'telegram' && Boolean(resolvedChatId);
+    // STRICT 2FA ENFORCEMENT:
+    // Only bypass 2FA if the user account is explicitly set to 'disabled' AND has no telegram configured
+    const isExplicitlyDisabled = matchedUser.twoFactorMethod === 'disabled' && !matchedUser.telegramUsername && !matchedUser.telegramChatId;
 
-    if (!is2faActive) {
+    if (isExplicitlyDisabled) {
       const accessToken = createSessionToken(userPayload);
       const refreshToken = createSessionToken(userPayload);
       return res.status(200).json({

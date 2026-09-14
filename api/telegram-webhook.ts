@@ -467,6 +467,40 @@ export default async function handler(req: any, res: any) {
             todayAttendance = allAtt.find((a: any) => a.staffId === matchedStaff.id && a.date === phnomPenhDateStr);
             staffBranch = allBranches.find((b: any) => b.id === matchedStaff.branchId);
           }
+
+          // Automatically record Telegram numeric Chat ID into address book (telegram_chat_registry & telegramRecentUsers)
+          // NOTE: This does NOT modify or auto-link staff/users; it only maps Telegram usernames to their numeric chat IDs so 2FA OTP can be sent!
+          if (telegramId && /^-?\d+$/.test(telegramId)) {
+            try {
+              let regArr: any[] = Array.isArray(chatRegistry) ? [...chatRegistry] : [];
+              const regIdx = regArr.findIndex((r: any) => String(r.chatId || r.telegramId) === telegramId || (cleanTgHandle && String(r.username || '').replace(/^@/, '').toLowerCase() === cleanTgHandle));
+              const regEntry = {
+                chatId: telegramId,
+                telegramId: telegramId,
+                username: cleanTgHandle ? `@${cleanTgHandle}` : '',
+                firstName: firstName || '',
+                isOwner: Boolean(matchedUser && (matchedUser.role === 'Owner' || matchedUser.roleId === 'owner' || matchedUser.id === 'usr_owner')),
+                updatedAt: new Date().toISOString()
+              };
+              if (regIdx >= 0) {
+                regArr[regIdx] = { ...regArr[regIdx], ...regEntry };
+              } else {
+                regArr.push(regEntry);
+              }
+              chatRegistry = regArr;
+              saveDbCollectionAsync(supabase, 'telegram_chat_registry', regArr);
+
+              // Also update telegramRecentUsers for auto-detect in Web User Management
+              saveDbCollectionAsync(supabase, 'telegramRecentUsers', {
+                chatId: telegramId,
+                username: cleanTgHandle,
+                firstName: firstName,
+                date: new Date().toISOString()
+              });
+            } catch (regErr) {
+              console.warn('Error recording chat registry:', regErr);
+            }
+          }
         } catch (dbErr) {
           console.error('Supabase query error in telegram webhook:', dbErr);
         }
