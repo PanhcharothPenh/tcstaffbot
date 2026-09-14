@@ -381,8 +381,7 @@ export const translations = {
 
 // Initial Production Users
 export const initialUsers: User[] = [
-  { id: 'usr_owner', username: 'roth', email: 'roth@p2bkh.tech', fullName: 'Roth (Executive Owner)', role: 'Owner', roleId: 'owner', assignedBranchIds: [], status: 'Active' },
-  { id: 'usr_clean24', username: 'clean24vengsreng', email: 'clean24@tcstaff.com', fullName: 'Clean24 (Store Owner)', role: 'Owner', roleId: 'owner', assignedBranchIds: [], status: 'Active' }
+  { id: 'usr_owner', username: 'roth', email: 'roth@p2bkh.tech', fullName: 'Roth (Executive Owner)', role: 'Owner', roleId: 'owner', assignedBranchIds: [], status: 'Active' }
 ];
 
 // Initial Production Branches
@@ -613,6 +612,18 @@ export const db = {
   getMonthClosings: (): MonthClosing[] => getStored('MONTH_CLOSINGS', initialMonthClosings),
   saveMonthClosings: (data: MonthClosing[]) => setStored('MONTH_CLOSINGS', data),
   
+  getExtraShifts: (): any[] => getStored('EXTRA_SHIFTS', []),
+  saveExtraShifts: (data: any[]) => setStored('EXTRA_SHIFTS', data),
+
+  getTempShiftCovers: (): any[] => getStored('TEMP_SHIFT_COVERS', []),
+  saveTempShiftCovers: (data: any[]) => setStored('TEMP_SHIFT_COVERS', data),
+
+  getStaffExpenses: (): any[] => getStored('STAFF_EXPENSES', []),
+  saveStaffExpenses: (data: any[]) => setStored('STAFF_EXPENSES', data),
+
+  getPayrollAdjustments: (): any => getStored('PAYROLL_ADJUSTMENTS', {}),
+  savePayrollAdjustments: (data: any) => setStored('PAYROLL_ADJUSTMENTS', data),
+
   getAuditLogs: (): string[] => getStored('AUDIT_LOGS', []),
   saveAuditLogs: (logs: string[]) => setStored('AUDIT_LOGS', logs),
   
@@ -646,6 +657,10 @@ export const db = {
     localStorage.removeItem(STORAGE_PREFIX + 'CASH_DRAWERS');
     localStorage.removeItem(STORAGE_PREFIX + 'CASH_DRAWER_TRANSACTIONS');
     localStorage.removeItem(STORAGE_PREFIX + 'MONTH_CLOSINGS');
+    localStorage.removeItem(STORAGE_PREFIX + 'EXTRA_SHIFTS');
+    localStorage.removeItem(STORAGE_PREFIX + 'TEMP_SHIFT_COVERS');
+    localStorage.removeItem(STORAGE_PREFIX + 'STAFF_EXPENSES');
+    localStorage.removeItem(STORAGE_PREFIX + 'PAYROLL_ADJUSTMENTS');
     localStorage.removeItem(STORAGE_PREFIX + 'AUDIT_LOGS');
     window.location.reload();
   }

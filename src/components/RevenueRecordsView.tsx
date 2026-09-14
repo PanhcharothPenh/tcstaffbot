@@ -30,6 +30,7 @@ import { RevenueRecord, Role, Branch } from '../types';
 import { printElement } from '../utils';
 import TCLogo from './TCLogo';
 import { notifyRevenueRecordSaved, notifyBatchSaveCompleted } from '../services/branchTelegramNotifier';
+import { getSavedAccessToken, getSavedSessionUser } from '../utils/api';
 
 interface RevenueRecordsViewProps {
   currentRole: Role;
@@ -103,11 +104,12 @@ export default function RevenueRecordsView({
       const branchObj = branches.find(b => b.id === selectedBranchId);
       const branchName = branchObj ? branchObj.branchName : 'Branch';
       
-      const email = localStorage.getItem('clean24_user_email') || 'auditor@tcstaff.com';
+      const sessionUser = getSavedSessionUser();
+      const email = sessionUser?.email || localStorage.getItem('clean24_user_email') || 'owner@tcstaff.com';
       
       const response = await fetch(`/api/revenue/export/pdf?branch_id=${selectedBranchId}&month=${selectedMonth}&year=${selectedYear}&generated_by=${encodeURIComponent(email)}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('clean24_access_token') || ''}`
+          'Authorization': `Bearer ${getSavedAccessToken()}`
         }
       });
       

@@ -70,6 +70,14 @@ interface SalaryManagementViewProps {
   salaryAdvances: SalaryAdvance[];
   setSalaryAdvances: React.Dispatch<React.SetStateAction<SalaryAdvance[]>>;
   attendance?: Attendance[];
+  extraShifts?: ExtraShift[];
+  setExtraShifts?: React.Dispatch<React.SetStateAction<ExtraShift[]>>;
+  tempShiftCovers?: TempShiftCover[];
+  setTempShiftCovers?: React.Dispatch<React.SetStateAction<TempShiftCover[]>>;
+  staffExpenses?: StaffExpense[];
+  setStaffExpenses?: React.Dispatch<React.SetStateAction<StaffExpense[]>>;
+  adjustments?: Record<string, { leaveDays?: number; leaveDates?: string[]; deduction?: number; shiftOverride?: number }>;
+  setAdjustments?: React.Dispatch<React.SetStateAction<Record<string, { leaveDays?: number; leaveDates?: string[]; deduction?: number; shiftOverride?: number }>>>;
   lang: 'en' | 'kh';
   onAddLog: (msg: string) => void;
   exchangeRate: number;
@@ -104,6 +112,14 @@ export default function SalaryManagementView({
   salaryAdvances,
   setSalaryAdvances,
   attendance = [],
+  extraShifts: propExtraShifts,
+  setExtraShifts: propSetExtraShifts,
+  tempShiftCovers: propTempShiftCovers,
+  setTempShiftCovers: propSetTempShiftCovers,
+  staffExpenses: propStaffExpenses,
+  setStaffExpenses: propSetStaffExpenses,
+  adjustments: propAdjustments,
+  setAdjustments: propSetAdjustments,
   lang: globalLang,
   onAddLog,
   exchangeRate
@@ -156,76 +172,36 @@ export default function SalaryManagementView({
   const [searchQuery, setSearchQuery] = useState('');
 
   // 1. Extra Shifts State (ជំនួសវេន / វេនបន្ថែម សម្រាប់បុគ្គលិកផ្លូវការ)
-  const [extraShifts, setExtraShifts] = useState<ExtraShift[]>(() => {
-    try {
-      const saved = localStorage.getItem('clean24_payroll_extra_shifts');
-      const parsed: ExtraShift[] = saved ? JSON.parse(saved) : [];
-      return parsed.map(s => {
-        if (s.date && s.date.includes('~')) {
-          const [sDate, eDate] = s.date.split('~').map(x => x.trim());
-          const days = calcDaysBetween(sDate, eDate);
-          if (days > 1 && s.shiftCount === 1) {
-            return {
-              ...s,
-              shiftCount: days,
-              totalAmount: days * (s.ratePerShift || 6)
-            };
-          }
-        }
-        return s;
-      });
-    } catch {
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    localStorage.setItem('clean24_payroll_extra_shifts', JSON.stringify(extraShifts));
-  }, [extraShifts]);
+  const [internalExtraShifts, setInternalExtraShifts] = useState<ExtraShift[]>([]);
+  const extraShifts = propExtraShifts || internalExtraShifts;
+  const setExtraShifts = propSetExtraShifts || setInternalExtraShifts;
 
   // 2. Temp Shift Covers State (អ្នកជំនួសបណ្តោះអាសន្ន)
-  const [tempShiftCovers, setTempShiftCovers] = useState<TempShiftCover[]>(() => {
-    try {
-      const saved = localStorage.getItem('clean24_payroll_temp_shifts');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    localStorage.setItem('clean24_payroll_temp_shifts', JSON.stringify(tempShiftCovers));
-  }, [tempShiftCovers]);
+  const [internalTempShiftCovers, setInternalTempShiftCovers] = useState<TempShiftCover[]>([]);
+  const tempShiftCovers = propTempShiftCovers || internalTempShiftCovers;
+  const setTempShiftCovers = propSetTempShiftCovers || setInternalTempShiftCovers;
 
   // 3. Staff Expenses State (ចំណាយបុគ្គលិក / បុគ្គលិកចេញលុយមុន)
-  const [staffExpenses, setStaffExpenses] = useState<StaffExpense[]>(() => {
-    try {
-      const saved = localStorage.getItem('clean24_payroll_staff_expenses');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    localStorage.setItem('clean24_payroll_staff_expenses', JSON.stringify(staffExpenses));
-  }, [staffExpenses]);
+  const [internalStaffExpenses, setInternalStaffExpenses] = useState<StaffExpense[]>([]);
+  const staffExpenses = propStaffExpenses || internalStaffExpenses;
+  const setStaffExpenses = propSetStaffExpenses || setInternalStaffExpenses;
 
   // Manual Adjustments (Inline overrides for Leaves, Dates and Deductions)
-  const [adjustments, setAdjustments] = useState<Record<string, { leaveDays?: number; leaveDates?: string[]; deduction?: number; shiftOverride?: number }>>(() => {
-    try {
-      const saved = localStorage.getItem('clean24_payroll_adjustments_v2');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [internalAdjustments, setInternalAdjustments] = useState<Record<string, { leaveDays?: number; leaveDates?: string[]; deduction?: number; shiftOverride?: number }>>({});
+  const adjustments = propAdjustments || internalAdjustments;
+  const setAdjustments = propSetAdjustments || setInternalAdjustments;
 
   const saveAdjustment = (staffId: string, adj: { leaveDays?: number; leaveDates?: string[]; deduction?: number; shiftOverride?: number }) => {
     const key = `${staffId}_${selectedYear}_${selectedMonth}`;
     setAdjustments(prev => {
       const updated = { ...prev, [key]: { ...prev[key], ...adj } };
-      localStorage.setItem('clean24_payroll_adjustments_v2', JSON.stringify(updated));
+      try {
+        fetch('/api/sync-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ adjustments: updated })
+        }).catch(() => {});
+      } catch (_) {}
       return updated;
     });
   };

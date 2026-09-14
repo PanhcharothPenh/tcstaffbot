@@ -186,10 +186,10 @@ export default function SettingsView({
   // Dispatch live operational alerts immediately to Telegram
   const handleDispatchLiveAlert = async (category: string, bId: string) => {
     try {
-      const response = await fetch('/api/telegram-trigger-mock', {
+      const response = await fetch('/api/telegram-trigger-instant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alertCategory: category, branchId: bId })
+        body: JSON.stringify({ category, branchId: bId, message: `Operational alert: ${category}` })
       });
       const data = await response.json() as any;
       if (data.success) {
@@ -453,28 +453,22 @@ export default function SettingsView({
                   </p>
                   <button
                     type="button"
-                    onClick={() => {
-                      const backupObj: Record<string, string | null> = {};
-                      const keys = [
-                        'clean24_branches', 'clean24_staff', 'clean24_salaries', 'clean24_attendances',
-                        'clean24_incomes', 'clean24_expenses', 'clean24_coinTransactions', 'clean24_revenueRecords',
-                        'clean24_gasRecords', 'clean24_detergentRecords', 'clean24_softenerRecords', 'clean24_stockTransactions',
-                        'clean24_machines', 'clean24_users', 'clean24_suppliers', 'clean24_debts',
-                        'clean24_debtpayments', 'clean24_cashdrawers', 'clean24_cashdrawertransactions', 'clean24_monthclosings',
-                        'clean24_auditLogs'
-                      ];
-                      keys.forEach(k => {
-                        backupObj[k] = localStorage.getItem(k);
-                      });
-
-                      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupObj, null, 2));
-                      const downloadAnchor = document.createElement('a');
-                      downloadAnchor.setAttribute("href", dataStr);
-                      downloadAnchor.setAttribute("download", `tc_staff_backup_${new Date().toISOString().substring(0, 10)}.json`);
-                      document.body.appendChild(downloadAnchor);
-                      downloadAnchor.click();
-                      document.body.removeChild(downloadAnchor);
-                      onAddLog("Downloaded complete system database JSON backup file.");
+                    onClick={async () => {
+                      try {
+                        const res = await fetch('/api/sync-data');
+                        const json = await res.json();
+                        const backupData = json?.data || json?.db || {};
+                        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+                        const downloadAnchor = document.createElement('a');
+                        downloadAnchor.setAttribute("href", dataStr);
+                        downloadAnchor.setAttribute("download", `tc_staff_supabase_backup_${new Date().toISOString().substring(0, 10)}.json`);
+                        document.body.appendChild(downloadAnchor);
+                        downloadAnchor.click();
+                        document.body.removeChild(downloadAnchor);
+                        onAddLog("Downloaded complete Supabase database JSON backup file.");
+                      } catch (err: any) {
+                        alert("Database export failed: " + err.message);
+                      }
                     }}
                     className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-bold shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
                   >
@@ -486,7 +480,7 @@ export default function SettingsView({
                 <div className="p-3 bg-emerald-50/40 border border-emerald-100 rounded-xl space-y-2.5">
                   <span className="text-[10px] font-bold text-emerald-950 block uppercase tracking-wider">Import & Restore File</span>
                   <p className="text-[10px] text-slate-450 leading-normal">
-                    Select a previously exported <code>.json</code> backup from your disk filesystem. Validates data integrity automatically.
+                    Select a previously exported <code>.json</code> backup from your disk filesystem. Restores directly to Supabase cloud database.
                   </p>
                   <label className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold shadow-xs cursor-pointer flex items-center justify-center gap-1.5 text-center">
                     Upload & Restore Backup
@@ -498,31 +492,47 @@ export default function SettingsView({
                         const files = e.target.files;
                         if (!files || files.length === 0) return;
 
-                        fileReader.onload = (event) => {
+                        fileReader.onload = async (event) => {
                           try {
                             const resultText = event.target?.result as string;
-                            const parsed = JSON.parse(resultText);
+                            let parsed = JSON.parse(resultText);
                             
+                            // Normalization if legacy format was uploaded
+                            if (parsed.clean24_branches || parsed.clean24_staff) {
+                              const normalized: Record<string, any> = {};
+                              Object.keys(parsed).forEach(k => {
+                                const cleanKey = k.replace(/^clean24_/, '');
+                                try {
+                                  normalized[cleanKey] = typeof parsed[k] === 'string' ? JSON.parse(parsed[k]) : parsed[k];
+                                } catch {
+                                  normalized[cleanKey] = parsed[k];
+                                }
+                              });
+                              parsed = normalized;
+                            }
+
                             // Simple schema validation checks
-                            const requiredKeys = ['clean24_branches', 'clean24_staff'];
-                            const hasKeys = requiredKeys.every(k => k in parsed);
-                            if (!hasKeys) {
+                            if (!parsed.branches && !parsed.staff && !parsed.users) {
                               alert("Invalid database backup schema format! Missing critical operational keys.");
                               return;
                             }
 
-                            // Write elements back
-                            Object.keys(parsed).forEach(k => {
-                              if (parsed[k] !== null) {
-                                localStorage.setItem(k, parsed[k]);
-                              }
+                            // Write directly to Supabase via sync-data endpoint
+                            const syncRes = await fetch('/api/sync-data', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(parsed)
                             });
+                            const result = await syncRes.json();
+                            if (!result.success) {
+                              throw new Error(result.error || "Supabase restore failed.");
+                            }
 
-                            onAddLog("Successfully restored entire local database state securely from uploaded backup file.");
-                            alert("Database restored successfully! Reloading session...");
+                            onAddLog("Successfully restored entire database state to Supabase from uploaded backup file.");
+                            alert("Database restored successfully to Supabase! Reloading session...");
                             window.location.reload();
                           } catch (err: any) {
-                            alert("Corrupted backup json structure: " + err.message);
+                            alert("Database restore failed: " + err.message);
                           }
                         };
                         fileReader.readAsText(files[0]);

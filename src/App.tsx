@@ -247,6 +247,10 @@ export default function App() {
   const [cashDrawers, setCashDrawers] = useState<CashDrawer[]>(() => db.getCashDrawers());
   const [cashDrawerTransactions, setCashDrawerTransactions] = useState<CashDrawerTransaction[]>(() => db.getCashDrawerTransactions());
   const [monthClosings, setMonthClosings] = useState<MonthClosing[]>(() => db.getMonthClosings());
+  const [extraShifts, setExtraShifts] = useState<any[]>(() => db.getExtraShifts());
+  const [tempShiftCovers, setTempShiftCovers] = useState<any[]>(() => db.getTempShiftCovers());
+  const [staffExpenses, setStaffExpenses] = useState<any[]>(() => db.getStaffExpenses());
+  const [payrollAdjustments, setPayrollAdjustments] = useState<any>(() => db.getPayrollAdjustments());
   
   // Real-time audit trails state
   const [auditLogs, setAuditLogs] = useState<string[]>([]);
@@ -370,6 +374,16 @@ export default function App() {
           updateIfChanged(s.cashDrawers, db.getCashDrawers, setCashDrawers, db.saveCashDrawers);
           updateIfChanged(s.cashDrawerTransactions, db.getCashDrawerTransactions, setCashDrawerTransactions, db.saveCashDrawerTransactions);
           updateIfChanged(s.monthClosings, db.getMonthClosings, setMonthClosings, db.saveMonthClosings);
+          updateIfChanged(s.extraShifts, db.getExtraShifts, setExtraShifts, db.saveExtraShifts);
+          updateIfChanged(s.tempShiftCovers, db.getTempShiftCovers, setTempShiftCovers, db.saveTempShiftCovers);
+          updateIfChanged(s.staffExpenses, db.getStaffExpenses, setStaffExpenses, db.saveStaffExpenses);
+          if (s.adjustments && typeof s.adjustments === 'object') {
+            setPayrollAdjustments((prev: any) => {
+              const merged = { ...prev, ...s.adjustments };
+              db.savePayrollAdjustments(merged);
+              return merged;
+            });
+          }
           setDbSyncStatus('synced');
         }
       } catch (err: any) {
@@ -598,6 +612,10 @@ export default function App() {
       cashDrawers,
       cashDrawerTransactions,
       monthClosings,
+      extraShifts,
+      tempShiftCovers,
+      staffExpenses,
+      adjustments: payrollAdjustments,
       settings: { shopName: "TC Staff Management" }
     };
     const serialized = JSON.stringify(payload);
@@ -642,6 +660,10 @@ export default function App() {
     cashDrawers,
     cashDrawerTransactions,
     monthClosings,
+    extraShifts,
+    tempShiftCovers,
+    staffExpenses,
+    payrollAdjustments,
     isLoadedFromServer
   ]);
 
@@ -780,6 +802,8 @@ export default function App() {
             branches={effectiveBranches}
             staffList={staff}
             attendance={attendance}
+            extraShifts={extraShifts}
+            setExtraShifts={setExtraShifts}
             lang={lang}
             onAddLog={handleAddNewAuditLog}
           />
@@ -808,6 +832,14 @@ export default function App() {
             salaryAdvances={salaryAdvances}
             setSalaryAdvances={setSalaryAdvances}
             attendance={attendance}
+            extraShifts={extraShifts}
+            setExtraShifts={setExtraShifts}
+            tempShiftCovers={tempShiftCovers}
+            setTempShiftCovers={setTempShiftCovers}
+            staffExpenses={staffExpenses}
+            setStaffExpenses={setStaffExpenses}
+            adjustments={payrollAdjustments}
+            setAdjustments={setPayrollAdjustments}
             lang={lang}
             onAddLog={handleAddNewAuditLog}
             exchangeRate={exchangeRate}

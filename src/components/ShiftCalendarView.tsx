@@ -33,6 +33,8 @@ interface ShiftCalendarViewProps {
   branches: Branch[];
   staffList: Staff[];
   attendance: Attendance[];
+  extraShifts?: any[];
+  setExtraShifts?: React.Dispatch<React.SetStateAction<any[]>>;
   lang: 'en' | 'kh';
   onAddLog?: (msg: string) => void;
 }
@@ -43,6 +45,8 @@ export default function ShiftCalendarView({
   branches,
   staffList,
   attendance,
+  extraShifts: propExtraShifts,
+  setExtraShifts: propSetExtraShifts,
   lang,
   onAddLog
 }: ShiftCalendarViewProps) {
@@ -65,15 +69,10 @@ export default function ShiftCalendarView({
   const [isSendingTelegram, setIsSendingTelegram] = useState(false);
   const [telegramStatus, setTelegramStatus] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Local Extra Shifts state synced with localStorage
-  const [extraShifts, setExtraShifts] = useState<any[]>(() => {
-    try {
-      const saved = localStorage.getItem('clean24_payroll_extra_shifts');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Extra Shifts state synced with Supabase / App state
+  const [internalExtraShifts, setInternalExtraShifts] = useState<any[]>([]);
+  const extraShifts = propExtraShifts || internalExtraShifts;
+  const setExtraShifts = propSetExtraShifts || setInternalExtraShifts;
 
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth() + 1;
@@ -170,7 +169,13 @@ export default function ShiftCalendarView({
 
       const updatedShifts = [newShift, ...extraShifts];
       setExtraShifts(updatedShifts);
-      localStorage.setItem('clean24_payroll_extra_shifts', JSON.stringify(updatedShifts));
+      try {
+        fetch('/api/sync-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ extraShifts: updatedShifts })
+        }).catch(() => {});
+      } catch (_) {}
 
       if (onAddLog) {
         onAddLog(`Scheduled shift cover: ${workingStaff?.fullName} covering for ${coveredStaff?.fullName || 'Staff'} on ${swapDate}`);
