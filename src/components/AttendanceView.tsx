@@ -1192,9 +1192,6 @@ export default function AttendanceView({
                 <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
                   <span>{lang === 'kh' ? 'ការចុះវត្តមានបុគ្គលិក (Staff Attendance)' : 'Staff Attendance Management'}</span>
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {lang === 'kh' ? 'កត់ត្រាដោយស្វ័យប្រវត្តិតាម Telegram Bot & Mini App ជាមួយ Face Verification & GPS' : 'Automated via Telegram Bot & Mini App with Face Verification & GPS'}
-                </p>
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
