@@ -58,6 +58,8 @@ export default function UserManagementView({
   lang,
   onAddLog
 }: UserManagementViewProps) {
+  const isOwner = currentRole === 'Owner' || currentRole === 'Admin';
+
   // Active Main SubTab: 'users' | 'roles'
   const [activeTab, setActiveTab] = useState<'users' | 'roles'>('users');
 

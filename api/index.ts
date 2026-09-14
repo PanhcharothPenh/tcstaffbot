@@ -714,8 +714,9 @@ export default async function handler(req: any, res: any) {
       const allAtt = await getCollection('attendance');
 
       let staff: any = null;
+      let val: any = null;
       if (initData) {
-        const val = validateTelegramInitData(initData, allBotTokens);
+        val = validateTelegramInitData(initData, allBotTokens);
         if (val.valid && val.user) {
           const tgId = String(val.user.id);
           const tgName = (val.user.username || '').toLowerCase().replace(/^@/, '').trim();
@@ -861,8 +862,9 @@ export default async function handler(req: any, res: any) {
       const allAtt = await getCollection('attendance');
 
       let staff: any = null;
+      let val: any = null;
       if (initData) {
-        const val = validateTelegramInitData(initData, allBotTokens);
+        val = validateTelegramInitData(initData, allBotTokens);
         if (val.valid && val.user) {
           const tgId = String(val.user.id);
           const tgName = (val.user.username || '').toLowerCase().replace(/^@/, '').trim();
