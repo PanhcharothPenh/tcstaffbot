@@ -580,8 +580,6 @@ export default async function handler(req: any, res: any) {
               attendanceEnabled: true,
               createdAt: new Date().toISOString()
             };
-            allStaff.unshift(matchedStaff);
-            await saveCollection('staff', allStaff);
           }
         }
 
@@ -616,14 +614,6 @@ export default async function handler(req: any, res: any) {
               };
             }
           }
-        }
-
-        // Auto-link ID if username matched
-        if (matchedStaff && cleanTgId && (!matchedStaff.telegramId || String(matchedStaff.telegramId) !== cleanTgId)) {
-          matchedStaff.telegramId = cleanTgId;
-          matchedStaff.telegramLinked = true;
-          if (cleanTgName && !matchedStaff.telegramUsername) matchedStaff.telegramUsername = `@${cleanTgName}`;
-          await saveCollection('staff', allStaff);
         }
       }
 

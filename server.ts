@@ -5241,18 +5241,7 @@ app.post('/api/telegram/validate-init-data', (req, res) => {
             attendanceEnabled: true,
             createdAt: new Date().toISOString()
           };
-          if (!localDb.staff) localDb.staff = [];
-          localDb.staff.unshift(staff);
-          saveLocalDb();
         }
-      }
-
-      // Auto-link ID if username matched
-      if (staff && cleanTgId && (!staff.telegramId || String(staff.telegramId) !== cleanTgId)) {
-        staff.telegramId = cleanTgId;
-        staff.telegramLinked = true;
-        if (cleanTgName && !staff.telegramUsername) staff.telegramUsername = `@${cleanTgName}`;
-        saveLocalDb();
       }
     }
 

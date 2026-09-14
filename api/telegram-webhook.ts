@@ -415,24 +415,6 @@ export default async function handler(req: any, res: any) {
 
           if (!matchedStaff && !matchedUser && !matchedRecipient && isConfigOwner) {
             matchedUser = allUsers.find((u: any) => u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_owner') || allUsers[0];
-            if (!matchedUser) {
-              matchedUser = {
-                id: 'usr_owner',
-                username: 'roth',
-                fullName: firstName || 'Owner / Administrator',
-                role: 'Owner',
-                roleId: 'owner',
-                telegramId: telegramId,
-                telegramChatId: telegramId,
-                telegramUsername: cleanTgHandle ? `@${cleanTgHandle}` : undefined
-              };
-              allUsers.push(matchedUser);
-            } else {
-              matchedUser.telegramId = telegramId;
-              matchedUser.telegramChatId = telegramId;
-              if (cleanTgHandle) matchedUser.telegramUsername = `@${cleanTgHandle}`;
-            }
-            saveDbCollectionAsync(supabase, 'users', allUsers);
           }
 
           if (!matchedStaff && matchedUser) {
@@ -460,16 +442,6 @@ export default async function handler(req: any, res: any) {
               faceEnrolled: false,
               attendanceEnabled: false
             };
-
-            // Auto-sync telegram info into users collection
-            if (!matchedUser.telegramChatId || matchedUser.telegramChatId !== telegramId || (cleanTgHandle && !matchedUser.telegramUsername)) {
-              matchedUser.telegramChatId = telegramId;
-              matchedUser.telegramId = telegramId;
-              if (cleanTgHandle && !matchedUser.telegramUsername) {
-                matchedUser.telegramUsername = `@${cleanTgHandle}`;
-              }
-              saveDbCollectionAsync(supabase, 'users', allUsers);
-            }
           } else if (!matchedStaff && matchedRecipient) {
             const recRole = matchedRecipient.role || 'Admin';
             matchedStaff = {
@@ -489,42 +461,6 @@ export default async function handler(req: any, res: any) {
               faceEnrolled: false,
               attendanceEnabled: false
             };
-          }
-
-          // If matchedStaff is an Owner or Admin, ensure they are registered in storedRecipients
-          if (matchedStaff && ['Owner', 'Admin', 'Manager'].includes(matchedStaff.role) && telegramId) {
-            if (storedRecipients && Array.isArray(storedRecipients)) {
-              let recIdx = storedRecipients.findIndex((r: any) => String(r.chatId) === telegramId);
-              if (recIdx >= 0) {
-                storedRecipients[recIdx].role = matchedStaff.role;
-                storedRecipients[recIdx].branchId = 'all';
-                storedRecipients[recIdx].isActive = true;
-              } else {
-                storedRecipients.push({
-                  id: 'rec_' + telegramId,
-                  name: matchedStaff.fullName,
-                  chatId: telegramId,
-                  role: matchedStaff.role,
-                  branchId: 'all',
-                  isActive: true,
-                  categories: ['all', 'sales', 'stock', 'salary', 'attendance', 'leave'],
-                  createdAt: new Date().toISOString()
-                });
-                saveDbCollectionAsync(supabase, 'telegramRecipients', storedRecipients);
-              }
-            }
-          }
-
-          // Auto-bind telegramId if matched in rawStaff
-          if (matchedStaff && !matchedStaff.telegramId && rawStaff.some((s: any) => s.id === matchedStaff.id)) {
-            matchedStaff.telegramId = telegramId;
-            matchedStaff.telegramLinked = true;
-            const staffTarget = rawStaff.find((s: any) => s.id === matchedStaff.id);
-            if (staffTarget) {
-              staffTarget.telegramId = telegramId;
-              staffTarget.telegramLinked = true;
-            }
-            saveDbCollectionAsync(supabase, 'staff', rawStaff);
           }
 
           if (matchedStaff) {
@@ -867,134 +803,21 @@ export default async function handler(req: any, res: any) {
       }
 
       // =================================================================================
-      // ACTION: 🔗 LINK USER ACCOUNT TO TELEGRAM (/link <username> or /bind <username>)
-      // =================================================================================
-      const isLinkCmd = userText.startsWith('/link') || (userText.startsWith('/bind ') && !userText.includes('b1') && !userText.includes('b2') && !userText.toLowerCase().includes('toto') && !userText.toLowerCase().includes('corner'));
-      if (isLinkCmd) {
-        const parts = userText.trim().split(/\s+/);
-        const targetUsernameOrPhone = (parts[1] || '').trim().toLowerCase();
-
-        if (!targetUsernameOrPhone) {
-          const usageMsg = `🔗 <b>[ភ្ជាប់គណនីទៅកាន់ Telegram / Link Account]</b>\n\n` +
-            `👉 <b>របៀបប្រើប្រាស់៖</b>\n` +
-            `វាយពាក្យ <code>/link &lt;ឈ្មោះគណនី&gt;</code>\n\n` +
-            `📌 <b>ឧទាហរណ៍៖</b>\n` +
-            `<code>/link roth</code>\n` +
-            `<code>/link admin</code>\n\n` +
-            `🆔 <b>Telegram ID របស់អ្នក៖</b> <code>${telegramId}</code>`;
-          return sendOrReply(res, botToken, { chat_id: chatId, text: usageMsg, parse_mode: 'HTML' });
-        }
-
-        // Search in allUsers and rawStaff
-        let allUsersList: any[] = [];
-        let rawStaffList: any[] = [];
-        if (supabase) {
-          try {
-            allUsersList = (await loadDbCollection(supabase, 'users')) || [];
-            rawStaffList = (await loadDbCollection(supabase, 'staff')) || [];
-          } catch (_) {}
-        }
-
-        const targetUserObj = allUsersList.find((u: any) => 
-          String(u.username || '').toLowerCase() === targetUsernameOrPhone ||
-          String(u.email || '').toLowerCase().startsWith(targetUsernameOrPhone) ||
-          String(u.phone || '').replace(/[\s\-]/g, '') === targetUsernameOrPhone ||
-          String(u.fullName || '').toLowerCase() === targetUsernameOrPhone ||
-          String(u.id || '').toLowerCase() === targetUsernameOrPhone ||
-          (targetUsernameOrPhone === 'owner' && (u.role === 'Owner' || u.roleId === 'owner')) ||
-          (targetUsernameOrPhone === 'admin' && (u.role === 'Admin' || u.roleId === 'admin' || u.role === 'Owner' || u.roleId === 'owner'))
-        );
-
-        const targetStaffObj = rawStaffList.find((s: any) => 
-          String(s.fullName || '').toLowerCase() === targetUsernameOrPhone ||
-          String(s.phone || '').replace(/[\s\-]/g, '') === targetUsernameOrPhone ||
-          String(s.id || '').toLowerCase() === targetUsernameOrPhone ||
-          String(s.telegramUsername || '').replace(/^@/, '').toLowerCase() === targetUsernameOrPhone
-        );
-
-        if (targetUserObj) {
-          targetUserObj.telegramChatId = telegramId;
-          targetUserObj.telegramId = telegramId;
-          if (cleanTgHandle) targetUserObj.telegramUsername = `@${cleanTgHandle}`;
-          await saveDbCollection(supabase, 'users', allUsersList);
-
-          // Update storedRecipients
-          let recs: any[] = (await loadDbCollection(supabase, 'telegramRecipients')) || [];
-          const recIdx = recs.findIndex((r: any) => String(r.chatId) === telegramId);
-          const userRole = targetUserObj.role || (targetUserObj.roleId === 'owner' ? 'Owner' : 'Admin');
-          if (recIdx >= 0) {
-            recs[recIdx].role = userRole;
-            recs[recIdx].name = targetUserObj.fullName;
-            recs[recIdx].isActive = true;
-          } else {
-            recs.push({
-              id: 'rec_' + telegramId,
-              name: targetUserObj.fullName,
-              chatId: telegramId,
-              role: userRole,
-              branchId: 'all',
-              isActive: true,
-              categories: ['all', 'sales', 'stock', 'salary', 'attendance', 'leave'],
-              createdAt: new Date().toISOString()
-            });
-          }
-          await saveDbCollection(supabase, 'telegramRecipients', recs);
-
-          const roleDisplay = userRole === 'Owner' ? 'ម្ចាស់ហាង (Store Owner)' : userRole === 'Admin' ? 'អ្នកគ្រប់គ្រងជាន់ខ្ពស់ (Admin)' : userRole;
-          const linkedSuccessMsg = `✅ <b>[ភ្ជាប់គណនីបានជោគជ័យ / Account Linked]</b>\n\n` +
-            `👤 <b>ឈ្មោះគណនី:</b> <b>${targetUserObj.fullName}</b> (@${targetUserObj.username})\n` +
-            `💼 <b>តួនាទី:</b> <b>${roleDisplay}</b>\n` +
-            `🆔 <b>Telegram ID:</b> <code>${telegramId}</code>\n\n` +
-            `✨ <i>គណនីត្រូវបានផ្ទៀងផ្ទាត់ និងទទួលបានសិទ្ធិគ្រប់គ្រងពេញលេញ។ សូមជ្រើសរើសមុខងារពីម៉ឺនុយខាងក្រោម៖</i>`;
-
-          const keyboardToUse = ['Owner', 'Admin', 'Manager'].includes(userRole) ? ownerReplyKeyboard : staffReplyKeyboard;
-          return sendOrReply(res, botToken, {
-            chat_id: chatId,
-            text: linkedSuccessMsg,
-            parse_mode: 'HTML',
-            reply_markup: keyboardToUse
-          });
-        } else if (targetStaffObj) {
-          targetStaffObj.telegramId = telegramId;
-          targetStaffObj.telegramLinked = true;
-          if (cleanTgHandle) targetStaffObj.telegramUsername = `@${cleanTgHandle}`;
-          await saveDbCollection(supabase, 'staff', rawStaffList);
-
-          const staffLinkedMsg = `✅ <b>[ភ្ជាប់គណនីបុគ្គលិកជោគជ័យ / Staff Linked]</b>\n\n` +
-            `👤 <b>បុគ្គលិក:</b> <b>${targetStaffObj.fullName}</b>\n` +
-            `💼 <b>តួនាទី:</b> ${targetStaffObj.position || 'Staff'}\n` +
-            `🆔 <b>Telegram ID:</b> <code>${telegramId}</code>\n\n` +
-            `✨ <i>ឥឡូវនេះអ្នកអាចចុះឈ្មោះចូល/ចេញ និងសុំច្បាប់តាម Bot នេះបានហើយ។</i>`;
-
-          return sendOrReply(res, botToken, {
-            chat_id: chatId,
-            text: staffLinkedMsg,
-            parse_mode: 'HTML',
-            reply_markup: staffReplyKeyboard
-          });
-        } else {
-          const notFoundMsg = `⚠️ <b>រកមិនឃើញគណនី "${targetUsernameOrPhone}" ឡើយ!</b>\n\n` +
-            `សូមពិនិត្យមើល Username ដែលបានបង្កើតក្នុងផ្ទាំង <b>User Management</b> (ឧ. roth, admin...)\n\n` +
-            `🆔 <b>Telegram ID របស់អ្នក៖</b> <code>${telegramId}</code>`;
-          return sendOrReply(res, botToken, { chat_id: chatId, text: notFoundMsg, parse_mode: 'HTML' });
-        }
-      }
-
-      // =================================================================================
-      // ACTION: ☕ INFO: CONFIGURATION IS ON WEB ONLY (/bind)
+      // ACTION: 🔗 INFO: CONFIGURATION IS ON WEB ONLY (/link, /bind)
       // =================================================================================
       const isBindCallback = isCallback && (callbackQuery.data === 'bind_branch_b1' || callbackQuery.data === 'bind_branch_b2');
-      const isBindCmd = userText === '/bind' || userText.startsWith('/bind ');
+      const isLinkOrBindCmd = userText.startsWith('/link') || userText === '/bind' || userText.startsWith('/bind ');
 
-      if (isBindCallback || isBindCmd) {
+      if (isBindCallback || isLinkOrBindCmd) {
         const webOnlyMsg = `ℹ️ <b>[ការកំណត់សាខា និងគណនី / Web Configuration Only]</b>\n\n` +
-          `ការភ្ជាប់សាខាកាហ្វេ និងគណនី ត្រូវបានកំណត់តាមរយៈ <b>គេហទំព័រគ្រប់គ្រង (Web Management)</b> តែប៉ុណ្ណោះ ដោយមិនមានការ Bind តាម Telegram ឡើយ។\n\n` +
+          `❌ <b>Telegram Bot មិនមានសិទ្ធិភ្ជាប់ ឬកែប្រែគណនីក្នុងប្រព័ន្ធដោយស្វ័យប្រវត្តិឡើយ។</b>\n\n` +
+          `រាល់ការភ្ជាប់សាខា បុគ្គលិក និងគណនីអ្នកប្រើប្រាស់ ត្រូវតែកំណត់តាមរយៈ <b>គេហទំព័រគ្រប់គ្រង (Web Admin Panel)</b> តែប៉ុណ្ណោះ។\n\n` +
           `🆔 <b>Chat ID បច្ចុប្បន្ន:</b> <code>${chatId}</code>\n` +
-          `🆔 <b>Telegram ID:</b> <code>${telegramId}</code>\n\n` +
+          `🆔 <b>Telegram ID របស់អ្នក:</b> <code>${telegramId}</code>\n\n` +
           `👉 <b>របៀបកំណត់លើគេហទំព័រ៖</b>\n` +
-          `• <b>ភ្ជាប់ Group ទៅសាខា:</b> ចូល Web > <b>Settings > Telegram Config</b> ហើយបញ្ចូល Chat ID ខាងលើ\n` +
-          `• <b>ភ្ជាប់បុគ្គលិក:</b> ចូល Web > <b>Staff Management</b>\n` +
-          `• <b>ភ្ជាប់អ្នកគ្រប់គ្រង:</b> ចូល Web > <b>User Management</b>`;
+          `• <b>ភ្ជាប់បុគ្គលិក:</b> ចូល Web > <b>Staff Management</b> រួចបញ្ចូល Telegram ID ខាងលើ\n` +
+          `• <b>ភ្ជាប់គណនីគ្រប់គ្រង:</b> ចូល Web > <b>User Management</b> រួចបញ្ចូល Telegram ID ខាងលើ\n` +
+          `• <b>ភ្ជាប់ Group ទៅសាខា/អ្នកទទួល:</b> ចូល Web > <b>Settings > Telegram Config</b>`;
 
         return sendOrReply(res, botToken, { chat_id: chatId, text: webOnlyMsg, parse_mode: 'HTML' });
       }
