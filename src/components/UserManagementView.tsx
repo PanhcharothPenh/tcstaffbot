@@ -104,21 +104,59 @@ export default function UserManagementView({
   // Notification Banner
   const [banner, setBanner] = useState<{ type: 'success' | 'refuse' | 'error'; msg: string } | null>(null);
 
-  const isOwner = currentRole === 'Owner' || currentRole === 'Admin';
+  const cleanTelegramInput = (raw: string): string => {
+    let s = String(raw || '').trim();
+    // Strip full Telegram URLs e.g. https://t.me/username or t.me/username
+    s = s.replace(/^(?:https?:\/\/)?(?:www\.)?t\.me\//i, '');
+    s = s.replace(/^(?:https?:\/\/)?(?:www\.)?telegram\.me\//i, '');
+    // Clean trailing slashes or queries
+    s = s.split('?')[0].split('/')[0].trim();
+    // Strip leading @ to normalize
+    s = s.replace(/^@+/, '').trim();
+    return s;
+  };
+
+  const handleTelegramInputChange = (val: string) => {
+    const raw = val.trim();
+    const cleaned = cleanTelegramInput(raw);
+    if (/^-?\d+$/.test(cleaned)) {
+      setTelegramUsername(cleaned);
+      setDetectedChatId(cleaned);
+    } else if (cleaned) {
+      setTelegramUsername(`@${cleaned}`);
+      // Auto-query registry in background if username exists
+      fetch(`/api/telegram-autodetect?username=${encodeURIComponent(cleaned)}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.success && data.chatId) {
+            setDetectedChatId(String(data.chatId));
+          }
+        })
+        .catch(() => {});
+    } else {
+      setTelegramUsername('');
+      setDetectedChatId('');
+    }
+  };
 
   const handleAutoDetectTelegram = async () => {
     setIsDetectingTg(true);
     try {
-      const res = await fetch('/api/telegram-autodetect');
+      const currentVal = cleanTelegramInput(telegramUsername);
+      const url = currentVal 
+        ? `/api/telegram-autodetect?username=${encodeURIComponent(currentVal)}`
+        : '/api/telegram-autodetect';
+
+      const res = await fetch(url);
       const data = await res.json();
       if (data && data.success && (data.username || data.chatId)) {
-        if (data.username) setTelegramUsername(`@${data.username}`);
+        if (data.username) setTelegramUsername(`@${cleanTelegramInput(data.username)}`);
         if (data.chatId) setDetectedChatId(String(data.chatId));
         setBanner({
           type: 'success',
           msg: lang === 'en' 
-            ? `Detected: @${data.username || 'User'} (Chat ID: ${data.chatId})` 
-            : `បានរកឃើញ: @${data.username || 'User'} (Chat ID: ${data.chatId})`
+            ? `Detected: @${cleanTelegramInput(data.username) || 'User'} (Chat ID: ${data.chatId})` 
+            : `បានរកឃើញ: @${cleanTelegramInput(data.username) || 'User'} (Chat ID: ${data.chatId})`
         });
       } else {
         setBanner({
@@ -369,16 +407,18 @@ export default function UserManagementView({
       const finalRoleId = isEditingPrimaryOwner ? 'owner' : selectedRoleId;
       const finalRole = isEditingPrimaryOwner ? 'Owner' : (roleMap[selectedRoleId] || 'Staff');
 
-      const cleanTelegram = telegramUsername.trim();
-      const isCleanNumeric = /^-?\d+$/.test(cleanTelegram);
+      const rawTg = telegramUsername.trim();
+      const cleanedTg = cleanTelegramInput(rawTg);
+      const isCleanNumeric = /^-?\d+$/.test(cleanedTg);
       let finalTgChatId = detectedChatId ? String(detectedChatId).trim() : '';
       let finalTgUser = '';
 
       if (isCleanNumeric) {
-        finalTgChatId = cleanTelegram;
-        finalTgUser = editUser?.telegramUsername || '';
-      } else if (cleanTelegram) {
-        finalTgUser = cleanTelegram.startsWith('@') ? cleanTelegram : `@${cleanTelegram}`;
+        finalTgChatId = cleanedTg;
+        finalTgUser = editUser?.telegramUsername ? cleanTelegramInput(editUser.telegramUsername) : '';
+        if (finalTgUser) finalTgUser = `@${finalTgUser}`;
+      } else if (cleanedTg) {
+        finalTgUser = `@${cleanedTg}`;
       }
 
       if (!finalTgChatId && editUser?.telegramChatId && /^-?\d+$/.test(String(editUser.telegramChatId))) {
@@ -821,7 +861,11 @@ export default function UserManagementView({
                                 {user.twoFactorMethod === 'telegram' || user.telegramUsername || user.telegramChatId ? (
                                   <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky-50 border border-sky-200/80 rounded-xl text-sky-700 text-[10.5px] font-bold">
                                     <Send size={11} className="text-sky-500" />
-                                    <span>{user.telegramUsername || user.telegramChatId || 'Telegram 2FA'}</span>
+                                    <span>
+                                      {user.telegramUsername 
+                                        ? `@${cleanTelegramInput(user.telegramUsername)}` 
+                                        : (user.telegramChatId ? String(user.telegramChatId) : 'Telegram 2FA')}
+                                    </span>
                                   </div>
                                 ) : (
                                   <span className="text-[10.5px] font-medium text-slate-400 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-150">
@@ -1196,7 +1240,14 @@ export default function UserManagementView({
                   <input
                     type="text"
                     value={telegramUsername}
-                    onChange={e => setTelegramUsername(e.target.value)}
+                    onChange={e => handleTelegramInputChange(e.target.value)}
+                    onPaste={e => {
+                      const pasteText = e.clipboardData.getData('text');
+                      if (pasteText) {
+                        e.preventDefault();
+                        handleTelegramInputChange(pasteText);
+                      }
+                    }}
                     placeholder="@username ឬ Chat ID លេខ (ឧ. @username)"
                     className="w-full px-3 py-2 bg-white border border-sky-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-sky-600 transition-all"
                   />

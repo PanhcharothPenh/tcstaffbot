@@ -23,10 +23,30 @@ export default async function handler(req: any, res: any) {
     process.env.TELEGRAM_BOT_TOKEN_CODE ||
     process.env.BOT_TOKEN;
 
-  // 1. Check recent user stored via Webhook from Supabase
+  const queryUser = String(req.query?.username || req.query?.handle || '').replace(/^@/, '').trim().toLowerCase();
+
+  // 1. Check recent user stored via Webhook from Supabase or match queryUser in registry
   const supabase = getSupabase();
   if (supabase) {
     try {
+      if (queryUser) {
+        let { data: regRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
+        const rArr = Array.isArray(regRow?.data) ? regRow.data : [];
+        const matched = rArr.find((r: any) => {
+          const u = String(r.username || '').replace(/^@/, '').toLowerCase().trim();
+          return u === queryUser || String(r.chatId) === queryUser;
+        });
+        if (matched && matched.chatId) {
+          return res.status(200).json({
+            success: true,
+            chatId: String(matched.chatId),
+            username: matched.username ? String(matched.username).replace(/^@/, '') : queryUser,
+            firstName: matched.firstName || 'User',
+            date: matched.updatedAt || new Date().toISOString()
+          });
+        }
+      }
+
       const { data } = await supabase.from('tc_collections').select('data').eq('id', 'telegramRecentUsers').maybeSingle();
       if (data && data.data && data.data.chatId) {
         return res.status(200).json({

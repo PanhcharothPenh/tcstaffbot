@@ -107,6 +107,15 @@ export default function StaffManagementView({
   const [linkTelegramUsername, setLinkTelegramUsername] = useState('');
   const [isSavingTelegram, setIsSavingTelegram] = useState(false);
 
+  const cleanTelegramInput = (raw: string): string => {
+    let s = String(raw || '').trim();
+    s = s.replace(/^(?:https?:\/\/)?(?:www\.)?t\.me\//i, '');
+    s = s.replace(/^(?:https?:\/\/)?(?:www\.)?telegram\.me\//i, '');
+    s = s.split('?')[0].split('/')[0].trim();
+    s = s.replace(/^@+/, '').trim();
+    return s;
+  };
+
   // Handle image upload from file picker
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -182,6 +191,8 @@ export default function StaffManagementView({
     if (!fullName || !phone || !idCardNumber) return;
 
     const pic = (photoUrl || '').trim();
+    const rawTgUser = cleanTelegramInput(telegramUsername);
+    const formattedTgUser = rawTgUser ? `@${rawTgUser}` : undefined;
 
     if (editingStaff) {
       // Edit
@@ -203,7 +214,7 @@ export default function StaffManagementView({
         emergencyContact,
         photoUrl: pic,
         telegramId: telegramId || s.telegramId,
-        telegramUsername: telegramUsername || s.telegramUsername,
+        telegramUsername: formattedTgUser || s.telegramUsername,
         telegramLinked: Boolean(telegramId || s.telegramId),
         attendanceEnabled: status === 'Active' ? attendanceEnabled : false
       } : s);
@@ -235,7 +246,7 @@ export default function StaffManagementView({
         idCardNumber,
         emergencyContact,
         telegramId: telegramId || undefined,
-        telegramUsername: telegramUsername || undefined,
+        telegramUsername: formattedTgUser,
         telegramLinked: Boolean(telegramId),
         attendanceEnabled
       };
@@ -524,10 +535,13 @@ export default function StaffManagementView({
 
     setIsSavingTelegram(true);
     try {
+      const cleanUser = cleanTelegramInput(linkTelegramUsername);
+      const formattedUser = cleanUser ? `@${cleanUser}` : '';
+
       const updated = staff.map(s => s.id === linkingStaff.id ? {
         ...s,
         telegramId: linkTelegramId.trim(),
-        telegramUsername: linkTelegramUsername.trim(),
+        telegramUsername: formattedUser,
         telegramLinked: true
       } : s);
 
@@ -545,7 +559,7 @@ export default function StaffManagementView({
         body: JSON.stringify({
           staffId: linkingStaff.id,
           telegramId: linkTelegramId.trim(),
-          telegramUsername: linkTelegramUsername.trim()
+          telegramUsername: formattedUser
         })
       });
 
@@ -828,7 +842,19 @@ export default function StaffManagementView({
                 type="text"
                 placeholder="e.g. @sreypich"
                 value={telegramUsername}
-                onChange={e => setTelegramUsername(e.target.value)}
+                onChange={e => {
+                  const val = e.target.value;
+                  const c = cleanTelegramInput(val);
+                  setTelegramUsername(c ? `@${c}` : '');
+                }}
+                onPaste={e => {
+                  const pasteText = e.clipboardData.getData('text');
+                  if (pasteText) {
+                    e.preventDefault();
+                    const c = cleanTelegramInput(pasteText);
+                    setTelegramUsername(c ? `@${c}` : '');
+                  }
+                }}
                 className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl p-2.5 focus:outline-none"
               />
             </div>
@@ -988,7 +1014,7 @@ export default function StaffManagementView({
                 }`}>
                   <Smartphone size={13} className={s.telegramId ? 'text-sky-600' : 'text-slate-400'} />
                   <span className="font-bold truncate">
-                    {s.telegramId ? (s.telegramUsername ? `@${s.telegramUsername.replace('@', '')}` : 'TG Linked ✓') : 'TG: Not Linked'}
+                    {s.telegramId ? (s.telegramUsername ? `@${cleanTelegramInput(s.telegramUsername)}` : 'TG Linked ✓') : 'TG: Not Linked'}
                   </span>
                 </div>
               </div>
@@ -1251,7 +1277,19 @@ export default function StaffManagementView({
                   type="text"
                   placeholder="e.g. @sreypich"
                   value={linkTelegramUsername}
-                  onChange={e => setLinkTelegramUsername(e.target.value)}
+                  onChange={e => {
+                    const val = e.target.value;
+                    const c = cleanTelegramInput(val);
+                    setLinkTelegramUsername(c ? `@${c}` : '');
+                  }}
+                  onPaste={e => {
+                    const pasteText = e.clipboardData.getData('text');
+                    if (pasteText) {
+                      e.preventDefault();
+                      const c = cleanTelegramInput(pasteText);
+                      setLinkTelegramUsername(c ? `@${c}` : '');
+                    }
+                  }}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                 />
               </div>
