@@ -1532,11 +1532,11 @@ app.post('/api/auth/login', (req, res) => {
   user.failedLoginAttempts = 0;
   user.lockedUntil = null;
 
-  const is2faForced = true; // Automatically send 2FA PIN to Telegram on login
-  const user2faMethod = user.twoFactorMethod || 'telegram';
+  const user2faMethod = user.twoFactorMethod || 'disabled';
+  const hasTelegramChat = Boolean(user.telegramChatId);
 
-  // Check 2FA requirement
-  if (user2faMethod !== 'disabled' || is2faForced) {
+  // Check 2FA requirement: only require Telegram 2FA if explicitly set to telegram and has chat ID
+  if (user2faMethod === 'telegram' && hasTelegramChat) {
     // Determine target 2FA method
     const finalMethod = 'telegram';
     

@@ -31,6 +31,20 @@ function createSignedMfaToken(userId: string, code: string, username: string): s
   return 'mfa_' + payloadStr + '.' + sig;
 }
 
+function createSessionToken(user: any): string {
+  const payload = {
+    userId: user.id || 'usr_owner',
+    username: user.username || 'roth',
+    role: user.role || 'Staff',
+    roleId: user.roleId || 'staff',
+    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
+  };
+  const payloadStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const secret = process.env.JWT_SECRET || 'tc_staff_management_jwt_sec_2026';
+  const sig = crypto.createHmac('sha256', secret).update(payloadStr).digest('base64url');
+  return `tc_${payloadStr}.${sig}`;
+}
+
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -202,6 +216,37 @@ export default async function handler(req: any, res: any) {
       }
     }
 
+    const userRole = matchedUser.role || (matchedUser.roleId === 'owner' ? 'Owner' : 'Staff');
+    const userRoleId = matchedUser.roleId || userRole.toLowerCase();
+    const userPayload = {
+      id: matchedUser?.id || userId,
+      username: cleanUsername,
+      email: matchedUser?.email || `${cleanUsername}@p2bkh.tech`,
+      fullName: matchedUser?.fullName || cleanUsername,
+      role: userRole,
+      roleId: userRoleId,
+      status: matchedUser?.status || 'Active',
+      assignedBranchIds: matchedUser?.assignedBranchIds || [],
+      telegramUsername: matchedUser?.telegramUsername || userTgHandle || '',
+      telegramChatId: resolvedChatId || matchedUser?.telegramChatId || '',
+      twoFactorMethod: matchedUser?.twoFactorMethod || 'disabled'
+    };
+
+    // If 2FA is NOT enabled (Password Only), log in directly without requiring Telegram OTP!
+    const is2faActive = matchedUser.twoFactorMethod === 'telegram' && Boolean(resolvedChatId);
+
+    if (!is2faActive) {
+      const accessToken = createSessionToken(userPayload);
+      const refreshToken = createSessionToken(userPayload);
+      return res.status(200).json({
+        success: true,
+        require2fa: false,
+        accessToken,
+        refreshToken,
+        user: userPayload
+      });
+    }
+
     // 7. Dispatch 2FA PIN via Telegram Bot
     if (botToken && resolvedChatId) {
       const text = `លេខកូដផ្ទៀងផ្ទាត់សុវត្ថិភាពរបស់អ្នកគឺ៖ <code>${otpCode}</code>`;
@@ -229,25 +274,13 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // Production Response: NEVER expose simulatedOtp!
+    // Response with 2FA requirement
     return res.status(200).json({
       require2fa: true,
       mfaToken,
       method: 'telegram',
       username: cleanUsername,
-      user: {
-        id: matchedUser?.id || userId,
-        username: cleanUsername,
-        email: matchedUser?.email || `${cleanUsername}@p2bkh.tech`,
-        fullName: matchedUser?.fullName || cleanUsername,
-        role: matchedUser?.role || 'Staff',
-        roleId: matchedUser?.roleId || 'staff',
-        status: 'Active',
-        assignedBranchIds: matchedUser?.assignedBranchIds || [],
-        telegramUsername: matchedUser?.telegramUsername || userTgHandle || '',
-        telegramChatId: resolvedChatId || '',
-        twoFactorMethod: 'telegram'
-      },
+      user: userPayload,
       dispatched: dispatchSuccess,
       telegramNotice: dispatchSuccess 
         ? `លេខកូដសុវត្ថិភាព 2FA ត្រូវបានផ្ញើទៅកាន់ Telegram (@TCStaffBot) របស់អ្នករួចរាល់ហើយ។`
