@@ -341,8 +341,14 @@ export default function App() {
         const res = await r.json();
         const s = res?.data || res?.db;
         if (res && res.success && s) {
+          // If server returned fallback defaults (due to Supabase outage), do not wipe local data
+          if (res.source === 'fallback') {
+            console.warn('[Realtime Sync] Server returned fallback defaults. Skipping overwrite.');
+            return;
+          }
+
           const updateIfChanged = (incoming: any, getter: () => any, setter: (val: any) => void, saver: (val: any) => void) => {
-            if (Array.isArray(incoming) && incoming.length > 0) {
+            if (Array.isArray(incoming)) {
               const current = getter();
               if (JSON.stringify(current) !== JSON.stringify(incoming)) {
                 setter(incoming);

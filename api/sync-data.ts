@@ -173,7 +173,33 @@ export default async function handler(req: any, res: any) {
     }
     try {
       if (supabase) {
-        // Fetch existing collections first to prevent uninitialized clients from wiping data
+        const nowIso = new Date().toISOString();
+
+        // 1. Explicit item deletion from a collection
+        if (body.deleteCollectionItem && body.collection && body.itemId) {
+          const { collection, itemId } = body;
+          const { data: row } = await supabase.from('tc_collections').select('data').eq('id', collection).maybeSingle();
+          const existingList = (row && Array.isArray(row.data)) ? row.data : [];
+          const filtered = existingList.filter((item: any) => item && item.id !== itemId);
+          const { error: delErr } = await supabase.from('tc_collections').upsert({
+            id: collection,
+            data: filtered,
+            updated_at: nowIso
+          });
+          if (delErr) {
+            console.error(`[sync-data] Failed to delete item ${itemId} from ${collection}:`, delErr);
+            return res.status(500).json({ success: false, error: delErr.message });
+          }
+          return res.status(200).json({
+            success: true,
+            collection,
+            remainingCount: filtered.length,
+            deletedItemId: itemId,
+            data: filtered
+          });
+        }
+
+        // 2. Fetch existing collections
         const { data: existingRows } = await supabase.from('tc_collections').select('id, data');
         const existingMap: Record<string, any> = {};
         if (Array.isArray(existingRows)) {
@@ -182,17 +208,11 @@ export default async function handler(req: any, res: any) {
           }
         }
 
-        const entries = Object.entries(body);
-        const nowIso = new Date().toISOString();
+        const entries = Object.entries(body).filter(([k]) => k !== 'deleteCollectionItem' && k !== 'collection' && k !== 'itemId');
         const rows: any[] = [];
 
         for (const [collectionId, collectionData] of entries) {
-          const existingData = existingMap[collectionId];
-          // SAFETY GUARD: If existing database has non-empty array and incoming is empty array, DO NOT WIPE!
-          if (Array.isArray(existingData) && existingData.length > 0 && Array.isArray(collectionData) && collectionData.length === 0) {
-            console.warn(`[sync-data] Blocked empty overwrite for "${collectionId}". Existing has ${existingData.length} items.`);
-            continue;
-          }
+          // Empty arrays are fully allowed (e.g. deleting staff, debts, etc down to 0)
           rows.push({
             id: collectionId,
             data: collectionData,

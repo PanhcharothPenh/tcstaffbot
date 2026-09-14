@@ -365,19 +365,34 @@ export default function StaffManagementView({
     setResignModalStaff(null);
   };
 
-  const confirmDeleteStaff = () => {
+  const confirmDeleteStaff = async () => {
     if (!staffToDelete) return;
-    const updated = staff.filter(s => s.id !== staffToDelete.id);
+    const targetStaff = staffToDelete;
+    const updated = staff.filter(s => s.id !== targetStaff.id);
     setStaff(updated);
     db.saveStaff(updated);
-    fetch('/api/sync-data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ staff: updated })
-    }).catch(() => {});
-
-    onAddLog(`Deleted staff record: "${staffToDelete.fullName}"`);
     setStaffToDelete(null);
+
+    try {
+      const res = await fetch('/api/sync-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          staff: updated,
+          deleteCollectionItem: true,
+          collection: 'staff',
+          itemId: targetStaff.id
+        })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to delete staff from Supabase');
+      }
+      onAddLog(`Deleted staff record: "${targetStaff.fullName}"`);
+    } catch (err: any) {
+      console.error('Delete staff error:', err);
+      alert(lang === 'kh' ? `មានបញ្ហាក្នុងការលុបបុគ្គលិកចេញពី Server: ${err.message}` : `Error deleting staff from server: ${err.message}`);
+    }
   };
 
   const toggleStaffStatus = (id: string, status: 'Active' | 'Resigned' | 'Suspended') => {
