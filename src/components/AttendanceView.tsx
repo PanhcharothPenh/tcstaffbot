@@ -1186,16 +1186,66 @@ export default function AttendanceView({
 
           {/* 2. MAIN ATTENDANCE CARD & CONTROLS */}
           <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
-            {/* Header & Add Button */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
-              <div>
-                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                  <span>{lang === 'kh' ? 'ការចុះវត្តមានបុគ្គលិក (Staff Attendance)' : 'Staff Attendance Management'}</span>
-                </h3>
+            {/* Streamlined Controls Bar: Quick Date Presets & Sync */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 text-xs pb-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-bold text-slate-500">ចម្រាញ់រហ័ស៖</span>
+                
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(todayPhnomPenh)}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1 text-xs ${
+                    selectedDate === todayPhnomPenh
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  <span>📅 ថ្ងៃនេះ ({todayPhnomPenh})</span>
+                  {selectedDate === todayPhnomPenh && <Check size={12} />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate('')}
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1 text-xs ${
+                    !selectedDate || selectedDate === 'all'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  <span>🌐 គ្រប់កាលបរិច្ឆេទ (All Dates)</span>
+                  {(!selectedDate || selectedDate === 'all') && <Check size={12} />}
+                </button>
+
+                {filterBranchId !== 'all' && (
+                  <button
+                    type="button"
+                    onClick={() => setFilterBranchId('all')}
+                    className="px-2.5 py-1.5 rounded-xl font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-all cursor-pointer text-xs"
+                  >
+                    📍 គ្រប់សាខា
+                  </button>
+                )}
+
+                {(selectedDate || filterBranchId !== 'all' || filterStaffId !== 'all' || filterStatus !== 'all' || searchQuery) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDate('');
+                      setFilterBranchId('all');
+                      setFilterStaffId('all');
+                      setFilterStatus('all');
+                      setSearchQuery('');
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl font-bold text-rose-600 hover:bg-rose-50 transition-all cursor-pointer text-xs flex items-center gap-1"
+                  >
+                    <X size={12} />
+                    <span>សម្អាត Filter</span>
+                  </button>
+                )}
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap">
-                {/* Real-time Sync Button */}
+              <div className="flex items-center gap-2 self-end sm:self-auto">
                 <button
                   type="button"
                   onClick={handleManualSync}
@@ -1203,72 +1253,14 @@ export default function AttendanceView({
                   className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95 disabled:opacity-50"
                   title="ទាញយកទិន្នន័យវត្តមានចុងក្រោយពី Server"
                 >
-                  <RefreshCw size={13} className={isRefreshing ? "animate-spin text-blue-700" : "text-blue-700"} />
+                  <RefreshCw size={12} className={isRefreshing ? "animate-spin text-blue-700" : "text-blue-700"} />
                   <span>{isRefreshing ? (lang === 'kh' ? 'កំពុងទាញ...' : 'Syncing...') : (lang === 'kh' ? 'ទាញទិន្នន័យថ្មី' : 'Sync Now')}</span>
                 </button>
 
-                <span className="text-xs font-bold px-3 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-200/80 w-fit">
+                <span className="text-xs font-bold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-xl border border-slate-200 whitespace-nowrap">
                   {filteredRecords.length} / {attendance.length} កំណត់ត្រា
                 </span>
               </div>
-            </div>
-
-            {/* Quick Date Presets */}
-            <div className="flex items-center gap-2 flex-wrap text-xs pt-1">
-              <span className="text-[11px] font-bold text-slate-500">ចម្រាញ់រហ័ស៖</span>
-              
-              <button
-                type="button"
-                onClick={() => setSelectedDate(todayPhnomPenh)}
-                className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1 text-xs ${
-                  selectedDate === todayPhnomPenh
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                }`}
-              >
-                <span>📅 ថ្ងៃនេះ ({todayPhnomPenh})</span>
-                {selectedDate === todayPhnomPenh && <Check size={12} />}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedDate('')}
-                className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1 text-xs ${
-                  !selectedDate || selectedDate === 'all'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                }`}
-              >
-                <span>🌐 បង្ហាញគ្រប់កាលបរិច្ឆេទ (All Dates)</span>
-                {(!selectedDate || selectedDate === 'all') && <Check size={12} />}
-              </button>
-
-              {filterBranchId !== 'all' && (
-                <button
-                  type="button"
-                  onClick={() => setFilterBranchId('all')}
-                  className="px-2.5 py-1 rounded-xl font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-all cursor-pointer text-xs"
-                >
-                  📍 ប្តូរទៅគ្រប់សាខា (All Branches)
-                </button>
-              )}
-
-              {(selectedDate || filterBranchId !== 'all' || filterStaffId !== 'all' || filterStatus !== 'all' || searchQuery) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedDate('');
-                    setFilterBranchId('all');
-                    setFilterStaffId('all');
-                    setFilterStatus('all');
-                    setSearchQuery('');
-                  }}
-                  className="px-2.5 py-1 rounded-xl font-bold text-rose-600 hover:bg-rose-50 transition-all cursor-pointer text-xs ml-auto flex items-center gap-1"
-                >
-                  <X size={12} />
-                  <span>សម្អាត Filter</span>
-                </button>
-              )}
             </div>
 
             {/* Filters Bar */}
