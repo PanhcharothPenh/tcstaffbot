@@ -402,9 +402,8 @@ export const userApi = {
 };
 
 const ALL_MODULES = [
-  'Dashboard', 'Branch', 'User', 'Role', 'Staff', 'Shift Roster', 'Attendance', 'Salary', 
-  'Revenue', 'Expense', 'Inventory', 'Supplier', 'Debt & Payable', 'Cash Drawer', 
-  'Month-End Closing', 'Telegram Settings', 'Audit Log', 'Backup & Restore', 'Reports'
+  'Staff', 'Shift Roster', 'Attendance', 'Salary', 'Branch', 
+  'User', 'Role', 'Telegram Settings', 'Audit Log', 'Reports'
 ];
 const ACTIONS = ['View', 'Create', 'Edit', 'Delete', 'Export PDF', 'Export Excel', 'Print', 'Approve', 'Configure'];
 
@@ -424,38 +423,39 @@ export const FALLBACK_ROLES: RoleDefinition[] = [
   {
     id: 'owner',
     name: 'Owner',
-    description: 'Full access to all coffee modules and all branches permanently',
+    description: 'Full permanent root access to all staff management modules and all branches',
     permissions: FALLBACK_PERMISSIONS
   },
   {
     id: 'admin',
     name: 'Admin',
-    description: 'Multi-branch access, staff management, salary, expenses, inventory and business reports',
+    description: 'Administrative access to staff profiles, shift rosters, attendance, salary, branches and system accounts',
     permissions: FALLBACK_PERMISSIONS.filter(p => [
-      'Dashboard', 'Branch', 'User', 'Role', 'Staff', 'Shift Roster', 'Attendance', 'Salary', 
-      'Revenue', 'Expense', 'Inventory', 'Supplier', 'Debt & Payable', 'Reports',
-      'Cash Drawer', 'Month-End Closing', 'Telegram Settings', 'Audit Log'
-    ].includes(p.module) && !['Configure'].includes(p.action))
+      'Staff', 'Shift Roster', 'Attendance', 'Salary', 'Branch', 
+      'User', 'Role', 'Telegram Settings', 'Audit Log', 'Reports'
+    ].includes(p.module))
   },
   {
     id: 'manager',
     name: 'Manager',
-    description: 'Branch manager access, staff attendance, shift roster, inventory tracking and daily revenue',
+    description: 'Branch manager access: staff scheduling, attendance verification, leave approvals and reports',
     permissions: FALLBACK_PERMISSIONS.filter(p => [
-      'Dashboard', 'Staff', 'Shift Roster', 'Attendance', 'Revenue', 'Expense', 'Inventory', 'Reports',
-      'Cash Drawer', 'Supplier', 'Debt & Payable'
-    ].includes(p.module) && !['Delete'].includes(p.action))
+      'Staff', 'Shift Roster', 'Attendance', 'Salary', 'Branch', 'Audit Log', 'Reports'
+    ].includes(p.module) && !(
+      (p.module === 'Salary' && ['Delete', 'Configure', 'Approve'].includes(p.action)) ||
+      (p.module === 'Branch' && ['Delete', 'Configure'].includes(p.action)) ||
+      (p.module === 'Audit Log' && ['Delete', 'Edit', 'Create', 'Configure'].includes(p.action))
+    ))
   },
   {
     id: 'staff',
     name: 'Staff',
-    description: 'Assigned branch access, attendance check-in, shift view and assigned tasks',
+    description: 'Barista / Employee access: attendance clock-in/out, shift roster view, profile and salary slip view',
     permissions: FALLBACK_PERMISSIONS.filter(p => (
-      (p.module === 'Dashboard' && p.action === 'View') ||
       (p.module === 'Attendance' && ['View', 'Create'].includes(p.action)) ||
       (p.module === 'Shift Roster' && p.action === 'View') ||
       (p.module === 'Salary' && p.action === 'View') ||
-      (p.module === 'Revenue' && ['View', 'Create'].includes(p.action))
+      (p.module === 'Staff' && p.action === 'View')
     ))
   }
 ];

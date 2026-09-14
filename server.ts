@@ -498,59 +498,79 @@ function seedUsersAndRoles() {
     modified = true;
   }
 
-  if (localDb.permissions.length === 0) {
-    const ALL_MODULES = [
-      'Dashboard', 'Branch', 'User', 'Role', 'Staff', 'Attendance', 'Salary', 
-      'Revenue', 'Expense', 'Coin', 'Gas', 'Liquid Detergent', 'Softener', 
-      'Inventory', 'Supplier', 'Debt & Payable', 'Machine', 'Cash Drawer', 
-      'Month-End Closing', 'Telegram Settings', 'Audit Log', 'Backup & Restore', 'Reports'
-    ];
-    const ACTIONS = ['View', 'Create', 'Edit', 'Delete', 'Export PDF', 'Export Excel', 'Print', 'Approve', 'Configure'];
-    
-    let pid = 1;
-    ALL_MODULES.forEach(mod => {
-      ACTIONS.forEach(act => {
+  const STAFF_MODULES = [
+    'Staff', 'Shift Roster', 'Attendance', 'Salary', 'Branch', 
+    'User', 'Role', 'Telegram Settings', 'Audit Log', 'Reports'
+  ];
+  const ACTIONS = ['View', 'Create', 'Edit', 'Delete', 'Export PDF', 'Export Excel', 'Print', 'Approve', 'Configure'];
+
+  // 1. Purge obsolete non-staff modules from localDb permissions
+  const originalPermCount = localDb.permissions ? localDb.permissions.length : 0;
+  if (localDb.permissions) {
+    localDb.permissions = localDb.permissions.filter(p => STAFF_MODULES.includes(p.module));
+    if (localDb.permissions.length !== originalPermCount) {
+      modified = true;
+    }
+  } else {
+    localDb.permissions = [];
+  }
+
+  // 2. Ensure all staff modules and actions are seeded
+  let pid = localDb.permissions.length + 1;
+  STAFF_MODULES.forEach(mod => {
+    ACTIONS.forEach(act => {
+      const exists = localDb.permissions!.some(p => p.module === mod && p.action === act);
+      if (!exists) {
         localDb.permissions!.push({
           id: `perm_${pid++}`,
           module: mod,
           action: act
         });
-      });
+        modified = true;
+      }
     });
-    modified = true;
+  });
+
+  // 3. Re-align role permissions and clean dangling permission IDs
+  const validPermIds = new Set(localDb.permissions.map(p => p.id));
+  if (localDb.rolePermissions) {
+    Object.keys(localDb.rolePermissions).forEach(roleKey => {
+      const cleaned = (localDb.rolePermissions![roleKey] || []).filter(id => validPermIds.has(id));
+      if (cleaned.length !== (localDb.rolePermissions![roleKey] || []).length) {
+        localDb.rolePermissions![roleKey] = cleaned;
+        modified = true;
+      }
+    });
+  } else {
+    localDb.rolePermissions = {};
   }
 
-  if (Object.keys(localDb.rolePermissions).length === 0) {
+  if (Object.keys(localDb.rolePermissions).length === 0 || !localDb.rolePermissions['owner'] || localDb.rolePermissions['owner'].length === 0) {
     const allPermIds = localDb.permissions.map(p => p.id);
     
-    // Owner: Full access to everything
+    // Owner: Full access to all staff modules
     localDb.rolePermissions['owner'] = allPermIds;
     
-    // Admin: access to users, staff, salary, revenue, expense, inventory, reports
-    localDb.rolePermissions['admin'] = localDb.permissions
-      .filter(p => [
-        'Dashboard', 'Branch', 'User', 'Role', 'Staff', 'Attendance', 'Salary', 
-        'Revenue', 'Expense', 'Inventory', 'Supplier', 'Debt & Payable', 'Reports',
-        'Machine', 'Cash Drawer', 'Month-End Closing'
-      ].includes(p.module) && !['Approve', 'Configure'].includes(p.action))
-      .map(p => p.id);
+    // Admin: Full administrative access to staff, shifts, attendance, salary, branches, users
+    localDb.rolePermissions['admin'] = allPermIds;
       
-    // Manager: assigned branch, daily operations, revenue, expense, inventory, machines, reports
+    // Manager: branch manager access for staff, shift roster, attendance, salary view, reports
     localDb.rolePermissions['manager'] = localDb.permissions
       .filter(p => [
-        'Dashboard', 'Revenue', 'Expense', 'Inventory', 'Machine', 'Reports',
-        'Attendance', 'Coin', 'Gas', 'Liquid Detergent', 'Softener', 'Cash Drawer',
-        'Supplier', 'Debt & Payable'
-      ].includes(p.module))
+        'Staff', 'Shift Roster', 'Attendance', 'Salary', 'Branch', 'Audit Log', 'Reports'
+      ].includes(p.module) && !(
+        (p.module === 'Salary' && ['Delete', 'Configure', 'Approve'].includes(p.action)) ||
+        (p.module === 'Branch' && ['Delete', 'Configure'].includes(p.action)) ||
+        (p.module === 'Audit Log' && ['Delete', 'Edit', 'Create', 'Configure'].includes(p.action))
+      ))
       .map(p => p.id);
       
-    // Staff: view Dashboard, input daily revenue, view own profile, own attendance, view own salary
+    // Staff: view Shift Roster, attendance clock-in/out, view own salary slip, view own profile
     localDb.rolePermissions['staff'] = localDb.permissions
-      .filter(p => (p.module === 'Revenue' && ['View', 'Create'].includes(p.action)) ||
-                    (p.module === 'Dashboard' && p.action === 'View') ||
-                    (p.module === 'Attendance' && p.action === 'View') ||
+      .filter(p => (p.module === 'Attendance' && ['View', 'Create'].includes(p.action)) ||
+                    (p.module === 'Shift Roster' && p.action === 'View') ||
                     (p.module === 'Salary' && p.action === 'View') ||
-                    (p.module === 'Machine' && p.action === 'View'))
+                    (p.module === 'Staff' && p.action === 'View'))
       .map(p => p.id);
       
     modified = true;
@@ -2366,7 +2386,12 @@ app.delete('/api/roles/:id', (req, res) => {
 });
 
 app.get('/api/permissions', (req, res) => {
-  res.json({ success: true, permissions: localDb.permissions });
+  const STAFF_MODULES = [
+    'Staff', 'Shift Roster', 'Attendance', 'Salary', 'Branch', 
+    'User', 'Role', 'Telegram Settings', 'Audit Log', 'Reports'
+  ];
+  const permissions = (localDb.permissions || []).filter(p => STAFF_MODULES.includes(p.module));
+  res.json({ success: true, permissions });
 });
 
 app.put('/api/roles/:id/permissions', (req, res) => {

@@ -102,7 +102,7 @@ export default function UserManagementView({
   const [selectedRoleForPerms, setSelectedRoleForPerms] = useState<RoleDefinition>(FALLBACK_ROLES[1] || FALLBACK_ROLES[0]);
   const [rolePermissionsList, setRolePermissionsList] = useState<string[]>(() => FALLBACK_ROLES[1]?.permissions?.map(p => p.id) || []);
   const [permSearchQuery, setPermSearchQuery] = useState('');
-  const [permCategoryFilter, setPermCategoryFilter] = useState<'all' | 'hr' | 'finance' | 'inventory' | 'system'>('all');
+  const [permCategoryFilter, setPermCategoryFilter] = useState<'all' | 'staff' | 'payroll' | 'system'>('all');
   const [matrixViewMode, setMatrixViewMode] = useState<'matrix' | 'cards'>('matrix');
 
   // Search & Filter
@@ -1059,27 +1059,18 @@ export default function UserManagementView({
 
         {/* TAB 2: ROLES & PERMISSIONS MATRIX */}
         {activeTab === 'roles' && (() => {
-          // Module metadata mapping for icons, category, and localized labels
-          const MODULE_META: Record<string, { labelKh: string; category: 'hr' | 'finance' | 'inventory' | 'system'; icon: any; desc: string }> = {
-            'Dashboard': { labelKh: 'ផ្ទាំងគ្រប់គ្រងទូទៅ', category: 'system', icon: LayoutDashboard, desc: 'ស្ថិតិទូទៅ ការលក់ និងដំណើរការសាខា' },
-            'Branch': { labelKh: 'សាខាអាជីវកម្ម', category: 'system', icon: MapPin, desc: 'គ្រប់គ្រងព័ត៌មាន និងទីតាំងសាខា' },
-            'User': { labelKh: 'គណនីបុគ្គលិក', category: 'hr', icon: Users, desc: 'គ្រប់គ្រងគណនី លេខសម្ងាត់ និងការចូលប្រើ' },
-            'Role': { labelKh: 'តួនាទី & សិទ្ធិ', category: 'system', icon: ShieldCheck, desc: 'កំណត់កម្រិតសិទ្ធិ និងតួនាទីប្រព័ន្ធ' },
-            'Staff': { labelKh: 'បញ្ជីបុគ្គលិក', category: 'hr', icon: UserCheck, desc: 'ប្រវត្តិរូប ប្រាក់ខែគោល និងកិច្ចសន្យា' },
-            'Shift Roster': { labelKh: 'កាលវិភាគវេនការងារ', category: 'hr', icon: CalendarDays, desc: 'បែងចែកវេន ព្រឹក រសៀល យប់' },
-            'Attendance': { labelKh: 'វត្តមាន & ស្កេនម្រាមដៃ', category: 'hr', icon: CalendarCheck, desc: 'កត់ត្រាវត្តមាន ចូល/ចេញ យឺត និងច្បាប់' },
-            'Salary': { labelKh: 'ប្រាក់បៀវត្សរ៍', category: 'finance', icon: Wallet, desc: 'បើកប្រាក់ខែ កាត់ប្រាក់ និងប្រាក់លើកទឹកចិត្ត' },
-            'Revenue': { labelKh: 'ចំណូលប្រចាំថ្ងៃ', category: 'finance', icon: TrendingUp, desc: 'កត់ត្រាចំណូលលក់កាហ្វេ និងសេវាកម្ម' },
-            'Expense': { labelKh: 'ចំណាយប្រតិបត្តិការ', category: 'finance', icon: Receipt, desc: 'ចំណាយទឹកភ្លើង ទិញសម្ភារ និងចំណាយបន្ទាប់បន្សំ' },
-            'Inventory': { labelKh: 'ឃ្លាំងស្តុក & វត្ថុធាតុដើម', category: 'inventory', icon: Package, desc: 'គ្រាប់កាហ្វេ ទឹកដោះគោ ស្ករ កែវ និងសារពើភ័ណ្ឌ' },
-            'Supplier': { labelKh: 'អ្នកផ្គត់ផ្គង់', category: 'inventory', icon: Truck, desc: 'បញ្ជីក្រុមហ៊ុនផ្គត់ផ្គង់ និងព័ត៌មានទំនាក់ទំនង' },
-            'Debt & Payable': { labelKh: 'បំណុល & គណនីត្រូវសង', category: 'finance', icon: FileText, desc: 'កត់ត្រាបំណុលទិញទំនិញជំពាក់ និងសងត្រឡប់' },
-            'Cash Drawer': { labelKh: 'កេះប្រាក់ & បិទវេន', category: 'finance', icon: DollarSign, desc: 'តុល្យភាពប្រាក់ដើមវេន និងផ្ទៀងផ្ទាត់សាច់ប្រាក់' },
-            'Month-End Closing': { labelKh: 'បិទបញ្ជីប្រចាំខែ', category: 'finance', icon: Calendar, desc: 'សង្ខេបរបាយការណ៍ហិរញ្ញវត្ថុប្រចាំខែ' },
-            'Telegram Settings': { labelKh: 'ការកំណត់ Telegram Bot', category: 'system', icon: Send, desc: 'ទទួលដំណឹងស្វ័យប្រវត្តិតាម Telegram Group' },
-            'Audit Log': { labelKh: 'កំណត់ត្រាសវនកម្ម', category: 'system', icon: Activity, desc: 'ប្រវត្តិនៃការកែប្រែទិន្នន័យក្នុងប្រព័ន្ធ' },
-            'Backup & Restore': { labelKh: 'បម្រុងទុក & ស្តារទិន្នន័យ', category: 'system', icon: Database, desc: 'រក្សាទុកទិន្នន័យសុវត្ថិភាព Database' },
-            'Reports': { labelKh: 'របាយការណ៍វិភាគ', category: 'system', icon: BarChart3, desc: 'របាយការណ៍ក្រាហ្វិក ការលក់ និងផលចំណេញ' }
+          // Module metadata mapping strictly for TC Staff Management suite
+          const MODULE_META: Record<string, { labelKh: string; category: 'staff' | 'payroll' | 'system'; icon: any; desc: string }> = {
+            'Staff': { labelKh: 'បុគ្គលិក & Barista', category: 'staff', icon: Users, desc: 'ប្រវត្តិរូប ព័ត៌មានលម្អិត ប្រាក់ខែគោល មុខតំណែង និងកិច្ចសន្យា' },
+            'Shift Roster': { labelKh: 'ប្រតិទិនវេនការងារ', category: 'staff', icon: CalendarDays, desc: 'កាលវិភាគវេនការងារ បែងចែកវេនព្រឹក/រសៀល/យប់ និងវេនជំនួស' },
+            'Attendance': { labelKh: 'វត្តមានបុគ្គលិក & GPS', category: 'staff', icon: CalendarCheck, desc: 'កត់ត្រាវត្តមាន ស្កេន GPS ម៉ោងចូល/ចេញ យឺត និងច្បាប់' },
+            'Salary': { labelKh: 'ការបើកប្រាក់បៀវត្សរ៍', category: 'payroll', icon: Wallet, desc: 'គណនាប្រាក់បៀវត្សរ៍ បុរេប្រទាន ប្រាក់បន្ថែមម៉ោង និងប័ណ្ណបើកប្រាក់ខែ' },
+            'Reports': { labelKh: 'របាយការណ៍បុគ្គលិក & ប្រាក់ខែ', category: 'payroll', icon: BarChart3, desc: 'របាយការណ៍សង្ខេបវត្តមាន ការមកយឺត និងស្ថិតិបើកប្រាក់បៀវត្សរ៍' },
+            'Branch': { labelKh: 'សាខា & ទីតាំងស្កេន GPS', category: 'system', icon: MapPin, desc: 'គ្រប់គ្រងសាខាហាង កូអរដោនេ GPS និងកាំរង្វង់អនុញ្ញាតឱ្យស្កេនវត្តមាន' },
+            'User': { labelKh: 'គណនីបុគ្គលិក & ចូលប្រើ', category: 'system', icon: UserCheck, desc: 'គ្រប់គ្រងគណនីចូលប្រព័ន្ធ លេខសម្ងាត់ និងការភ្ជាប់ Telegram 2FA' },
+            'Role': { labelKh: 'តួនាទី & សិទ្ធិប្រើប្រាស់', category: 'system', icon: ShieldCheck, desc: 'កំណត់កម្រិតសិទ្ធិប្រើប្រាស់ និងម៉ាទ្រីសសិទ្ធិតាមតួនាទី' },
+            'Telegram Settings': { labelKh: 'កំណត់ Telegram Bot', category: 'system', icon: Send, desc: 'កំណត់ Bot Alerts ផ្ញើដំណឹងស្វ័យប្រវត្តិតាម Telegram ពេលស្កេនវត្តមាន' },
+            'Audit Log': { labelKh: 'កំណត់ត្រាសវនកម្ម', category: 'system', icon: Activity, desc: 'ប្រវត្តិនៃការកត់ត្រា និងកែប្រែទិន្នន័យក្នុងប្រព័ន្ធដោយអ្នកប្រើប្រាស់' }
           };
 
           const ALL_ACTIONS = ['View', 'Create', 'Edit', 'Delete', 'Export PDF', 'Export Excel', 'Print', 'Approve', 'Configure'];
@@ -1096,8 +1087,10 @@ export default function UserManagementView({
             'Configure': { kh: 'កំណត់', en: 'Configure', color: 'text-slate-700 bg-slate-100 border-slate-300' }
           };
 
-          // Unique modules from loaded permissions
-          const allModulesInPerms = Array.from(new Set(permissions.map(p => p.module)));
+          // Valid modules strictly restricted to TC Staff Management suite
+          const validStaffModules = Object.keys(MODULE_META);
+          const validPermissions = permissions.filter(p => validStaffModules.includes(p.module));
+          const allModulesInPerms = validStaffModules;
 
           // Filter modules by search & category
           const filteredModules = allModulesInPerms.filter(modName => {
@@ -1115,13 +1108,14 @@ export default function UserManagementView({
           });
 
           // Filtered permissions matching visible modules
-          const visiblePermissions = permissions.filter(p => filteredModules.includes(p.module));
+          const visiblePermissions = validPermissions.filter(p => filteredModules.includes(p.module));
 
           // Role statistics
-          const totalRolePerms = permissions.length;
+          const totalRolePerms = validPermissions.length;
+          const activeValidIds = new Set(validPermissions.map(p => p.id));
           const activeCount = selectedRoleForPerms?.id === 'owner' 
             ? totalRolePerms 
-            : rolePermissionsList.length;
+            : rolePermissionsList.filter(id => activeValidIds.has(id)).length;
           const activePercent = totalRolePerms > 0 ? Math.round((activeCount / totalRolePerms) * 100) : 0;
 
           return (
@@ -1296,30 +1290,21 @@ export default function UserManagementView({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setPermCategoryFilter('hr')}
+                      onClick={() => setPermCategoryFilter('staff')}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                        permCategoryFilter === 'hr' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                        permCategoryFilter === 'staff' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      👥 បុគ្គលិក (HR)
+                      👥 បុគ្គលិក & វេន (Staff & Shifts)
                     </button>
                     <button
                       type="button"
-                      onClick={() => setPermCategoryFilter('finance')}
+                      onClick={() => setPermCategoryFilter('payroll')}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                        permCategoryFilter === 'finance' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                        permCategoryFilter === 'payroll' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      💰 ហិរញ្ញវត្ថុ (Finance)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPermCategoryFilter('inventory')}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                        permCategoryFilter === 'inventory' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      📦 ស្តុក (Stock)
+                      💰 ប្រាក់ខែ & របាយការណ៍ (Payroll & Reports)
                     </button>
                     <button
                       type="button"
@@ -1328,7 +1313,7 @@ export default function UserManagementView({
                         permCategoryFilter === 'system' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      ⚙️ ប្រព័ន្ធ (System)
+                      🏢 សាខា & ប្រព័ន្ធ (Branches & System)
                     </button>
                   </div>
                 </div>

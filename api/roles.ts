@@ -7,15 +7,14 @@ const DEFAULT_ROLES = [
   { id: 'staff', name: 'Staff', permissions: ['view_dashboard', 'attendance_checkin', 'view_shift'], isSystem: true }
 ];
 
-const COFFEE_MODULES = [
-  'Dashboard', 'Branch', 'User', 'Role', 'Staff', 'Shift Roster', 'Attendance', 'Salary', 
-  'Revenue', 'Expense', 'Inventory', 'Supplier', 'Debt & Payable', 'Cash Drawer', 
-  'Month-End Closing', 'Telegram Settings', 'Audit Log', 'Backup & Restore', 'Reports'
+const STAFF_MODULES = [
+  'Staff', 'Shift Roster', 'Attendance', 'Salary', 'Branch', 
+  'User', 'Role', 'Telegram Settings', 'Audit Log', 'Reports'
 ];
 const ACTIONS = ['View', 'Create', 'Edit', 'Delete', 'Export PDF', 'Export Excel', 'Print', 'Approve', 'Configure'];
 const GENERATED_PERMISSIONS: any[] = [];
 let pid = 1;
-COFFEE_MODULES.forEach(mod => {
+STAFF_MODULES.forEach(mod => {
   ACTIONS.forEach(act => {
     GENERATED_PERMISSIONS.push({ id: `perm_${pid++}`, module: mod, action: act });
   });
