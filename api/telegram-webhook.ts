@@ -889,12 +889,7 @@ export default async function handler(req: any, res: any) {
         `គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយព័ត៌មានបុគ្គលិក ឬអ្នកគ្រប់គ្រងក្នុងប្រព័ន្ធនៅឡើយទេ។\n\n` +
         `🆔 <b>Telegram ID:</b> <code>${telegramId}</code>\n` +
         `💬 <b>Chat ID:</b> <code>${chatId}</code>\n` +
-        `👤 <b>Username:</b> ${cleanUsername}\n\n` +
-        `ℹ️ <b>របៀបភ្ជាប់គណនី (កំណត់លើ Web តែប៉ុណ្ណោះ)៖</b>\n` +
-        `សូមចម្លង <b>Telegram ID</b> ខាងលើ ហើយយកទៅបញ្ចូលក្នុងគណនីរបស់អ្នកតាមរយៈគេហទំព័រ (Web Admin Panel)៖\n` +
-        `• <b>បុគ្គលិក:</b> ផ្ទាំង Staff Management\n` +
-        `• <b>អ្នកគ្រប់គ្រង:</b> ផ្ទាំង User Management\n` +
-        `• <b>សាខា / Channel:</b> ផ្ទាំង Telegram Config`;
+        `👤 <b>Username:</b> ${cleanUsername}`;
 
       // =================================================================================
       // ACTION: 📸 ចុះឈ្មោះចូល (CHECK IN)
