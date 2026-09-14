@@ -1247,7 +1247,7 @@ export default function App() {
         {/* Top Header Segment bar */}
         <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between sticky top-0 z-30 shadow-xs" id="header_saas_bar">
           
-          {/* Menu Trigger and Title details */}
+          {/* Menu Trigger, Title and Branch Switcher */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button 
               onClick={() => setMobileMenuOpen(true)}
@@ -1257,14 +1257,37 @@ export default function App() {
               <Menu size={20} />
             </button>
             
-            <div className="flex flex-col text-left min-w-0">
-              <h1 className="text-sm sm:text-2xl font-black text-slate-900 tracking-tight leading-tight truncate max-w-[140px] xs:max-w-[200px] sm:max-w-none">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <h1 className="text-sm sm:text-xl font-black text-slate-900 tracking-tight leading-tight truncate">
                 {activeTab === 'staff' ? (lang === 'en' ? 'Staff & Barista' : 'បុគ្គលិក & Barista') :
                  activeTab === 'shifts' ? (lang === 'en' ? 'Shift Calendar' : 'ប្រតិទិនវេនការងារ') :
                  activeTab === 'attendance' ? (lang === 'en' ? 'Staff Attendance' : 'វត្តមានបុគ្គលិក') :
                  activeTab === 'salary' ? (lang === 'en' ? 'Salary Management' : 'ការបើកប្រាក់បៀវត្សរ៍') :
                  getActiveBranchLabel()}
               </h1>
+
+              {/* Quick Branch Switcher in top bar */}
+              <div className="relative inline-flex items-center">
+                <select
+                  value={activeBranchId}
+                  onChange={(e) => setActiveBranchId(e.target.value)}
+                  className="bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-slate-800 text-[11px] sm:text-xs font-bold font-sans rounded-xl pl-2.5 pr-6 py-1 focus:outline-none focus:border-blue-500 shadow-2xs cursor-pointer transition-all appearance-none"
+                  id="header_quick_branch_switcher"
+                  aria-label="Quick Switch Branch"
+                >
+                  {canAccessAllBranches && (
+                    <option value="all">🌐 {t.allBranches}</option>
+                  )}
+                  {userAccessibleBranches.map(b => (
+                    <option key={b.id} value={b.id}>
+                      📍 {b.branchName}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute right-1.5 text-slate-400">
+                  <ChevronDown size={12} />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1422,38 +1445,6 @@ export default function App() {
 
         {/* 3. Primary Workspace rendering and Audit Log trails panels */}
         <main className="flex-1 min-w-0 max-w-full p-3 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto overflow-x-hidden scroll-smooth bg-[#F8FAFC]" id="workspace_viewport">
-          
-          {/* Active branch indicator banner with interactive Quick Branch Switcher */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-4 border-b border-slate-200/80">
-            <div className="flex items-center gap-2 text-xs flex-wrap">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
-              <span className="text-[11px] sm:text-xs text-slate-500 font-medium">
-                {t.activeBranch}:
-              </span>
-              <div className="relative inline-flex items-center">
-                <select
-                  value={activeBranchId}
-                  onChange={(e) => setActiveBranchId(e.target.value)}
-                  className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold font-sans rounded-xl pl-2.5 pr-7 py-1.5 focus:outline-none focus:border-blue-500 shadow-2xs cursor-pointer transition-all appearance-none"
-                  id="header_quick_branch_switcher"
-                  aria-label="Quick Switch Branch"
-                >
-                  {canAccessAllBranches && (
-                    <option value="all">🌐 {t.allBranches}</option>
-                  )}
-                  {userAccessibleBranches.map(b => (
-                    <option key={b.id} value={b.id}>
-                      📍 {b.branchName} ({b.branchCode})
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute right-2 text-slate-400">
-                  <ChevronDown size={13} />
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Actual subtab components renders here */}
           <div className="transition-all duration-300 w-full min-w-0">
             <Suspense fallback={

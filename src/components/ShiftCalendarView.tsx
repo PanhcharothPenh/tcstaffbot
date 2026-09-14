@@ -51,11 +51,11 @@ export default function ShiftCalendarView({
   onAddLog
 }: ShiftCalendarViewProps) {
   const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
-    return activeBranchId && activeBranchId !== 'all' ? activeBranchId : (branches[0]?.id || 'b1');
+    return activeBranchId || 'all';
   });
 
   useEffect(() => {
-    if (activeBranchId && activeBranchId !== 'all') {
+    if (activeBranchId) {
       setSelectedBranchId(activeBranchId);
     }
   }, [activeBranchId]);
@@ -100,6 +100,9 @@ export default function ShiftCalendarView({
   }, [branches, selectedBranchId]);
 
   const branchStaff = useMemo(() => {
+    if (!selectedBranchId || selectedBranchId === 'all') {
+      return staffList.filter(s => s.status === 'Active');
+    }
     return staffList.filter(s => s.branchId === selectedBranchId && s.status === 'Active');
   }, [staffList, selectedBranchId]);
 
@@ -328,19 +331,6 @@ export default function ShiftCalendarView({
 
         {/* Actions */}
         <div className="flex flex-wrap items-center gap-2">
-          {activeBranchId === 'all' && (
-            <select
-              value={selectedBranchId}
-              onChange={e => setSelectedBranchId(e.target.value)}
-              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none cursor-pointer hover:border-slate-300"
-            >
-              {branches.map(b => (
-                <option key={b.id} value={b.id}>
-                  🏢 {b.branchName}
-                </option>
-              ))}
-            </select>
-          )}
 
           <button
             type="button"
