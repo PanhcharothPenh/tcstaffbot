@@ -295,165 +295,109 @@ function saveCachedUsers(users: User[]) {
 }
 
 export const userApi = {
+  getCachedUsers: (): User[] => getCachedUsers(),
+
   getUsers: async (): Promise<User[]> => {
-    try {
-      const data = await apiRequest<{ success: boolean; users: User[] }>('/api/users');
-      if (data && Array.isArray(data.users) && data.users.length > 0) {
-        saveCachedUsers(data.users);
-        return data.users;
-      }
-    } catch (err) {
-      console.warn('API fetch users notice:', err);
+    const data = await apiRequest<{ success: boolean; users: User[] }>('/api/users');
+    if (data && Array.isArray(data.users)) {
+      saveCachedUsers(data.users);
+      return data.users;
     }
-    return getCachedUsers();
+    throw new Error('Failed to load users from Supabase');
   },
 
   createUser: async (payload: Partial<User> & { password?: string }): Promise<User> => {
-    let createdUser: User | null = null;
-    try {
-      const data = await apiRequest<{ success: boolean; user: User }>('/api/users', {
-        method: 'POST',
-        body: JSON.stringify(payload)
-      });
-      if (data?.user) createdUser = data.user;
-    } catch (err) {
-      console.warn('Backend user creation notice:', err);
+    const data = await apiRequest<{ success: boolean; user: User }>('/api/users', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    if (!data || !data.user) {
+      throw new Error('Failed to create user on Supabase');
     }
-
-    if (!createdUser) {
-      createdUser = {
-        id: 'usr_' + Date.now(),
-        fullName: payload.fullName || 'User',
-        username: payload.username || 'user',
-        email: payload.email || `${payload.username || 'user'}@p2bkh.tech`,
-        phone: payload.phone || '',
-        role: payload.role || 'Staff',
-        roleId: payload.roleId || 'staff',
-        status: 'Active',
-        telegramUsername: payload.telegramUsername || '',
-        telegramChatId: payload.telegramChatId || '',
-        twoFactorMethod: payload.twoFactorMethod || 'disabled',
-        assignedBranchIds: payload.assignedBranchIds || []
-      };
-    }
-
     const current = getCachedUsers();
-    const existingIdx = current.findIndex(u => u.username.toLowerCase() === createdUser!.username.toLowerCase());
+    const existingIdx = current.findIndex(u => u.id === data.user.id || u.username.toLowerCase() === data.user.username.toLowerCase());
     if (existingIdx >= 0) {
-      current[existingIdx] = createdUser;
+      current[existingIdx] = data.user;
     } else {
-      current.unshift(createdUser);
+      current.unshift(data.user);
     }
     saveCachedUsers(current);
-    return createdUser;
+    return data.user;
   },
 
   getUser: async (id: string): Promise<User> => {
-    try {
-      const data = await apiRequest<{ success: boolean; user: User }>(`/api/users/${id}`);
-      if (data?.user) return data.user;
-    } catch (e) {}
-    const cached = getCachedUsers().find(u => u.id === id);
-    if (cached) return cached;
-    throw new Error('User not found');
+    const data = await apiRequest<{ success: boolean; user: User }>(`/api/users/${id}`);
+    if (data?.user) return data.user;
+    throw new Error(`User "${id}" not found on Supabase`);
   },
 
   updateUser: async (id: string, payload: Partial<User>): Promise<User> => {
-    let updatedUser: User | null = null;
-    try {
-      const data = await apiRequest<{ success: boolean; user: User }>(`/api/users/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ ...payload, id })
-      });
-      if (data?.user) updatedUser = data.user;
-    } catch (e) {
-      console.warn('[userApi.updateUser] Request failed:', e);
+    const data = await apiRequest<{ success: boolean; user: User }>(`/api/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...payload, id })
+    });
+    if (!data || !data.user) {
+      throw new Error('Failed to update user on Supabase');
     }
-
     const current = getCachedUsers();
     const idx = current.findIndex(u => u.id === id);
     if (idx >= 0) {
-      current[idx] = { ...current[idx], ...payload } as User;
-      if (!updatedUser) updatedUser = current[idx];
-      saveCachedUsers(current);
+      current[idx] = data.user;
+    } else {
+      current.push(data.user);
     }
-    return updatedUser || (current[0] as User);
+    saveCachedUsers(current);
+    return data.user;
   },
 
   deleteUser: async (id: string) => {
-    try {
-      await apiRequest<{ success: boolean; message: string }>(`/api/users/${id}`, {
-        method: 'DELETE'
-      });
-    } catch (e) {}
+    const res = await apiRequest<{ success: boolean; message: string }>(`/api/users/${id}`, {
+      method: 'DELETE'
+    });
     const current = getCachedUsers().filter(u => u.id !== id);
     saveCachedUsers(current);
-    return { success: true, message: 'User deleted' };
+    return res;
   },
 
   patchStatus: async (id: string, status: 'Active' | 'Inactive' | 'Locked') => {
-    try {
-      const data = await apiRequest<{ success: boolean; user: User }>(`/api/users/${id}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status })
-      });
-      if (data?.user) {
-        const current = getCachedUsers();
-        const idx = current.findIndex(u => u.id === id);
-        if (idx >= 0) {
-          current[idx] = data.user;
-          saveCachedUsers(current);
-        }
-        return data.user;
-      }
-    } catch (e) {}
-
+    const data = await apiRequest<{ success: boolean; user: User }>(`/api/users/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status })
+    });
+    if (!data || !data.user) {
+      throw new Error('Failed to update user status on Supabase');
+    }
     const current = getCachedUsers();
     const idx = current.findIndex(u => u.id === id);
     if (idx >= 0) {
-      current[idx].status = status;
+      current[idx] = data.user;
       saveCachedUsers(current);
-      return current[idx];
     }
-    throw new Error('User not found');
+    return data.user;
   },
 
   resetPassword: async (id: string, newPassword: any) => {
-    try {
-      return await apiRequest<{ success: boolean; message: string }>(`/api/users/${id}/reset-password`, {
-        method: 'PATCH',
-        body: JSON.stringify({ password: newPassword })
-      });
-    } catch (e) {
-      return { success: true, message: 'Password reset' };
-    }
+    return await apiRequest<{ success: boolean; message: string }>(`/api/users/${id}/reset-password`, {
+      method: 'PATCH',
+      body: JSON.stringify({ password: newPassword })
+    });
   },
 
   assignBranches: async (id: string, assignedBranchIds: string[]) => {
-    try {
-      const data = await apiRequest<{ success: boolean; user: User }>(`/api/users/${id}/assign-branches`, {
-        method: 'PATCH',
-        body: JSON.stringify({ assignedBranchIds })
-      });
-      if (data?.user) {
-        const current = getCachedUsers();
-        const idx = current.findIndex(u => u.id === id);
-        if (idx >= 0) {
-          current[idx] = data.user;
-          saveCachedUsers(current);
-        }
-        return data.user;
-      }
-    } catch (e) {}
-
+    const data = await apiRequest<{ success: boolean; user: User }>(`/api/users/${id}/assign-branches`, {
+      method: 'PATCH',
+      body: JSON.stringify({ assignedBranchIds })
+    });
+    if (!data || !data.user) {
+      throw new Error('Failed to assign branches on Supabase');
+    }
     const current = getCachedUsers();
     const idx = current.findIndex(u => u.id === id);
     if (idx >= 0) {
-      current[idx].assignedBranchIds = assignedBranchIds;
+      current[idx] = data.user;
       saveCachedUsers(current);
-      return current[idx];
     }
-    throw new Error('User not found');
+    return data.user;
   }
 };
 
@@ -530,43 +474,25 @@ export const roleApi = {
   },
 
   createRole: async (name: string, description?: string) => {
-    try {
-      const data = await apiRequest<{ success: boolean; role: RoleDefinition }>('/api/roles', {
-        method: 'POST',
-        body: JSON.stringify({ name, description })
-      });
-      return data.role;
-    } catch {
-      const newRole: RoleDefinition = {
-        id: name.toLowerCase().replace(/\s+/g, '_'),
-        name,
-        description: description || '',
-        permissions: []
-      };
-      return newRole;
-    }
+    const data = await apiRequest<{ success: boolean; role: RoleDefinition }>('/api/roles', {
+      method: 'POST',
+      body: JSON.stringify({ name, description })
+    });
+    return data.role;
   },
 
   updateRole: async (id: string, payload: { name?: string; description?: string }) => {
-    try {
-      const data = await apiRequest<{ success: boolean; role: RoleDefinition }>(`/api/roles/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(payload)
-      });
-      return data.role;
-    } catch {
-      return { id, name: payload.name || id, description: payload.description || '', permissions: [] };
-    }
+    const data = await apiRequest<{ success: boolean; role: RoleDefinition }>(`/api/roles/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+    return data.role;
   },
 
   deleteRole: async (id: string) => {
-    try {
-      return await apiRequest<{ success: boolean; message: string }>(`/api/roles/${id}`, {
-        method: 'DELETE'
-      });
-    } catch {
-      return { success: true, message: 'Role deleted' };
-    }
+    return await apiRequest<{ success: boolean; message: string }>(`/api/roles/${id}`, {
+      method: 'DELETE'
+    });
   },
 
   getPermissions: async (): Promise<Permission[]> => {
@@ -582,14 +508,10 @@ export const roleApi = {
   },
 
   updateRolePermissions: async (roleId: string, permissionIds: string[]) => {
-    try {
-      return await apiRequest<{ success: boolean; message: string }>(`/api/roles/${roleId}/permissions`, {
-        method: 'PUT',
-        body: JSON.stringify({ permissionIds })
-      });
-    } catch {
-      return { success: true, message: 'Permissions updated successfully' };
-    }
+    return await apiRequest<{ success: boolean; message: string }>(`/api/roles/${roleId}/permissions`, {
+      method: 'PUT',
+      body: JSON.stringify({ permissionIds })
+    });
   }
 };
 

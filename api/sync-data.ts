@@ -197,7 +197,11 @@ export default async function handler(req: any, res: any) {
         }
 
         if (rows.length > 0) {
-          try { await supabase.from('tc_collections').upsert(rows); } catch (e) {}
+          const { error: upsertErr } = await supabase.from('tc_collections').upsert(rows);
+          if (upsertErr) {
+            console.error('[sync-data] Supabase upsert error:', upsertErr);
+            return res.status(500).json({ success: false, error: upsertErr.message });
+          }
         }
         return res.status(200).json({
           success: true,
@@ -209,13 +213,12 @@ export default async function handler(req: any, res: any) {
       }
     } catch (err: any) {
       console.error('[Vercel Serverless] Supabase push error:', err.message);
+      return res.status(500).json({ success: false, error: err.message });
     }
 
-    return res.status(200).json({
-      success: true,
-      data: body,
-      db: body,
-      source: 'acknowledged'
+    return res.status(500).json({
+      success: false,
+      error: 'Supabase client is not configured on server (missing SUPABASE_URL or SUPABASE_ANON_KEY)'
     });
   }
 

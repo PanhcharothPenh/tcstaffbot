@@ -41,17 +41,18 @@ async function loadUsers(): Promise<any[]> {
 
 async function saveUsers(users: any[]) {
   const supabase = await getSupabase();
-  if (supabase) {
-    const payload = {
-      id: 'users',
-      data: users,
-      updated_at: new Date().toISOString()
-    };
-    try {
-      await supabase.from('tc_collections').upsert(payload);
-    } catch (e) {
-      console.warn('[users.ts] Failed to upsert to tc_collections:', e);
-    }
+  if (!supabase) {
+    throw new Error('Supabase is not configured on server (missing SUPABASE_URL or SUPABASE_ANON_KEY)');
+  }
+  const payload = {
+    id: 'users',
+    data: users,
+    updated_at: new Date().toISOString()
+  };
+  const { error } = await supabase.from('tc_collections').upsert(payload);
+  if (error) {
+    console.error('[users.ts] Supabase upsert error:', error);
+    throw new Error(`Supabase error saving users: ${error.message}`);
   }
 }
 
@@ -104,9 +105,10 @@ export default async function handler(req: any, res: any) {
     targetId = String(body.id).trim();
   }
 
-  const users = await loadUsers();
+  try {
+    const users = await loadUsers();
 
-  if (req.method === 'GET') {
+    if (req.method === 'GET') {
     if (targetId) {
       const user = users.find(u => u.id === targetId);
       if (user) return res.status(200).json({ success: true, user });
@@ -213,4 +215,8 @@ export default async function handler(req: any, res: any) {
   }
 
   return res.status(405).json({ error: 'Method Not Allowed' });
+  } catch (err: any) {
+    console.error('[users.ts] Handler error:', err);
+    return res.status(500).json({ success: false, error: err.message || 'Internal server error in users API' });
+  }
 }
