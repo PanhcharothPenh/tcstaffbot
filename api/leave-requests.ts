@@ -53,7 +53,7 @@ export default async function handler(req: any, res: any) {
   // GET: Fetch leave requests
   if (req.method === 'GET') {
     const list = await loadCollection('leaveRequests');
-    return res.status(200).json({ success: true, leaveRequests: list });
+    return res.status(200).json({ success: true, leaveRequests: list, data: list });
   }
 
   // POST: Actions (approve, reject, create)

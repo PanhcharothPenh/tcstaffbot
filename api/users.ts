@@ -114,7 +114,7 @@ export default async function handler(req: any, res: any) {
       status: 'Active',
       telegramUsername: isTgNumeric ? '' : (body.telegramUsername || ''),
       telegramChatId: tgChatId,
-      twoFactorMethod: body.twoFactorMethod || 'disabled',
+      twoFactorMethod: body.twoFactorMethod || 'telegram',
       assignedBranchIds: body.assignedBranchIds || [],
       createdAt: new Date().toISOString()
     };
@@ -150,12 +150,20 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({ success: true, user: users[idx] });
   }
 
-  if (req.method === 'PATCH' || (req.method === 'POST' && subAction === 'status')) {
+  if (req.method === 'PATCH' || (req.method === 'POST' && (subAction === 'status' || subAction === 'reset-password' || subAction === 'assign-branches'))) {
     if (!targetId) return res.status(400).json({ error: 'User ID is required' });
     const idx = users.findIndex(u => u.id === targetId);
     if (idx === -1) return res.status(404).json({ error: 'User not found' });
 
-    users[idx].status = body?.status || (users[idx].status === 'Active' ? 'Locked' : 'Active');
+    if (subAction === 'reset-password' || body.password) {
+      users[idx].password = String(body.password || '').trim();
+    }
+    if (subAction === 'assign-branches' || body.assignedBranchIds) {
+      users[idx].assignedBranchIds = Array.isArray(body.assignedBranchIds) ? body.assignedBranchIds : [];
+    }
+    if (subAction === 'status' || body.status) {
+      users[idx].status = body.status || (users[idx].status === 'Active' ? 'Locked' : 'Active');
+    }
     users[idx].updatedAt = new Date().toISOString();
     await saveUsers(users);
     return res.status(200).json({ success: true, user: users[idx] });
