@@ -1360,27 +1360,26 @@ export default function AttendanceView({
                   <Calendar size={24} />
                 </div>
                 <div>
-                  <p className="text-sm font-black text-slate-800">មិនមានទិន្នន័យវត្តមានតាមការចម្រាញ់នេះទេ</p>
-                  <p className="text-xs text-slate-500 mt-0.5">ប្រព័ន្ធមានកំណត់ត្រាសរុបចំនួន {attendance.length} ក្នុង Database</p>
+                  <p className="text-sm font-black text-slate-800">
+                    {attendance.length === 0 ? 'មិនទាន់មានទិន្នន័យវត្តមាននៅឡើយទេ' : 'មិនមានទិន្នន័យវត្តមានតាមការចម្រាញ់នេះទេ'}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {attendance.length === 0
+                      ? 'ទិន្នន័យវត្តមានរបស់បុគ្គលិកនឹងបង្ហាញនៅទីនេះដោយស្វ័យប្រវត្តិ។'
+                      : `ប្រព័ន្ធមានកំណត់ត្រាសរុបចំនួន ${attendance.length} ក្នុង Database`}
+                  </p>
                 </div>
-                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                  <button 
-                    type="button"
-                    onClick={() => { setSelectedDate(''); setFilterBranchId('all'); setFilterStaffId('all'); setFilterStatus('all'); setSearchQuery(''); }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
-                  >
-                    🌐 បង្ហាញគ្រប់កាលបរិច្ឆេទ & គ្រប់សាខា ({attendance.length})
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={handleManualSync}
-                    disabled={isRefreshing}
-                    className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
-                  >
-                    <RefreshCw size={13} className={isRefreshing ? "animate-spin text-blue-600" : "text-blue-600"} />
-                    <span>ទាញទិន្នន័យពី Server</span>
-                  </button>
-                </div>
+                {attendance.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    <button 
+                      type="button"
+                      onClick={() => { setSelectedDate(''); setFilterBranchId('all'); setFilterStaffId('all'); setFilterStatus('all'); setSearchQuery(''); }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
+                    >
+                      🌐 បង្ហាញគ្រប់កាលបរិច្ឆេទ & គ្រប់សាខា ({attendance.length})
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="overflow-x-auto rounded-2xl border border-slate-200/80 shadow-2xs">
