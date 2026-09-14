@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Calendar, 
   Clock, 
@@ -53,6 +53,12 @@ export default function ShiftCalendarView({
   const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
     return activeBranchId && activeBranchId !== 'all' ? activeBranchId : (branches[0]?.id || 'b1');
   });
+
+  useEffect(() => {
+    if (activeBranchId && activeBranchId !== 'all') {
+      setSelectedBranchId(activeBranchId);
+    }
+  }, [activeBranchId]);
 
   const [currentDate, setCurrentDate] = useState(() => new Date());
 
@@ -263,65 +269,11 @@ export default function ShiftCalendarView({
   };
 
   return (
-    <div className="space-y-6 font-sans select-none pb-12">
+    <div className="space-y-4 font-sans select-none pb-12">
       
-      {/* Top Header Card */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <CalendarDays size={22} className="text-[#003D9B]" />
-            <h2 className="text-lg font-black text-slate-900 tracking-tight">
-              {lang === 'en' ? 'Staff Shift Roster Calendar' : 'ប្រតិទិនតារាងវេនការងារបុគ្គលិក'}
-            </h2>
-          </div>
-          <p className="text-xs text-slate-500 mt-1">
-            {lang === 'en' ? 'Schedule, view daily shifts, assign shift substitutions, and broadcast rosters to Telegram' : 'ចាត់ចែង ពិនិត្យវេនការងារប្រចាំថ្ងៃ កត់ត្រាជំនួសវេន និងផ្ញើតារាងវេនទៅ Telegram'}
-          </p>
-        </div>
-
-        {/* Branch Selector & Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          <select
-            value={selectedBranchId}
-            onChange={e => setSelectedBranchId(e.target.value)}
-            className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none cursor-pointer hover:border-slate-300"
-          >
-            {branches.map(b => (
-              <option key={b.id} value={b.id}>
-                🏢 {b.branchName}
-              </option>
-            ))}
-          </select>
-
-          <button
-            type="button"
-            onClick={() => {
-              setSwapDate(new Date().toISOString().substring(0, 10));
-              setShowSwapModal(true);
-            }}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-          >
-            <ArrowRightLeft size={14} />
-            {lang === 'en' ? 'Assign Shift Cover' : 'ចាត់ចែងជំនួសវេន'}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSendTelegramSchedule}
-            disabled={isSendingTelegram}
-            className="px-3.5 py-2 bg-[#0052CC] hover:bg-[#003D9B] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
-          >
-            <Send size={14} />
-            {isSendingTelegram 
-              ? (lang === 'en' ? 'Sending...' : 'កំពុងផ្ញើ...') 
-              : (lang === 'en' ? 'Send to Telegram' : 'ផ្ញើតារាងវេនទៅ Telegram')}
-          </button>
-        </div>
-      </div>
-
       {/* Feedback Banner */}
       {telegramStatus && (
-        <div className={`p-4 rounded-2xl border text-xs font-bold flex items-center gap-2 transition-all ${
+        <div className={`p-3 rounded-2xl border text-xs font-bold flex items-center gap-2 transition-all ${
           telegramStatus.success 
             ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
             : 'bg-rose-50 border-rose-200 text-rose-800'
@@ -331,25 +283,28 @@ export default function ShiftCalendarView({
         </div>
       )}
 
-      {/* Calendar Navigation & Month Bar */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      {/* Calendar Toolbar: Month Controls, Legend & Actions */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-3 sm:p-4 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+        {/* Month Navigation */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={prevMonth}
-            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
+            className="p-1.5 sm:p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
+            aria-label="Previous Month"
           >
             <ChevronLeft size={16} />
           </button>
 
-          <h3 className="text-base font-black text-slate-900 min-w-[160px] text-center">
+          <h3 className="text-sm sm:text-base font-black text-slate-900 min-w-[130px] sm:min-w-[150px] text-center">
             {lang === 'kh' ? monthNamesKh[currentMonth - 1] : monthNamesEn[currentMonth - 1]} {currentYear}
           </h3>
 
           <button
             type="button"
             onClick={nextMonth}
-            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
+            className="p-1.5 sm:p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
+            aria-label="Next Month"
           >
             <ChevronRight size={16} />
           </button>
@@ -357,18 +312,61 @@ export default function ShiftCalendarView({
           <button
             type="button"
             onClick={todayMonth}
-            className="ml-2 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+            className="ml-1 sm:ml-2 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
           >
             {lang === 'en' ? 'Today' : 'ថ្ងៃនេះ'}
           </button>
         </div>
 
         {/* Legend */}
-        <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-600">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] sm:text-xs font-semibold text-slate-600">
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span> 🌅 {lang === 'en' ? 'Morning' : 'ព្រឹក'}</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-sky-500"></span> ☀️ {lang === 'en' ? 'Afternoon' : 'រសៀល'}</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> 🌙 {lang === 'en' ? 'Night' : 'យប់'}</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> 🔄 {lang === 'en' ? 'Cover' : 'ជំនួសវេន'}</span>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          {activeBranchId === 'all' && (
+            <select
+              value={selectedBranchId}
+              onChange={e => setSelectedBranchId(e.target.value)}
+              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none cursor-pointer hover:border-slate-300"
+            >
+              {branches.map(b => (
+                <option key={b.id} value={b.id}>
+                  🏢 {b.branchName}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setSwapDate(new Date().toISOString().substring(0, 10));
+              setShowSwapModal(true);
+            }}
+            className="px-3 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+          >
+            <ArrowRightLeft size={14} />
+            <span>{lang === 'en' ? 'Assign Shift Cover' : 'ចាត់ចែងជំនួសវេន'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSendTelegramSchedule}
+            disabled={isSendingTelegram}
+            className="px-3 py-1.5 sm:py-2 bg-[#0052CC] hover:bg-[#003D9B] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50 active:scale-95"
+          >
+            <Send size={14} />
+            <span>
+              {isSendingTelegram 
+                ? (lang === 'en' ? 'Sending...' : 'កំពុងផ្ញើ...') 
+                : (lang === 'en' ? 'Send to Telegram' : 'ផ្ញើតារាងវេនទៅ Telegram')}
+            </span>
+          </button>
         </div>
       </div>
 
