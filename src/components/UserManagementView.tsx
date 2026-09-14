@@ -682,46 +682,92 @@ export default function UserManagementView({
   const tg2faCount = users.filter(u => u.twoFactorMethod === 'telegram' || u.telegramUsername).length;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="space-y-5 animate-in fade-in duration-200" id="user_management_module">
       
-      {/* 4 Summary Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t.totalUsers}</span>
-            <Users size={16} className="text-blue-600" />
+      {/* 1. TOP CONTROLS & SUB-TAB SWITCHER */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-3 sm:p-4 rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-2xs">
+        
+        {/* Sub-Tab Switcher & Quick Inline Stats */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex bg-slate-100 p-1 rounded-2xl text-xs font-bold shrink-0">
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'users'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Users size={14} className={activeTab === 'users' ? 'text-blue-600' : 'text-slate-400'} />
+              <span>{t.tabUsers}</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === 'users' ? 'bg-blue-50 text-blue-700' : 'bg-slate-200/70 text-slate-600'
+              }`}>
+                {users.length}
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('roles')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
+                activeTab === 'roles'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Sliders size={14} className={activeTab === 'roles' ? 'text-blue-600' : 'text-slate-400'} />
+              <span>{t.tabRoles}</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === 'roles' ? 'bg-blue-50 text-blue-700' : 'bg-slate-200/70 text-slate-600'
+              }`}>
+                {roles.length}
+              </span>
+            </button>
           </div>
-          <span className="text-2xl font-black text-slate-900 block mt-2 font-sans">{totalCount}</span>
+
+          {/* Inline Quick Stats Pills (Easy-look) */}
+          <div className="hidden lg:flex items-center gap-2 text-xs font-semibold text-slate-600">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-200/70 rounded-xl text-emerald-800 text-[11px] font-bold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>{t.activeUsers}: <strong>{activeCount}</strong></span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-sky-50 border border-sky-200/70 rounded-xl text-sky-800 text-[11px] font-bold">
+              <Send size={11} className="text-sky-600" />
+              <span>2FA: <strong>{tg2faCount}</strong></span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-[11px] font-bold">
+              <Building2 size={11} className="text-slate-500" />
+              <span>{t.branchesCovered}: <strong>{branches.length}</strong></span>
+            </div>
+          </div>
         </div>
 
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t.activeUsers}</span>
-            <CheckCircle2 size={16} className="text-emerald-600" />
-          </div>
-          <span className="text-2xl font-black text-emerald-600 block mt-2 font-sans">{activeCount}</span>
-        </div>
+        {/* Right Action Buttons */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={loadData}
+            disabled={loading}
+            className="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-xl transition cursor-pointer"
+            title={t.refresh}
+          >
+            <RefreshCw size={15} className={loading ? 'animate-spin text-blue-600' : ''} />
+          </button>
 
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t.telegramProtected}</span>
-            <Send size={16} className="text-sky-500" />
-          </div>
-          <span className="text-2xl font-black text-sky-600 block mt-2 font-sans">{tg2faCount}</span>
-        </div>
-
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t.branchesCovered}</span>
-            <Building2 size={16} className="text-indigo-600" />
-          </div>
-          <span className="text-2xl font-black text-indigo-600 block mt-2 font-sans">{branches.length}</span>
+          {activeTab === 'users' && isOwner && (
+            <button
+              onClick={handleOpenAddForm}
+              className="flex items-center gap-1.5 px-4 py-2 bg-[#003D9B] hover:bg-blue-800 active:scale-[0.98] text-white rounded-xl text-xs font-semibold shadow-xs transition cursor-pointer"
+              id="btn_add_user_trigger"
+            >
+              <UserPlus size={14} />
+              <span>{t.addUser}</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* Action Notification Banner */}
       {banner && (
-        <div className={`p-4 rounded-2xl text-xs flex items-center justify-between gap-3 shadow-xs border transition-all ${
+        <div className={`p-3.5 sm:p-4 rounded-2xl text-xs flex items-center justify-between gap-3 shadow-xs border transition-all ${
           banner.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
           banner.type === 'refuse' ? 'bg-amber-50 border-amber-200 text-amber-800' :
           'bg-rose-50 border-rose-200 text-rose-800'
@@ -736,99 +782,37 @@ export default function UserManagementView({
         </div>
       )}
 
-      {/* Main Container Card */}
-      <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-sm space-y-5">
-        
-        {/* Top Header & Sub-Tab Switcher */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-slate-100">
-          <div>
-            <h2 className="text-lg font-black text-slate-900 flex items-center gap-2 font-sans">
-              <ShieldCheck className="text-blue-600" size={22} />
-              {t.title}
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5 font-medium font-sans">
-              {t.subtitle}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Sub-Tab Switcher */}
-            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
-              <button
-                onClick={() => setActiveTab('users')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  activeTab === 'users'
-                    ? 'bg-white text-blue-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Users size={14} />
-                <span>{t.tabUsers}</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('roles')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  activeTab === 'roles'
-                    ? 'bg-white text-blue-700 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Sliders size={14} />
-                <span>{t.tabRoles}</span>
-              </button>
+      {/* TAB 1: USERS DIRECTORY */}
+      {activeTab === 'users' && (
+        <div className="space-y-4">
+          {/* Filter & Search Bar */}
+          <div className="flex flex-col sm:flex-row items-center gap-2.5 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs">
+            {/* Search Box */}
+            <div className="relative flex-1 w-full">
+              <Search size={15} className="text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder={t.searchPlaceholder}
+                className="w-full pl-10 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 font-sans transition-all"
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
 
-            <button
-              onClick={loadData}
-              disabled={loading}
-              className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 rounded-xl transition-all cursor-pointer"
-              title={t.refresh}
-            >
-              <RefreshCw size={15} className={loading ? 'animate-spin text-blue-600' : ''} />
-            </button>
-
-            {activeTab === 'users' && (
-              <button
-                onClick={handleOpenAddForm}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 cursor-pointer"
-              >
-                <UserPlus size={15} />
-                <span>{t.addUser}</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* TAB 1: USERS DIRECTORY */}
-        {activeTab === 'users' && (
-          <div className="space-y-4">
-            {/* Filter & Search Bar */}
-            <div className="flex flex-col md:flex-row items-center gap-3">
-              {/* Search Box */}
-              <div className="relative flex-1 w-full">
-                <Search size={15} className="text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder={t.searchPlaceholder}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-600 font-sans transition-all"
-                />
-                {searchQuery && (
-                  <button 
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    <X size={13} />
-                  </button>
-                )}
-              </div>
-
-              {/* Role Filter */}
+            {/* Role Filter */}
+            <div className="w-full sm:w-auto shrink-0">
               <select
                 value={roleFilter}
                 onChange={e => setRoleFilter(e.target.value)}
-                className="w-full md:w-44 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:bg-white focus:border-blue-600 transition-all cursor-pointer"
+                className="w-full sm:w-40 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:bg-white focus:border-blue-600 transition cursor-pointer"
               >
                 <option value="all">{t.allRoles}</option>
                 <option value="owner">Owner</option>
@@ -836,21 +820,24 @@ export default function UserManagementView({
                 <option value="manager">Manager</option>
                 <option value="staff">Staff</option>
               </select>
+            </div>
 
-              {/* Status Filter */}
+            {/* Status Filter */}
+            <div className="w-full sm:w-auto shrink-0">
               <select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
-                className="w-full md:w-36 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:bg-white focus:border-blue-600 transition-all cursor-pointer"
+                className="w-full sm:w-36 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:bg-white focus:border-blue-600 transition cursor-pointer"
               >
                 <option value="all">{t.allStatuses}</option>
                 <option value="Active">Active</option>
                 <option value="Locked">Locked</option>
               </select>
             </div>
+          </div>
 
-            {/* Users Table */}
-            <div className="border border-slate-200/80 rounded-2xl overflow-hidden bg-white shadow-2xs">
+          {/* Users Table */}
+          <div className="border border-slate-200/80 rounded-2xl sm:rounded-3xl overflow-hidden bg-white shadow-2xs">
               {loading ? (
                 <div className="py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
                   <Loader2 className="animate-spin text-blue-600" size={24} />
@@ -1657,8 +1644,6 @@ export default function UserManagementView({
             </div>
           );
         })()}
-
-      </div>
 
       {/* CREATE / EDIT USER MODAL */}
       {showForm && (
