@@ -64,10 +64,45 @@ export default async function handler(req: any, res: any) {
     return res.status(200).end();
   }
 
+  let body = req.body || {};
+  if (typeof body === 'string') {
+    try { body = JSON.parse(body); } catch (e) {}
+  }
+
   const url = req.url || '';
-  const parts = url.split('?')[0].split('/').filter(Boolean);
-  const targetId = parts[2] || '';
-  const subAction = parts[3] || '';
+  const urlPath = url.split('?')[0];
+  const parts = urlPath.split('/').filter(Boolean);
+  
+  let targetId = '';
+  let subAction = '';
+
+  // 1. Direct URL Path: /api/users/usr_owner or /users/usr_owner
+  if (parts.length >= 3 && (parts[0] === 'api' || parts[1] === 'users')) {
+    targetId = parts[2] || '';
+    subAction = parts[3] || '';
+  } else if (parts.length >= 2 && parts[0] === 'users') {
+    targetId = parts[1] || '';
+    subAction = parts[2] || '';
+  }
+
+  // 2. From req.query (Vercel rewrite :path*)
+  if (!targetId && req.query) {
+    if (typeof req.query.path === 'string') {
+      const qParts = req.query.path.split('/').filter(Boolean);
+      targetId = qParts[0] || '';
+      subAction = qParts[1] || '';
+    } else if (Array.isArray(req.query.path) && req.query.path.length > 0) {
+      targetId = req.query.path[0] || '';
+      subAction = req.query.path[1] || '';
+    } else if (req.query.id) {
+      targetId = String(req.query.id).trim();
+    }
+  }
+
+  // 3. Fallback from body.id
+  if (!targetId && body && body.id) {
+    targetId = String(body.id).trim();
+  }
 
   const users = await loadUsers();
 
@@ -78,11 +113,6 @@ export default async function handler(req: any, res: any) {
       return res.status(404).json({ error: 'User not found' });
     }
     return res.status(200).json({ success: true, users });
-  }
-
-  let body = req.body || {};
-  if (typeof body === 'string') {
-    try { body = JSON.parse(body); } catch (e) {}
   }
 
   if (req.method === 'POST') {
@@ -126,7 +156,11 @@ export default async function handler(req: any, res: any) {
 
   if (req.method === 'PUT') {
     if (!targetId) return res.status(400).json({ error: 'User ID is required' });
-    const idx = users.findIndex(u => u.id === targetId);
+    let idx = users.findIndex(u => u.id === targetId || u.username === targetId);
+    if (idx === -1 && (targetId === 'usr_owner' || targetId === 'roth' || body.role === 'Owner' || body.roleId === 'owner')) {
+      users.push({ ...DEFAULT_USERS[0] });
+      idx = users.length - 1;
+    }
     if (idx === -1) return res.status(404).json({ error: 'User not found' });
 
     const rawTg = String(body.telegramChatId || body.telegramUsername || '').trim();
@@ -152,7 +186,7 @@ export default async function handler(req: any, res: any) {
 
   if (req.method === 'PATCH' || (req.method === 'POST' && (subAction === 'status' || subAction === 'reset-password' || subAction === 'assign-branches'))) {
     if (!targetId) return res.status(400).json({ error: 'User ID is required' });
-    const idx = users.findIndex(u => u.id === targetId);
+    const idx = users.findIndex(u => u.id === targetId || u.username === targetId);
     if (idx === -1) return res.status(404).json({ error: 'User not found' });
 
     if (subAction === 'reset-password' || body.password) {

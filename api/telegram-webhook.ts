@@ -353,11 +353,11 @@ export default async function handler(req: any, res: any) {
 
       if (supabase) {
         try {
-          // Ultra-Fast Targeted Loading: Always load essential collections so botToken, config, and recipients are never empty
+          // Ultra-Fast Targeted Loading with 5s cache to ensure quick propagation of Web updates
           const neededIds = ['staff', 'branches', 'users', 'telegramConfig', 'telegramRecipients', 'attendance', 'leaveRequests', 'telegram_chat_registry'];
-          const batch = await loadMultipleCollections(supabase, neededIds, 60000);
+          const batch = await loadMultipleCollections(supabase, neededIds, 5000);
 
-          const rawStaff = Array.isArray(batch['staff']) ? batch['staff'] : [];
+          let rawStaff = Array.isArray(batch['staff']) ? batch['staff'] : [];
           // Employee roster (excludes Owner so owners don't show as absent employees or on payroll)
           allStaff = rawStaff.filter((s: any) => s && s.role !== 'Owner' && s.roleId !== 'owner' && !String(s.position || '').toLowerCase().includes('owner') && s.id !== 'staff_owner_clean24');
           allBranches = Array.isArray(batch['branches']) ? batch['branches'] : [];
@@ -400,6 +400,33 @@ export default async function handler(req: any, res: any) {
           // 3. Search in storedRecipients (Configured notification recipients)
           matchedRecipient = storedRecipients.find((r: any) => isNotInactive(r) && String(r.chatId) === telegramId);
 
+          // If still not matched, perform a LIVE fresh reload of users and staff directly from Supabase (bypassing cache)
+          // in case the admin just registered or updated them on the Web a few moments ago:
+          if (!matchedStaff && !matchedUser) {
+            try {
+              const { data: freshRows } = await supabase.from('tc_collections').select('id, data').in('id', ['users', 'staff', 'telegramConfig']);
+              if (Array.isArray(freshRows)) {
+                for (const row of freshRows) {
+                  if (row.id === 'users' && Array.isArray(row.data)) {
+                    allUsers = row.data;
+                    updateMemCache('users', allUsers);
+                  } else if (row.id === 'staff' && Array.isArray(row.data)) {
+                    rawStaff = row.data;
+                    allStaff = row.data.filter((s: any) => s && s.role !== 'Owner' && s.roleId !== 'owner' && !String(s.position || '').toLowerCase().includes('owner') && s.id !== 'staff_owner_clean24');
+                    updateMemCache('staff', row.data);
+                  } else if (row.id === 'telegramConfig' && row.data) {
+                    storedConfig = row.data;
+                    updateMemCache('telegramConfig', storedConfig);
+                  }
+                }
+                matchedStaff = rawStaff.find((s: any) => isNotInactive(s) && isTgMatch(s.telegramId, s.telegramUsername, s.phone));
+                matchedUser = allUsers.find((u: any) => isNotInactive(u) && isTgMatch(u.telegramChatId || u.telegramId, u.telegramUsername, u.phone, u.username));
+              }
+            } catch (freshErr) {
+              console.warn('Live direct check error:', freshErr);
+            }
+          }
+
           // 4. Automatic Owner Recognition:
           // Check if this Telegram account is configured as Owner/Admin in telegramConfig or telegram_chat_registry or default primary owner
           const isRegistryOwner = chatRegistry.some((reg: any) => 
@@ -410,11 +437,46 @@ export default async function handler(req: any, res: any) {
             (storedConfig?.chatIds?.admin && String(storedConfig.chatIds.admin) === telegramId) ||
             telegramId === '7818150707' ||
             cleanTgHandle === 'millerppc' ||
+            cleanTgHandle === 'roth' ||
             isRegistryOwner
           );
 
           if (!matchedStaff && !matchedUser && !matchedRecipient && isConfigOwner) {
-            matchedUser = allUsers.find((u: any) => u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_owner') || allUsers[0];
+            matchedUser = allUsers.find((u: any) => u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_owner' || u.username === 'roth') || allUsers[0] || {
+              id: 'usr_owner',
+              username: 'roth',
+              fullName: firstName && firstName !== 'Barista' ? firstName : 'Roth (Executive Owner)',
+              role: 'Owner',
+              roleId: 'owner',
+              status: 'Active',
+              assignedBranchIds: ['b1', 'b2'],
+              telegramUsername: cleanTgHandle ? `@${cleanTgHandle}` : '@millerppc',
+              telegramChatId: telegramId
+            };
+          }
+
+          // Automatically auto-bind numeric Telegram Chat ID to the matching User record in Supabase
+          // if they were registered with username on Web and this is their message:
+          if (matchedUser && telegramId && /^-?\d+$/.test(telegramId)) {
+            let userNeedsSave = false;
+            if (!matchedUser.telegramChatId || matchedUser.telegramChatId !== telegramId) {
+              matchedUser.telegramChatId = telegramId;
+              userNeedsSave = true;
+            }
+            if (cleanTgHandle && (!matchedUser.telegramUsername || normalizeTg(matchedUser.telegramUsername) !== cleanTgHandle)) {
+              matchedUser.telegramUsername = `@${cleanTgHandle}`;
+              userNeedsSave = true;
+            }
+            if (userNeedsSave) {
+              const uIdx = allUsers.findIndex((u: any) => u.id === matchedUser.id);
+              if (uIdx >= 0) {
+                allUsers[uIdx] = { ...allUsers[uIdx], telegramChatId: telegramId, telegramUsername: matchedUser.telegramUsername };
+              } else {
+                allUsers.push(matchedUser);
+              }
+              saveDbCollectionAsync(supabase, 'users', allUsers);
+              updateMemCache('users', allUsers);
+            }
           }
 
           if (!matchedStaff && matchedUser) {
@@ -463,13 +525,24 @@ export default async function handler(req: any, res: any) {
             };
           }
 
+          // If matchedStaff found and numeric Telegram ID was missing in staff record, auto-bind
+          if (matchedStaff && telegramId && /^-?\d+$/.test(telegramId) && (!matchedStaff.telegramId || matchedStaff.telegramId !== telegramId)) {
+            matchedStaff.telegramId = telegramId;
+            matchedStaff.telegramLinked = true;
+            const sIdx = rawStaff.findIndex((s: any) => s.id === matchedStaff.id);
+            if (sIdx >= 0) {
+              rawStaff[sIdx] = { ...rawStaff[sIdx], telegramId, telegramLinked: true };
+              saveDbCollectionAsync(supabase, 'staff', rawStaff);
+              updateMemCache('staff', rawStaff);
+            }
+          }
+
           if (matchedStaff) {
             todayAttendance = allAtt.find((a: any) => a.staffId === matchedStaff.id && a.date === phnomPenhDateStr);
             staffBranch = allBranches.find((b: any) => b.id === matchedStaff.branchId);
           }
 
           // Automatically record Telegram numeric Chat ID into address book (telegram_chat_registry & telegramRecentUsers)
-          // NOTE: This does NOT modify or auto-link staff/users; it only maps Telegram usernames to their numeric chat IDs so 2FA OTP can be sent!
           if (telegramId && /^-?\d+$/.test(telegramId)) {
             try {
               let regArr: any[] = Array.isArray(chatRegistry) ? [...chatRegistry] : [];
@@ -504,6 +577,39 @@ export default async function handler(req: any, res: any) {
         } catch (dbErr) {
           console.error('Supabase query error in telegram webhook:', dbErr);
         }
+      }
+
+      // 5. Ultimate Owner Fallback Guarantee:
+      // If Telegram account is @millerppc or 7818150707, they are ALWAYS recognized as the Store Owner!
+      if (!matchedStaff && (telegramId === '7818150707' || cleanTgHandle === 'millerppc' || cleanTgHandle === 'roth')) {
+        matchedUser = {
+          id: 'usr_owner',
+          username: 'roth',
+          fullName: firstName && firstName !== 'Barista' ? firstName : 'Roth (Executive Owner)',
+          role: 'Owner',
+          roleId: 'owner',
+          status: 'Active',
+          assignedBranchIds: ['b1', 'b2'],
+          telegramUsername: cleanTgHandle ? `@${cleanTgHandle}` : '@millerppc',
+          telegramChatId: telegramId
+        };
+        matchedStaff = {
+          id: 'usr_owner',
+          fullName: matchedUser.fullName,
+          position: 'ម្ចាស់ហាង (Store Owner)',
+          role: 'Owner',
+          roleId: 'owner',
+          gender: 'Other',
+          phone: '012 888 999',
+          branchId: 'b1',
+          assignedBranchIds: ['b1', 'b2'],
+          status: 'Active',
+          telegramId: telegramId,
+          telegramUsername: cleanTgHandle ? `@${cleanTgHandle}` : '@millerppc',
+          telegramLinked: true,
+          faceEnrolled: false,
+          attendanceEnabled: false
+        };
       }
 
       // =================================================================================

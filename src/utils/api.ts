@@ -363,10 +363,12 @@ export const userApi = {
     try {
       const data = await apiRequest<{ success: boolean; user: User }>(`/api/users/${id}`, {
         method: 'PUT',
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ ...payload, id })
       });
       if (data?.user) updatedUser = data.user;
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[userApi.updateUser] Request failed:', e);
+    }
 
     const current = getCachedUsers();
     const idx = current.findIndex(u => u.id === id);
