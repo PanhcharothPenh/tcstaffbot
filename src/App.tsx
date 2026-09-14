@@ -1269,29 +1269,6 @@ export default function App() {
                  activeTab === 'settings' ? (lang === 'en' ? 'Settings' : 'ការកំណត់') :
                  (lang === 'en' ? 'Staff & Barista' : 'បុគ្គលិក & Barista')}
               </h1>
-
-              {/* Quick Branch Switcher in top bar */}
-              <div className="relative inline-flex items-center">
-                <select
-                  value={activeBranchId}
-                  onChange={(e) => setActiveBranchId(e.target.value)}
-                  className="bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-slate-800 text-[11px] sm:text-xs font-bold font-sans rounded-xl pl-2.5 pr-6 py-1 focus:outline-none focus:border-blue-500 shadow-2xs cursor-pointer transition-all appearance-none"
-                  id="header_quick_branch_switcher"
-                  aria-label="Quick Switch Branch"
-                >
-                  {canAccessAllBranches && (
-                    <option value="all">🌐 {t.allBranches}</option>
-                  )}
-                  {userAccessibleBranches.map(b => (
-                    <option key={b.id} value={b.id}>
-                      📍 {b.branchName}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute right-1.5 text-slate-400">
-                  <ChevronDown size={12} />
-                </div>
-              </div>
             </div>
           </div>
 
