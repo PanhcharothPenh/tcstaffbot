@@ -33,7 +33,8 @@ import {
   ChevronRight,
   Send,
   RefreshCw,
-  Check
+  Check,
+  Trash2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Attendance, Staff, Role, Branch } from '../types';
@@ -517,6 +518,39 @@ export default function AttendanceView({
   const getBranchName = (bId: string) => {
     const b = branches.find(x => x.id === bId);
     return b ? b.branchName : 'toto by Chichi';
+  };
+
+  const isOwnerOrAdmin = currentRole === 'Owner' || currentRole === 'Admin';
+
+  const handleDeleteAttendance = async (attId: string, staffName?: string) => {
+    const confirmMsg = lang === 'kh'
+      ? `តើអ្នកពិតជាចង់លុបកំណត់ត្រាវត្តមានរបស់ "${staffName || 'បុគ្គលិក'}" នេះចេញពី Database មែនទេ?`
+      : `Are you sure you want to delete this attendance record for "${staffName || 'Staff'}"?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    const updated = attendance.filter(a => a.id !== attId);
+    setAttendance(updated);
+
+    try {
+      const res = await fetch('/api/sync-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          attendance: updated,
+          deleteCollectionItem: true,
+          collection: 'attendance',
+          itemId: attId
+        })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to delete attendance record from server');
+      }
+      onAddLog(`Deleted attendance record ID ${attId} for ${staffName || 'Staff'}`);
+    } catch (err: any) {
+      console.error('Delete attendance error:', err);
+      alert(`Error deleting record: ${err.message}`);
+    }
   };
 
   const formatWorkDuration = (val?: number, overrideLang?: 'kh' | 'en') => {
@@ -1513,6 +1547,15 @@ export default function AttendanceView({
                             >
                               <Edit3 size={13} />
                             </button>
+                            {isOwnerOrAdmin && (
+                              <button
+                                onClick={() => handleDeleteAttendance(rec.id, rec.staffName)}
+                                className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition cursor-pointer"
+                                title="លុបកំណត់ត្រាវត្តមាន"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
