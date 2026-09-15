@@ -34,7 +34,8 @@ import {
   Send,
   RefreshCw,
   Check,
-  Trash2
+  Trash2,
+  Globe
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Attendance, Staff, Role, Branch } from '../types';
@@ -939,7 +940,7 @@ export default function AttendanceView({
               }`}
             >
               <Clock size={14} />
-              <span>{lang === 'kh' ? '📋 កត់ត្រាវត្តមានប្រចាំថ្ងៃ' : 'Daily Attendance Log'}</span>
+              <span>{lang === 'kh' ? 'កត់ត្រាវត្តមានប្រចាំថ្ងៃ' : 'Daily Attendance Log'}</span>
             </button>
 
             <button
@@ -951,7 +952,7 @@ export default function AttendanceView({
               }`}
             >
               <Calendar size={14} />
-              <span>{lang === 'kh' ? '📊 សង្ខេបប្រចាំខែតាមបុគ្គលិក' : 'Monthly Staff Summary'}</span>
+              <span>{lang === 'kh' ? 'សង្ខេបប្រចាំខែតាមបុគ្គលិក' : 'Monthly Staff Summary'}</span>
             </button>
 
             <button
@@ -963,7 +964,7 @@ export default function AttendanceView({
               }`}
             >
               <Printer size={14} />
-              <span>{lang === 'kh' ? '📄 ទម្រង់ក្រដាសបោះពុម្ព & PDF' : 'Printable Form & PDF'}</span>
+              <span>{lang === 'kh' ? 'ទម្រង់ក្រដាសបោះពុម្ព & PDF' : 'Printable Form & PDF'}</span>
             </button>
 
             <button
@@ -975,7 +976,7 @@ export default function AttendanceView({
               }`}
             >
               <FileText size={14} className={activeTab === 'leaves' ? 'text-emerald-600' : ''} />
-              <span>{lang === 'kh' ? '📝 ពាក្យសុំច្បាប់' : 'Leave Requests'}</span>
+              <span>{lang === 'kh' ? 'ពាក្យសុំច្បាប់' : 'Leave Requests'}</span>
               {pendingLeavesCount > 0 && (
                 <span className="ml-1 px-1.5 py-0.5 bg-rose-500 text-white text-[10px] font-black rounded-full shadow-xs animate-pulse">
                   {pendingLeavesCount}
@@ -1065,7 +1066,7 @@ export default function AttendanceView({
                     onChange={e => setSelectedPrintStaffId(e.target.value)}
                     className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 focus:outline-none"
                   >
-                    <option value="all">👥 គ្រប់បុគ្គលិកទាំងអស់ (All Staff)</option>
+                    <option value="all">គ្រប់បុគ្គលិកទាំងអស់ (All Staff)</option>
                     {staffList.map(s => (
                       <option key={s.id} value={s.id}>{s.fullName} ({s.position || 'Staff'})</option>
                     ))}
@@ -1080,7 +1081,7 @@ export default function AttendanceView({
                   onChange={e => setSummaryBranchId(e.target.value)}
                   className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 focus:outline-none"
                 >
-                  <option value="all">🌐 គ្រប់សាខា (All Branches)</option>
+                  <option value="all">គ្រប់សាខា (All Branches)</option>
                   {branches.map(b => (
                     <option key={b.id} value={b.id}>{b.branchName}</option>
                   ))}
@@ -1179,7 +1180,7 @@ export default function AttendanceView({
             <div className="bg-rose-50/60 border-2 border-rose-300 rounded-2xl p-4 shadow-xs">
               <div className="flex items-center justify-between text-rose-600">
                 <span className="text-[11px] font-black uppercase tracking-wider">
-                  {lang === 'kh' ? '🔴 ច្បាប់សម្រាក' : 'Permission'}
+                  {lang === 'kh' ? 'ច្បាប់សម្រាក' : 'Permission'}
                 </span>
                 <FileText size={16} className="text-rose-600" />
               </div>
@@ -1193,33 +1194,38 @@ export default function AttendanceView({
           {/* 2. MAIN ATTENDANCE CARD & CONTROLS */}
           <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
             {/* Streamlined Controls Bar: Quick Date Presets & Sync */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 text-xs pb-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-bold text-slate-500">ចម្រាញ់រហ័ស៖</span>
-                
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-slate-500 mr-1 flex items-center gap-1">
+                  <Calendar size={13} />
+                  <span>{lang === 'kh' ? 'កាលបរិច្ឆេទ៖' : 'Date:'}</span>
+                </span>
+
                 <button
                   type="button"
                   onClick={() => setSelectedDate(todayPhnomPenh)}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1 text-xs ${
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 text-xs ${
                     selectedDate === todayPhnomPenh
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                   }`}
                 >
-                  <span>📅 ថ្ងៃនេះ ({todayPhnomPenh})</span>
+                  <Calendar size={12} />
+                  <span>ថ្ងៃនេះ ({todayPhnomPenh})</span>
                   {selectedDate === todayPhnomPenh && <Check size={12} />}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setSelectedDate('')}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1 text-xs ${
+                  className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 text-xs ${
                     !selectedDate || selectedDate === 'all'
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                   }`}
                 >
-                  <span>🌐 គ្រប់កាលបរិច្ឆេទ (All Dates)</span>
+                  <Globe size={12} />
+                  <span>គ្រប់កាលបរិច្ឆេទ (All Dates)</span>
                   {(!selectedDate || selectedDate === 'all') && <Check size={12} />}
                 </button>
 
@@ -1227,9 +1233,10 @@ export default function AttendanceView({
                   <button
                     type="button"
                     onClick={() => setFilterBranchId('all')}
-                    className="px-2.5 py-1.5 rounded-xl font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-all cursor-pointer text-xs"
+                    className="px-2.5 py-1.5 rounded-xl font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-all cursor-pointer text-xs flex items-center gap-1"
                   >
-                    📍 គ្រប់សាខា
+                    <Building2 size={12} />
+                    <span>គ្រប់សាខា</span>
                   </button>
                 )}
 
@@ -1302,7 +1309,7 @@ export default function AttendanceView({
                   onChange={e => setFilterBranchId(e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
                 >
-                  <option value="all">🌐 គ្រប់សាខា (All)</option>
+                  <option value="all">គ្រប់សាខា (All)</option>
                   {branches.map(b => (
                     <option key={b.id} value={b.id}>{b.branchName}</option>
                   ))}
@@ -1317,7 +1324,7 @@ export default function AttendanceView({
                   onChange={e => setFilterStaffId(e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
                 >
-                  <option value="all">👥 គ្រប់បុគ្គលិក</option>
+                  <option value="all">គ្រប់បុគ្គលិក (All Staff)</option>
                   {staffList.map(s => (
                     <option key={s.id} value={s.id}>{s.fullName}</option>
                   ))}
@@ -1332,10 +1339,10 @@ export default function AttendanceView({
                   onChange={e => setFilterStatus(e.target.value)}
                   className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500"
                 >
-                  <option value="all">✨ គ្រប់ស្ថានភាព</option>
-                  <option value="Permission">🔴 ច្បាប់សម្រាក (Permission)</option>
-                  <option value="Working">⏳ កំពុងធ្វើការ (Working)</option>
-                  <option value="Completed">✓ បានចេញ (Completed)</option>
+                  <option value="all">គ្រប់ស្ថានភាព (All)</option>
+                  <option value="Permission">ច្បាប់សម្រាក (Permission)</option>
+                  <option value="Working">កំពុងធ្វើការ (Working)</option>
+                  <option value="Completed">បានចេញ (Completed)</option>
                   <option value="Present">Present (ទាន់ពេល)</option>
                   <option value="Late">Late (យឺត)</option>
                   <option value="Absent">Absent (អវត្តមាន)</option>
@@ -1380,9 +1387,10 @@ export default function AttendanceView({
                     <button 
                       type="button"
                       onClick={() => { setSelectedDate(''); setFilterBranchId('all'); setFilterStaffId('all'); setFilterStatus('all'); setSearchQuery(''); }}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer active:scale-95 flex items-center gap-1.5"
                     >
-                      🌐 បង្ហាញគ្រប់កាលបរិច្ឆេទ & គ្រប់សាខា ({attendance.length})
+                      <Globe size={13} />
+                      <span>បង្ហាញគ្រប់កាលបរិច្ឆេទ & គ្រប់សាខា ({attendance.length})</span>
                     </button>
                   </div>
                 )}
@@ -1418,19 +1426,20 @@ export default function AttendanceView({
                             <span className="font-bold text-slate-900">{rec.staffName}</span>
                             {rec.status === 'Permission' && (
                               <span className="px-1.5 py-0.5 rounded-md text-[9.5px] font-black bg-rose-100 text-rose-800 border border-rose-300 inline-flex items-center gap-1 shadow-2xs">
-                                🔴 ច្បាប់សម្រាក
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-600 inline-block"></span>
+                                <span>ច្បាប់សម្រាក</span>
                               </span>
                             )}
                             {rec.date === todayPhnomPenh && rec.status !== 'Permission' && (
                               <span className="px-1.5 py-0.2 rounded-md text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
-                                ✨ ថ្ងៃនេះ
+                                ថ្ងៃនេះ
                               </span>
                             )}
                           </div>
                           <div className="text-[10px] text-slate-400 font-mono mt-0.5">{rec.date} • {rec.shiftType || 'Shift'}</div>
                           {rec.status === 'Permission' && rec.notes && (
                             <div className="text-[10px] text-rose-700 font-medium italic mt-1 bg-white/80 px-2 py-0.5 rounded-md border border-rose-200 inline-block max-w-xs truncate" title={rec.notes}>
-                              📝 {rec.notes}
+                              {rec.notes}
                             </div>
                           )}
                         </td>
@@ -1488,12 +1497,12 @@ export default function AttendanceView({
                               ? 'bg-slate-100 text-slate-700 border border-slate-300'
                               : 'bg-slate-100 text-slate-700 border border-slate-200'
                           }`}>
-                            {rec.status === 'Permission' ? '🔴 ច្បាប់សម្រាក (Permission)' :
-                             rec.status === 'Working' ? '⏳ កំពុងធ្វើការ' :
-                             rec.status === 'Completed' ? '✓ បានចេញ' :
-                             rec.status === 'Present' ? '✓ វត្តមាន' :
-                             rec.status === 'Late' ? '⚠️ មកយឺត' :
-                             rec.status === 'Absent' ? '❌ អវត្តមាន' : rec.status}
+                            {rec.status === 'Permission' ? 'ច្បាប់សម្រាក (Permission)' :
+                             rec.status === 'Working' ? 'កំពុងធ្វើការ' :
+                             rec.status === 'Completed' ? 'បានចេញ' :
+                             rec.status === 'Present' ? 'វត្តមាន' :
+                             rec.status === 'Late' ? 'មកយឺត' :
+                             rec.status === 'Absent' ? 'អវត្តមាន' : rec.status}
                           </span>
                         </td>
 
@@ -1708,8 +1717,8 @@ export default function AttendanceView({
                       </div>
                     </div>
                     <div className="text-[10.5px] text-slate-500 pt-1 space-y-0.5 leading-relaxed">
-                      <div>📍 <b>អាសយដ្ឋាន៖</b> {printableBranchObj?.address || 'រាជធានីភ្នំពេញ, ព្រះរាជាណាចក្រកម្ពុជា'}</div>
-                      <div>📞 <b>ទូរស័ព្ទ៖</b> {printableBranchObj?.phone || '012 345 678'}</div>
+                      <div><b>អាសយដ្ឋាន៖</b> {printableBranchObj?.address || 'រាជធានីភ្នំពេញ, ព្រះរាជាណាចក្រកម្ពុជា'}</div>
+                      <div><b>ទូរស័ព្ទ៖</b> {printableBranchObj?.phone || '012 345 678'}</div>
                     </div>
                   </div>
 
@@ -1739,7 +1748,7 @@ export default function AttendanceView({
                     STAFF ATTENDANCE &amp; WORKING HOURS LEDGER
                   </h3>
                   <div className="inline-flex items-center gap-2 mt-1 px-3 py-1 bg-slate-100 border border-slate-200 rounded-full text-xs font-bold text-slate-800 shadow-2xs">
-                    <span>🗓️ ប្រចាំខែ៖ <b>{monthNamesKh[selectedMonth - 1]} ឆ្នាំ {selectedYear}</b> ({monthNamesEn[selectedMonth - 1]} {selectedYear})</span>
+                    <span>ប្រចាំខែ៖ <b>{monthNamesKh[selectedMonth - 1]} ឆ្នាំ {selectedYear}</b> ({monthNamesEn[selectedMonth - 1]} {selectedYear})</span>
                   </div>
                 </div>
               </div>
@@ -1955,7 +1964,7 @@ export default function AttendanceView({
             <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3.5 flex items-center justify-between">
               <div>
                 <span className="text-xs font-medium text-emerald-700 block">
-                  {lang === 'kh' ? '✅ បានអនុម័ត' : 'Approved'}
+                  {lang === 'kh' ? 'បានអនុម័ត' : 'Approved'}
                 </span>
                 <span className="text-2xl font-black text-emerald-800">
                   {leaveRequests.filter(l => l.status === 'Approved').length}
@@ -1969,7 +1978,7 @@ export default function AttendanceView({
             <div className="bg-rose-50/70 border border-rose-200/80 rounded-2xl p-3.5 flex items-center justify-between">
               <div>
                 <span className="text-xs font-medium text-rose-700 block">
-                  {lang === 'kh' ? '❌ បានបដិសេធ' : 'Rejected'}
+                  {lang === 'kh' ? 'បានបដិសេធ' : 'Rejected'}
                 </span>
                 <span className="text-2xl font-black text-rose-800">
                   {leaveRequests.filter(l => l.status === 'Rejected').length}
@@ -1983,7 +1992,7 @@ export default function AttendanceView({
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between">
               <div>
                 <span className="text-xs font-medium text-slate-500 block">
-                  {lang === 'kh' ? '📋 សរុបទាំងអស់' : 'Total Requests'}
+                  {lang === 'kh' ? 'សរុបទាំងអស់' : 'Total Requests'}
                 </span>
                 <span className="text-2xl font-black text-slate-800">
                   {leaveRequests.length}
@@ -2018,9 +2027,9 @@ export default function AttendanceView({
                   }`}
                 >
                   {st === 'all' ? (lang === 'kh' ? 'ទាំងអស់' : 'All') :
-                   st === 'Pending' ? (lang === 'kh' ? '⏳ កំពុងរង់ចាំ' : 'Pending') :
-                   st === 'Approved' ? (lang === 'kh' ? '✅ បានអនុម័ត' : 'Approved') :
-                   (lang === 'kh' ? '❌ បានបដិសេធ' : 'Rejected')}
+                   st === 'Pending' ? (lang === 'kh' ? 'កំពុងរង់ចាំ' : 'Pending') :
+                   st === 'Approved' ? (lang === 'kh' ? 'បានអនុម័ត' : 'Approved') :
+                   (lang === 'kh' ? 'បានបដិសេធ' : 'Rejected')}
                 </button>
               ))}
             </div>
@@ -2586,7 +2595,7 @@ export default function AttendanceView({
                   onChange={e => setReportStaffId(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-medium"
                 >
-                  <option value="all">👥 គ្រប់បុគ្គលិកទាំងអស់ (All Staff)</option>
+                  <option value="all">គ្រប់បុគ្គលិកទាំងអស់ (All Staff)</option>
                   {staffList.map(s => (
                     <option key={s.id} value={s.id}>{s.fullName} ({s.position || 'Staff'})</option>
                   ))}
@@ -2601,7 +2610,7 @@ export default function AttendanceView({
                   onChange={e => setReportBranchId(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-medium"
                 >
-                  <option value="all">🌐 គ្រប់សាខាទាំងអស់ (All Branches)</option>
+                  <option value="all">គ្រប់សាខាទាំងអស់ (All Branches)</option>
                   {branches.map(b => (
                     <option key={b.id} value={b.id}>{b.branchName}</option>
                   ))}
@@ -2816,7 +2825,7 @@ export default function AttendanceView({
                             const isLinked = Boolean(s.telegramId || s.telegramLinked);
                             return (
                               <option key={s.id} value={s.id}>
-                                {isLinked ? '✅ ' : '⚠️ '}{s.fullName} ({s.position || 'Staff'}) {s.telegramUsername ? `• @${s.telegramUsername.replace(/^@/, '')}` : (s.telegramId ? `• ID: ${s.telegramId}` : '• (មិនទាន់ភ្ជាប់ TG)')}
+                                {isLinked ? '[TG] ' : ''}{s.fullName} ({s.position || 'Staff'}) {s.telegramUsername ? `• @${s.telegramUsername.replace(/^@/, '')}` : (s.telegramId ? `• ID: ${s.telegramId}` : '• (មិនទាន់ភ្ជាប់ TG)')}
                               </option>
                             );
                           })}
@@ -2828,7 +2837,7 @@ export default function AttendanceView({
                           if (!hasTgId) {
                             return (
                               <div className="p-2.5 bg-amber-50/80 border border-amber-200 rounded-xl text-[10.5px] text-amber-900 leading-relaxed">
-                                💡 <b>ចំណាំ៖</b> បុគ្គលិកនេះមិនទាន់មាន Telegram User ID ឡើយ (សូមឱ្យបុគ្គលិកបើក Telegram Bot របស់ក្រុមហ៊ុន ហើយចុច <code>/start</code>) ឬលោកអ្នកអាចជ្រើសរើស <b>« ២. ផ្ញើទៅ Admin / Group Notification »</b> ជំនួសវិញបាន។
+                                <b>ចំណាំ៖</b> បុគ្គលិកនេះមិនទាន់មាន Telegram User ID ឡើយ (សូមឱ្យបុគ្គលិកបើក Telegram Bot របស់ក្រុមហ៊ុន ហើយចុច <code>/start</code>) ឬលោកអ្នកអាចជ្រើសរើស <b>« ២. ផ្ញើទៅ Admin / Group Notification »</b> ជំនួសវិញបាន។
                               </div>
                             );
                           }

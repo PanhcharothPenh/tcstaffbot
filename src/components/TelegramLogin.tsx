@@ -173,8 +173,8 @@ export default function TelegramLogin({ onLoginSuccess, lang: propLang, setLang:
       if (res && res.success) {
         setSuccess(
           lang === 'en'
-            ? '✅ Password reset successfully! Please log in with your new password.'
-            : '✅ បានប្តូរលេខសម្ងាត់ជោគជ័យ! សូមចូលប្រើប្រាស់ជាមួយលេខសម្ងាត់ថ្មីរបស់អ្នក។'
+            ? 'Password reset successfully! Please log in with your new password.'
+            : 'បានប្តូរលេខសម្ងាត់ជោគជ័យ! សូមចូលប្រើប្រាស់ជាមួយលេខសម្ងាត់ថ្មីរបស់អ្នក។'
         );
         setUsername(resetIdentifier);
         setPassword('');

@@ -18,7 +18,8 @@ import {
   Calendar,
   Layers,
   Sparkles,
-  Info
+  Info,
+  BarChart3
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { SoftenerRecord, Role, Branch, InventoryItem, StockTransaction } from '../types';
@@ -659,23 +660,25 @@ export default function SoftenerRecordsView({
           {/* Main Tabs */}
           <button
             onClick={() => setActiveTab('sheet')}
-            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'sheet' 
                 ? 'bg-pink-600 text-white shadow-xs' 
                 : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
             }`}
           >
-            📋 {lang === 'en' ? 'Daily Sheet Form' : 'ទម្រង់សន្លឹកការងារ'}
+            <FileSpreadsheet size={13} />
+            <span>{lang === 'en' ? 'Daily Sheet Form' : 'ទម្រង់សន្លឹកការងារ'}</span>
           </button>
           <button
             onClick={() => setActiveTab('reports')}
-            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'reports' 
                 ? 'bg-pink-600 text-white shadow-xs' 
                 : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
             }`}
           >
-            📊 {lang === 'en' ? 'Reports Center' : 'មជ្ឈមណ្ឌលរបាយការណ៍'}
+            <BarChart3 size={13} />
+            <span>{lang === 'en' ? 'Reports Center' : 'មជ្ឈមណ្ឌលរបាយការណ៍'}</span>
           </button>
         </div>
       </div>
@@ -735,7 +738,7 @@ export default function SoftenerRecordsView({
           {/* Softener Brand Selector (Comfort, Ora, Siusip, Custom) */}
           <div className="flex flex-col gap-1 min-w-[140px]">
             <span className="text-[10px] text-sky-600 font-bold uppercase tracking-wider flex items-center gap-1">
-              🌸 {lang === 'en' ? 'Softener Brand' : 'ម៉ាកទឹកក្រអូប'}
+              <span>{lang === 'en' ? 'Softener Brand' : 'ម៉ាកទឹកក្រអូប'}</span>
             </span>
             {!isCustomBrand ? (
               <select
@@ -869,19 +872,19 @@ export default function SoftenerRecordsView({
                 <thead>
                   <tr className="bg-sky-700 text-white border-b border-sky-800 text-xs font-bold">
                     <th rowSpan={2} className="py-2 px-3 text-center border-r border-sky-500 w-[110px] font-black">
-                      📅 {lang === 'en' ? 'Date' : 'ថ្ងៃ'}
+                      {lang === 'en' ? 'Date' : 'ថ្ងៃ'}
                     </th>
                     <th rowSpan={2} className="py-2 px-2 text-center border-r border-sky-500 w-[80px] font-black bg-emerald-700">
-                      🛢️ {lang === 'en' ? 'Stock In' : 'ចូល'}
+                      {lang === 'en' ? 'Stock In' : 'ចូល'}
                     </th>
                     <th colSpan={3} className="py-1 px-3 text-center border-r border-sky-500 border-b border-sky-500 font-black bg-sky-800">
-                      🌸 {lang === 'en' ? 'Softener Out (Pcs)' : 'ទឹកក្រអូបចេញតាមម៉ាក'}
+                      {lang === 'en' ? 'Softener Out (Pcs)' : 'ទឹកក្រអូបចេញតាមម៉ាក'}
                     </th>
                     <th rowSpan={2} className="py-2 px-2 border-r border-sky-500 w-[100px] text-center font-black">
-                      📝 {lang === 'en' ? 'Note' : 'ចំណាំ'}
+                      {lang === 'en' ? 'Note' : 'ចំណាំ'}
                     </th>
                     <th rowSpan={2} className="py-2 px-3 text-center border-r border-sky-500 w-[95px] font-black bg-sky-900">
-                      📊 {lang === 'en' ? 'Total Out' : 'សរុប'}
+                      {lang === 'en' ? 'Total Out' : 'សរុប'}
                     </th>
                     <th rowSpan={2} className="py-2 px-3 text-center w-[90px] print:hidden font-black">
                       {lang === 'en' ? 'Action' : 'សកម្មភាព'}
@@ -1078,7 +1081,7 @@ export default function SoftenerRecordsView({
                   : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
-              📅 {lang === 'en' ? 'Active Days Log' : 'កំណត់ត្រាថ្ងៃសកម្ម'}
+              {lang === 'en' ? 'Active Days Log' : 'កំណត់ត្រាថ្ងៃសកម្ម'}
             </button>
             <button
               onClick={() => setReportSubTab('monthly')}
@@ -1088,7 +1091,7 @@ export default function SoftenerRecordsView({
                   : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
-              📊 {lang === 'en' ? 'Monthly Comparison' : 'សង្ខេបប្រចាំខែ'}
+              {lang === 'en' ? 'Monthly Comparison' : 'សង្ខេបប្រចាំខែ'}
             </button>
             <button
               onClick={() => setReportSubTab('branch')}
@@ -1098,7 +1101,7 @@ export default function SoftenerRecordsView({
                   : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
-              🏢 {lang === 'en' ? 'Branch Compare' : 'ប្រៀបធៀបតាមសាខា'}
+              {lang === 'en' ? 'Branch Compare' : 'ប្រៀបធៀបតាមសាខា'}
             </button>
           </div>
 
@@ -1219,7 +1222,7 @@ export default function SoftenerRecordsView({
               {/* Simple CSS Visualization Bar Chart */}
               <div className="bg-white border border-slate-100 rounded-2xl shadow-xs p-5">
                 <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-4">
-                  📊 {lang === 'en' ? 'Monthly Consumption Visual Trend' : 'និន្នាការប្រើប្រាស់ប្រចាំខែបន្ទាត់គំនូសបំភាយ'}
+                  {lang === 'en' ? 'Monthly Consumption Visual Trend' : 'និន្នាការប្រើប្រាស់ប្រចាំខែបន្ទាត់គំនូសបំភាយ'}
                 </h4>
                 <div className="space-y-3">
                   {monthlyReportData.map((m, i) => {

@@ -537,12 +537,12 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
           {detectedTgUser && (
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 space-y-1.5 text-left font-mono">
               <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-sans">🆔 Telegram ID:</span>
+                <span className="text-slate-500 font-sans">Telegram ID:</span>
                 <span className="font-bold text-blue-600 select-all">{detectedTgUser.id}</span>
               </div>
               {detectedTgUser.username && (
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-sans">👤 Username:</span>
+                  <span className="text-slate-500 font-sans">Username:</span>
                   <span className="font-bold text-blue-600 select-all">@{detectedTgUser.username.replace(/^@/, '')}</span>
                 </div>
               )}
@@ -828,7 +828,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                       }`}
                       title="ត្រឡប់រូបភាព / Toggle Mirror"
                     >
-                      <span>{isMirrored ? '🪞 កញ្ចក់ឆ្លុះ (Mirror): បើក' : '📷 រូបភាពធម្មតា (Normal)'}</span>
+                      <span>{isMirrored ? 'កញ្ចក់ឆ្លុះ (Mirror): បើក' : 'រូបភាពធម្មតា (Normal)'}</span>
                     </button>
                   </div>
                 )}
@@ -846,7 +846,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     }`}
                   >
                     <Camera size={16} />
-                    <span>{currentAction === 'checkin' ? '📸 ថតរូបចុះឈ្មោះចូល' : '🚪 ថតរូបចុះឈ្មោះចេញ'}</span>
+                    <span>{currentAction === 'checkin' ? 'ថតរូបចុះឈ្មោះចូល' : 'ថតរូបចុះឈ្មោះចេញ'}</span>
                   </button>
                 ) : (
                   <div className="flex gap-2">
@@ -941,7 +941,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                           ? 'bg-blue-50 text-blue-700'
                           : 'bg-amber-50 text-amber-700'
                       }`}>
-                        {rec.status === 'Completed' ? '✓ បញ្ចប់' : rec.status === 'Working' ? '⏳ កំពុងធ្វើការ' : rec.status}
+                        {rec.status === 'Completed' ? '✓ បញ្ចប់' : rec.status === 'Working' ? 'កំពុងធ្វើការ' : rec.status}
                       </div>
                     </div>
                   </div>

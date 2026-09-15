@@ -55,7 +55,10 @@ import {
   CheckCheck,
   RotateCcw,
   Eye,
-  Info
+  Info,
+  Globe,
+  Crown,
+  CheckCircle
 } from 'lucide-react';
 import { User, Role, Branch, RoleDefinition, Permission } from '../types';
 import { userApi, roleApi, FALLBACK_PERMISSIONS, FALLBACK_ROLES } from '../utils/api';
@@ -598,7 +601,7 @@ export default function UserManagementView({
     if (window.confirm(`${confirmMsg} (${user.fullName})`)) {
       try {
         await userApi.patchStatus(user.id, nextStatus);
-        showBanner('success', `${user.fullName} ➡️ ${nextStatus}`);
+        showBanner('success', `${user.fullName} → ${nextStatus}`);
         onAddLog(`Toggled status of ${user.username} to ${nextStatus}`);
         await loadData();
       } catch (err: any) {
@@ -951,7 +954,8 @@ export default function UserManagementView({
                               <td className="px-4 py-3.5">
                                 {isUserOwner && (!user.assignedBranchIds || user.assignedBranchIds.length === 0) ? (
                                   <span className="text-[10.5px] font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-200 inline-flex items-center gap-1">
-                                    🌐 All Branches
+                                    <Globe size={11} className="text-amber-600" />
+                                    <span>All Branches</span>
                                   </span>
                                 ) : (
                                   <div className="flex flex-wrap gap-1">
@@ -1278,29 +1282,32 @@ export default function UserManagementView({
                     <button
                       type="button"
                       onClick={() => setPermCategoryFilter('staff')}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
                         permCategoryFilter === 'staff' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      👥 បុគ្គលិក & វេន (Staff & Shifts)
+                      <Users size={12} />
+                      <span>បុគ្គលិក & វេន (Staff & Shifts)</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setPermCategoryFilter('payroll')}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
                         permCategoryFilter === 'payroll' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      💰 ប្រាក់ខែ & របាយការណ៍ (Payroll & Reports)
+                      <DollarSign size={12} />
+                      <span>ប្រាក់ខែ & របាយការណ៍ (Payroll & Reports)</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setPermCategoryFilter('system')}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
                         permCategoryFilter === 'system' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      🏢 សាខា & ប្រព័ន្ធ (Branches & System)
+                      <Building2 size={12} />
+                      <span>សាខា & ប្រព័ន្ធ (Branches & System)</span>
                     </button>
                   </div>
                 </div>
@@ -1533,7 +1540,7 @@ export default function UserManagementView({
                                             ? 'bg-blue-600 border-blue-600 text-white shadow-xs hover:bg-blue-700 hover:scale-105'
                                             : 'bg-white border-slate-300 text-transparent hover:border-blue-400 hover:bg-blue-50/50'
                                         }`}
-                                        title={`${meta.labelKh} ➜ ${action}: ${isChecked ? 'អនុញ្ញាត (Allowed)' : 'បិទ (Disallowed)'}`}
+                                        title={`${meta.labelKh} → ${action}: ${isChecked ? 'អនុញ្ញាត (Allowed)' : 'បិទ (Disallowed)'}`}
                                       >
                                         <Check size={14} strokeWidth={3} className={isChecked ? 'text-white' : 'text-slate-300'} />
                                       </button>
@@ -1715,8 +1722,8 @@ export default function UserManagementView({
                 <label className="text-[11px] font-bold text-slate-700 block mb-1">{t.roleLabel} *</label>
                 {editUser && (editUser.id === 'usr_owner' || editUser.username === 'roth') ? (
                   <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs font-bold text-amber-900 flex items-center gap-2">
-                    <Shield size={15} className="text-amber-600" />
-                    <span>👑 PRIMARY EXECUTIVE OWNER (Protected)</span>
+                    <Crown size={15} className="text-amber-600" />
+                    <span>PRIMARY EXECUTIVE OWNER (Protected)</span>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -1733,7 +1740,7 @@ export default function UserManagementView({
                             : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                         }`}
                       >
-                        {r === 'owner' ? '👑 Owner' : r}
+                        {r}
                       </button>
                     ))}
                   </div>
@@ -1767,7 +1774,8 @@ export default function UserManagementView({
                       disabled={isDetectingTg}
                       className="text-[10px] font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1 bg-sky-50 px-2 py-0.5 rounded-md hover:bg-sky-100 transition-all cursor-pointer"
                     >
-                      {isDetectingTg ? 'កំពុងស្វែងរក...' : '🔍 ស្វែងរក / Auto-detect'}
+                      <Search size={10} />
+                      <span>{isDetectingTg ? 'កំពុងស្វែងរក...' : 'ស្វែងរក / Auto-detect'}</span>
                     </button>
                   </div>
                   <input
@@ -1786,12 +1794,16 @@ export default function UserManagementView({
                   />
                   {(detectedChatId || (editUser?.telegramChatId && /^-?\d+$/.test(String(editUser.telegramChatId)))) && (
                     <div className="flex items-center justify-between text-[11px] px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl font-sans text-emerald-800">
-                      <span className="font-bold">✅ Telegram Chat ID:</span>
+                      <span className="font-bold flex items-center gap-1">
+                        <CheckCircle size={12} className="text-emerald-600" />
+                        Telegram Chat ID:
+                      </span>
                       <span className="font-mono font-bold">{detectedChatId || editUser?.telegramChatId}</span>
                     </div>
                   )}
-                  <p className="text-[10px] text-slate-500 leading-relaxed">
-                    💡 <b>ចំណាំ៖</b> បំពេញ Telegram Username (@username) ឬ Telegram ID របស់គាត់ ដើម្បីឱ្យ Bot និង Mini App ស្គាល់សិទ្ធិ (Owner, Admin, Manager) របស់គាត់ដោយស្វ័យប្រវត្តិ។
+                  <p className="text-[10px] text-slate-500 leading-relaxed flex items-start gap-1">
+                    <Info size={12} className="text-sky-600 shrink-0 mt-0.5" />
+                    <span><b>ចំណាំ៖</b> បំពេញ Telegram Username (@username) ឬ Telegram ID របស់គាត់ ដើម្បីឱ្យ Bot និង Mini App ស្គាល់សិទ្ធិ (Owner, Admin, Manager) របស់គាត់ដោយស្វ័យប្រវត្តិ។</span>
                   </p>
                 </div>
               </div>
@@ -1829,13 +1841,14 @@ export default function UserManagementView({
                     <button
                       type="button"
                       onClick={() => setAssignedBranchIds([])}
-                      className={`text-[10px] font-bold px-2.5 py-0.5 rounded-lg border transition-all cursor-pointer ${
+                      className={`text-[10px] font-bold px-2.5 py-0.5 rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
                         assignedBranchIds.length === 0
                           ? 'bg-amber-100 text-amber-900 border-amber-300'
                           : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
                       }`}
                     >
-                      🌐 {lang === 'en' ? 'All Branches (Executive)' : 'គ្រប់សាខា (Executive Owner)'}
+                      <Globe size={11} />
+                      <span>{lang === 'en' ? 'All Branches (Executive)' : 'គ្រប់សាខា (Executive Owner)'}</span>
                     </button>
                   )}
                 </div>
@@ -1860,10 +1873,10 @@ export default function UserManagementView({
                   })}
                 </div>
                 {selectedRoleId === 'owner' && (
-                  <p className="text-[10px] text-slate-400 mt-1">
+                  <p className="text-[10px] text-slate-500 mt-1">
                     {assignedBranchIds.length === 0
-                      ? (lang === 'en' ? '👑 Executive Owner: Has complete oversight across all company branches.' : '👑 Executive Owner៖ មានសិទ្ធិមើលការខុសត្រូវគ្រប់សាខាទាំងអស់។')
-                      : (lang === 'en' ? '👑 Branch Owner: Assigned specifically to manage selected branch location(s).' : '👑 Branch Owner៖ គ្រប់គ្រងសាខាជាក់លាក់ដែលបានកំណត់។')}
+                      ? (lang === 'en' ? 'Executive Owner: Has complete oversight across all company branches.' : 'Executive Owner៖ មានសិទ្ធិមើលការខុសត្រូវគ្រប់សាខាទាំងអស់។')
+                      : (lang === 'en' ? 'Branch Owner: Assigned specifically to manage selected branch location(s).' : 'Branch Owner៖ គ្រប់គ្រងសាខាជាក់លាក់ដែលបានកំណត់។')}
                   </p>
                 )}
               </div>

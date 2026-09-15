@@ -23,7 +23,10 @@ import {
   Sparkles,
   ArrowRightLeft,
   Building2,
-  CalendarDays
+  CalendarDays,
+  User,
+  DollarSign,
+  FileText
 } from 'lucide-react';
 import { Branch, Staff, Attendance, Role } from '../types';
 
@@ -323,10 +326,10 @@ export default function ShiftCalendarView({
 
         {/* Legend */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] sm:text-xs font-semibold text-slate-600">
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span> 🌅 {lang === 'en' ? 'Morning' : 'ព្រឹក'}</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-sky-500"></span> ☀️ {lang === 'en' ? 'Afternoon' : 'រសៀល'}</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> 🌙 {lang === 'en' ? 'Night' : 'យប់'}</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> 🔄 {lang === 'en' ? 'Cover' : 'ជំនួសវេន'}</span>
+          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400"></span> <Sunrise size={13} className="text-amber-500" /> {lang === 'en' ? 'Morning' : 'ព្រឹក'}</span>
+          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-sky-500"></span> <Sun size={13} className="text-sky-500" /> {lang === 'en' ? 'Afternoon' : 'រសៀល'}</span>
+          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-indigo-500"></span> <Moon size={13} className="text-indigo-500" /> {lang === 'en' ? 'Night' : 'យប់'}</span>
+          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> <ArrowRightLeft size={13} className="text-emerald-600" /> {lang === 'en' ? 'Cover' : 'ជំនួសវេន'}</span>
         </div>
 
         {/* Actions */}
@@ -484,8 +487,9 @@ export default function ShiftCalendarView({
 
             <form onSubmit={handleSaveSwap} className="space-y-4 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  📅 {lang === 'en' ? 'Date of Shift' : 'កាលបរិច្ឆេទជំនួសវេន'}
+                <label className="flex items-center gap-1.5 font-bold text-slate-750 mb-1">
+                  <Calendar size={13} className="text-slate-400" />
+                  <span>{lang === 'en' ? 'Date of Shift' : 'កាលបរិច្ឆេទជំនួសវេន'}</span>
                 </label>
                 <input
                   type="date"
@@ -497,8 +501,9 @@ export default function ShiftCalendarView({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  👤 {lang === 'en' ? 'Employee Working (Receives Cover Payout)' : 'បុគ្គលិកដែលមកធ្វើការ (អ្នកទទួលបានប្រាក់ជំនួសវេន)'}
+                <label className="flex items-center gap-1.5 font-bold text-slate-750 mb-1">
+                  <User size={13} className="text-slate-400" />
+                  <span>{lang === 'en' ? 'Employee Working (Receives Cover Payout)' : 'បុគ្គលិកដែលមកធ្វើការ (អ្នកទទួលបានប្រាក់ជំនួសវេន)'}</span>
                 </label>
                 <select
                   value={swapStaffId}
@@ -516,8 +521,9 @@ export default function ShiftCalendarView({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  🔄 {lang === 'en' ? 'Covering For (Employee on Leave)' : 'ជំនួសឱ្យ (បុគ្គលិកដែលសុំច្បាប់/អវត្តមាន)'}
+                <label className="flex items-center gap-1.5 font-bold text-slate-750 mb-1">
+                  <ArrowRightLeft size={13} className="text-slate-400" />
+                  <span>{lang === 'en' ? 'Covering For (Employee on Leave)' : 'ជំនួសឱ្យ (បុគ្គលិកដែលសុំច្បាប់/អវត្តមាន)'}</span>
                 </label>
                 <select
                   value={swapCoveredForId}
@@ -535,24 +541,26 @@ export default function ShiftCalendarView({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    ⏰ {lang === 'en' ? 'Shift Type' : 'វេនការងារ'}
+                  <label className="flex items-center gap-1.5 font-bold text-slate-750 mb-1">
+                    <Clock size={13} className="text-slate-400" />
+                    <span>{lang === 'en' ? 'Shift Type' : 'វេនការងារ'}</span>
                   </label>
                   <select
                     value={swapShift}
                     onChange={e => setSwapShift(e.target.value as any)}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none cursor-pointer"
                   >
-                    <option value="Morning">🌅 {lang === 'en' ? 'Morning (ព្រឹក)' : 'វេនព្រឹក'}</option>
-                    <option value="Afternoon">☀️ {lang === 'en' ? 'Afternoon (រសៀល)' : 'វេនរសៀល'}</option>
-                    <option value="Night">🌙 {lang === 'en' ? 'Night (យប់)' : 'វេនយប់'}</option>
-                    <option value="Full Time">🔄 {lang === 'en' ? 'Full Time (ពេញម៉ោង)' : 'ពេញម៉ោង'}</option>
+                    <option value="Morning">{lang === 'en' ? 'Morning (ព្រឹក)' : 'វេនព្រឹក'}</option>
+                    <option value="Afternoon">{lang === 'en' ? 'Afternoon (រសៀល)' : 'វេនរសៀល'}</option>
+                    <option value="Night">{lang === 'en' ? 'Night (យប់)' : 'វេនយប់'}</option>
+                    <option value="Full Time">{lang === 'en' ? 'Full Time (ពេញម៉ោង)' : 'ពេញម៉ោង'}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">
-                    💵 {lang === 'en' ? 'Shift Rate' : 'កម្រៃវេន'}
+                  <label className="flex items-center gap-1.5 font-bold text-slate-750 mb-1">
+                    <DollarSign size={13} className="text-slate-400" />
+                    <span>{lang === 'en' ? 'Shift Rate' : 'កម្រៃវេន'}</span>
                   </label>
                   <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl font-black text-emerald-700 text-center">
                     ប្រាក់ជំនួសវេន / Cover Rate
@@ -561,8 +569,9 @@ export default function ShiftCalendarView({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  📝 {lang === 'en' ? 'Note / Reason' : 'មូលហេតុ / សម្គាល់'}
+                <label className="flex items-center gap-1.5 font-bold text-slate-750 mb-1">
+                  <FileText size={13} className="text-slate-400" />
+                  <span>{lang === 'en' ? 'Note / Reason' : 'មូលហេតុ / សម្គាល់'}</span>
                 </label>
                 <input
                   type="text"

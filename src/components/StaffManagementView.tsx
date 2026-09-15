@@ -29,7 +29,9 @@ import {
   Send,
   UserX,
   UserCheck,
-  AlertTriangle
+  AlertTriangle,
+  Lock,
+  Info
 } from 'lucide-react';
 import { Staff, Role, Branch } from '../types';
 import { translations, db } from '../mockData';
@@ -820,9 +822,9 @@ export default function StaffManagementView({
                   onChange={e => setStatus(e.target.value as any)}
                   className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl p-2.5 focus:outline-none font-bold"
                 >
-                  <option value="Active">🟢 ដំណើរការ (Active)</option>
-                  <option value="Resigned">🛑 ឈប់ធ្វើការ (Resigned)</option>
-                  <option value="Suspended">⚠️ ផ្អាកបណ្តោះអាសន្ន (Suspended)</option>
+                  <option value="Active">ដំណើរការ (Active)</option>
+                  <option value="Resigned">ឈប់ធ្វើការ (Resigned)</option>
+                  <option value="Suspended">ផ្អាកបណ្តោះអាសន្ន (Suspended)</option>
                 </select>
               </div>
             )}
@@ -901,7 +903,8 @@ export default function StaffManagementView({
                     className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                   />
                   <label htmlFor="chk_create_user_account" className="text-xs font-bold text-slate-800 cursor-pointer select-none flex items-center gap-1.5">
-                    <span>🔐 បង្កើតគណនី Login ចូលប្រព័ន្ធជូនបុគ្គលិកនេះ (Create System Login Account)</span>
+                    <Lock size={13} className="text-blue-600" />
+                    <span>បង្កើតគណនី Login ចូលប្រព័ន្ធជូនបុគ្គលិកនេះ (Create System Login Account)</span>
                   </label>
                 </div>
                 <span className="text-[11px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
@@ -1281,8 +1284,9 @@ export default function StaffManagementView({
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-mono font-bold"
                   required
                 />
-                <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
-                  💡 បុគ្គលិកត្រូវបើក Telegram រួចចុច <b>/start</b> លើ Bot Telegram របស់ក្រុមហ៊ុន ដើម្បីមើលលេខ ID និងកត់ត្រាវត្តមាន។
+                <p className="text-[10px] text-slate-500 mt-1 leading-relaxed flex items-start gap-1">
+                  <Info size={12} className="text-blue-500 shrink-0 mt-0.5" />
+                  <span>បុគ្គលិកត្រូវបើក Telegram រួចចុច <b>/start</b> លើ Bot Telegram របស់ក្រុមហ៊ុន ដើម្បីមើលលេខ ID និងកត់ត្រាវត្តមាន។</span>
                 </p>
               </div>
 
@@ -1440,8 +1444,9 @@ export default function StaffManagementView({
               <div className="font-bold text-slate-900 text-sm">{staffToDelete.fullName}</div>
               <div>តួនាទី: <span className="font-bold">{staffToDelete.position}</span></div>
               <div>សាខា: <span className="font-bold">{getBranchCode(staffToDelete.branchId)}</span></div>
-              <div className="text-rose-600 text-[11px] pt-1">
-                ⚠️ ចំណាំ៖ ការលុបនេះនឹងដកទិន្នន័យបុគ្គលិកចេញពីប្រព័ន្ធទាំងស្រុង។ ប្រសិនបើបុគ្គលិកគ្រាន់តែឈប់ធ្វើការ សូមប្រើប្រាស់ប៊ូតុង « ឈប់ (Resign) » ជំនួសវិញ។
+              <div className="text-rose-700 text-[11px] pt-1 flex items-start gap-1.5">
+                <AlertTriangle size={13} className="text-rose-600 shrink-0 mt-0.5" />
+                <span><b>ចំណាំ៖</b> ការលុបនេះនឹងដកទិន្នន័យបុគ្គលិកចេញពីប្រព័ន្ធទាំងស្រុង។ ប្រសិនបើបុគ្គលិកគ្រាន់តែឈប់ធ្វើការ សូមប្រើប្រាស់ប៊ូតុង « ឈប់ (Resign) » ជំនួសវិញ។</span>
               </div>
             </div>
 

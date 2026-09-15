@@ -253,11 +253,11 @@ export default function Sidebar({
                 className="w-full bg-white border border-slate-200 text-xs text-slate-800 rounded-xl p-2 focus:outline-none focus:border-blue-500 font-sans cursor-pointer transition-colors font-bold shadow-xs"
               >
                 {(currentRole === 'Owner' || currentRole === 'Admin') && (!currentUser?.assignedBranchIds || currentUser.assignedBranchIds.length === 0) && (
-                  <option value="all">🏢 {t.allBranches}</option>
+                  <option value="all">{t.allBranches}</option>
                 )}
                 {accessibleBranches.map(b => (
                   <option key={b.id} value={b.id}>
-                    📍 {b.branchName}
+                    {b.branchName}
                   </option>
                 ))}
               </select>

@@ -894,23 +894,25 @@ export default function RevenueRecordsView({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setActiveTab('sheet')}
-            className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all ${
+            className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'sheet' 
                 ? 'bg-cyan-600 text-white shadow-xs' 
                 : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
             }`}
           >
-            📊 {lang === 'en' ? 'Sheet Register' : 'សន្លឹកសៀវភៅបញ្ជី'}
+            <FileSpreadsheet size={14} />
+            <span>{lang === 'en' ? 'Sheet Register' : 'សន្លឹកសៀវភៅបញ្ជី'}</span>
           </button>
           <button
             onClick={() => setActiveTab('reports')}
-            className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all ${
+            className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'reports' 
                 ? 'bg-cyan-600 text-white shadow-xs' 
                 : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
             }`}
           >
-            📈 {tLocal.reportsCenter}
+            <BarChart3 size={14} />
+            <span>{tLocal.reportsCenter}</span>
           </button>
         </div>
       </div>
@@ -1155,7 +1157,7 @@ export default function RevenueRecordsView({
                                   onClick={() => handleCellChange(index, 'startCounter', prevEndCash)}
                                   className="text-left text-[9px] text-cyan-600 hover:text-cyan-800 font-bold mt-1 block select-none bg-cyan-50/50 hover:bg-cyan-50 border border-cyan-100 px-1 py-0.5 rounded cursor-pointer transition-colors"
                                 >
-                                  💡 Suggested: {prevEndCash.toLocaleString()}
+                                  Auto: {prevEndCash.toLocaleString()}
                                 </button>
                               )}
                             </div>
@@ -1175,7 +1177,7 @@ export default function RevenueRecordsView({
                             </div>
                             {isCashNegative && (
                               <span className="text-[8px] text-rose-650 bg-rose-100 px-1 py-0.5 rounded font-black uppercase mt-1 block text-center animate-pulse leading-none">
-                                ⚠️ End &lt; Start
+                                End &lt; Start
                               </span>
                             )}
                           </td>
@@ -1280,7 +1282,7 @@ export default function RevenueRecordsView({
                                   onClick={() => handleCellChange(index, 'startCounterAba', prevEndAba)}
                                   className="text-left text-[9px] text-cyan-600 hover:text-cyan-800 font-bold mt-1 block select-none bg-cyan-50/50 hover:bg-cyan-50 border border-cyan-100 px-1 py-0.5 rounded cursor-pointer transition-colors"
                                 >
-                                  💡 Suggested: {prevEndAba.toLocaleString()}
+                                  Auto: {prevEndAba.toLocaleString()}
                                 </button>
                               )}
                             </div>
@@ -1300,7 +1302,7 @@ export default function RevenueRecordsView({
                             </div>
                             {isAbaNegative && (
                               <span className="text-[8px] text-rose-650 bg-rose-100 px-1 py-0.5 rounded font-black uppercase mt-1 block text-center animate-pulse leading-none">
-                                ⚠️ End &lt; Start
+                                End &lt; Start
                               </span>
                             )}
                           </td>
@@ -1380,43 +1382,43 @@ export default function RevenueRecordsView({
           <div className="flex border-b border-slate-200 gap-1 overflow-x-auto">
             <button
               onClick={() => setReportSubTab('daily')}
-              className={`pb-2.5 px-4 text-xs font-bold transition-all relative ${
+              className={`pb-2.5 px-4 text-xs font-bold transition-all relative cursor-pointer ${
                 reportSubTab === 'daily' 
                   ? 'text-cyan-700 border-b-2 border-cyan-600 font-black' 
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              📝 {tLocal.dailyReport}
+              {tLocal.dailyReport}
             </button>
             <button
               onClick={() => setReportSubTab('monthly')}
-              className={`pb-2.5 px-4 text-xs font-bold transition-all relative ${
+              className={`pb-2.5 px-4 text-xs font-bold transition-all relative cursor-pointer ${
                 reportSubTab === 'monthly' 
                   ? 'text-cyan-700 border-b-2 border-cyan-600 font-black' 
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              📅 {tLocal.monthlyReport}
+              {tLocal.monthlyReport}
             </button>
             <button
               onClick={() => setReportSubTab('yearly')}
-              className={`pb-2.5 px-4 text-xs font-bold transition-all relative ${
+              className={`pb-2.5 px-4 text-xs font-bold transition-all relative cursor-pointer ${
                 reportSubTab === 'yearly' 
                   ? 'text-cyan-700 border-b-2 border-cyan-600 font-black' 
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              📆 {tLocal.yearlyReport}
+              {tLocal.yearlyReport}
             </button>
             <button
               onClick={() => setReportSubTab('branch')}
-              className={`pb-2.5 px-4 text-xs font-bold transition-all relative ${
+              className={`pb-2.5 px-4 text-xs font-bold transition-all relative cursor-pointer ${
                 reportSubTab === 'branch' 
                   ? 'text-cyan-700 border-b-2 border-cyan-600 font-black' 
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              🏢 {tLocal.branchReport}
+              {tLocal.branchReport}
             </button>
           </div>
 
@@ -1492,7 +1494,7 @@ export default function RevenueRecordsView({
           {reportSubTab === 'monthly' && (
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
               <h3 className="text-sm font-black text-slate-800 mb-4">
-                📊 {lang === 'en' ? `Monthly Summary for Year ${selectedYear}` : `ផលសរុបប្រចាំខែនីមួយៗសម្រាប់ឆ្នាំ ${selectedYear}`}
+                {lang === 'en' ? `Monthly Summary for Year ${selectedYear}` : `ផលសរុបប្រចាំខែនីមួយៗសម្រាប់ឆ្នាំ ${selectedYear}`}
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -1527,7 +1529,7 @@ export default function RevenueRecordsView({
           {reportSubTab === 'yearly' && (
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
               <h3 className="text-sm font-black text-slate-800 mb-4">
-                🏢 {lang === 'en' ? `Yearly Branch Breakdown for ${selectedYear}` : `របាយការណ៍សាខាប្រចាំឆ្នាំ ${selectedYear}`}
+                {lang === 'en' ? `Yearly Branch Breakdown for ${selectedYear}` : `របាយការណ៍សាខាប្រចាំឆ្នាំ ${selectedYear}`}
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -1562,7 +1564,7 @@ export default function RevenueRecordsView({
           {reportSubTab === 'branch' && (
             <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
               <h3 className="text-sm font-black text-slate-800 mb-4">
-                👑 {lang === 'en' ? `Branch Performance comparison for ${getMonthAbbr(selectedMonth)} ${selectedYear}` : `ការប្រៀបធៀបចំណូលតាមសាខាសម្រាប់ខែ ធ្នូ ${selectedYear}`}
+                {lang === 'en' ? `Branch Performance comparison for ${getMonthAbbr(selectedMonth)} ${selectedYear}` : `ការប្រៀបធៀបចំណូលតាមសាខាសម្រាប់ខែ ធ្នូ ${selectedYear}`}
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -1616,7 +1618,7 @@ export default function RevenueRecordsView({
             <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/60 font-sans text-xs text-slate-700 whitespace-pre-line select-all leading-relaxed">
               {`Daily Revenue Summary
 
-💰 Revenue Summary
+Revenue Summary
 
 Branch: ${selectedBranchName}
 
@@ -1729,7 +1731,7 @@ Date: ${telegramModalRow.label}`}
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    📄 {lang === 'en' ? 'Portrait' : 'ឈរ'}
+                    <span>{lang === 'en' ? 'Portrait' : 'ឈរ'}</span>
                   </button>
                   <button
                     type="button"
@@ -1740,7 +1742,7 @@ Date: ${telegramModalRow.label}`}
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    📜 {lang === 'en' ? 'Landscape' : 'ដេក'}
+                    <span>{lang === 'en' ? 'Landscape' : 'ដេក'}</span>
                   </button>
                 </div>
 
@@ -1755,7 +1757,7 @@ Date: ${telegramModalRow.label}`}
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    📊 {lang === 'en' ? 'Data' : 'មានទិន្នន័យ'}
+                    <span>{lang === 'en' ? 'Data' : 'មានទិន្នន័យ'}</span>
                   </button>
                   <button
                     type="button"
@@ -1766,7 +1768,7 @@ Date: ${telegramModalRow.label}`}
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    📝 {lang === 'en' ? 'Blank' : 'ទម្រង់ទទេ'}
+                    <span>{lang === 'en' ? 'Blank' : 'ទម្រង់ទទេ'}</span>
                   </button>
                 </div>
 

@@ -31,7 +31,9 @@ import {
   Zap,
   Scale,
   Award,
-  ArrowUpRight
+  ArrowUpRight,
+  Coffee,
+  Building2
 } from 'lucide-react';
 import { 
   Branch, 
@@ -540,8 +542,9 @@ export default function DashboardView({
               </div>
               <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
                 <span className="text-slate-600 font-bold">${todayRevenueUsd.toFixed(2)} USD</span>
-                <span className="bg-blue-50 border border-blue-200/60 text-blue-700 px-2 py-0.5 rounded-lg font-black flex items-center gap-0.5">
-                  ☕ {todayIncomes.length + todayRevenues.length} {lang === 'en' ? 'Orders' : 'កែវ/ការលក់'}
+                <span className="bg-blue-50 border border-blue-200/60 text-blue-700 px-2 py-0.5 rounded-lg font-black flex items-center gap-1">
+                  <Coffee size={12} className="text-blue-600" />
+                  <span>{todayIncomes.length + todayRevenues.length} {lang === 'en' ? 'Orders' : 'កែវ/ការលក់'}</span>
                 </span>
               </div>
             </div>
@@ -1147,7 +1150,10 @@ export default function DashboardView({
             <div className="space-y-4 text-xs">
               <div>
                 <div className="flex justify-between font-bold text-slate-700 mb-1">
-                  <span>☕ {lang === 'en' ? 'Coffee Beans & Supplies' : 'គ្រាប់កាហ្វេ & សម្ភារៈឆុង'}</span>
+                  <span className="flex items-center gap-1.5">
+                    <Coffee size={13} className="text-amber-700" />
+                    <span>{lang === 'en' ? 'Coffee Beans & Supplies' : 'គ្រាប់កាហ្វេ & សម្ភារៈឆុង'}</span>
+                  </span>
                   <span className="font-mono text-slate-900">${netProfitBreakdown.detergentCost.toFixed(2)} ({netProfitBreakdown.totalCosts > 0 ? ((netProfitBreakdown.detergentCost / netProfitBreakdown.totalCosts) * 100).toFixed(1) : 0}%)</span>
                 </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
@@ -1157,7 +1163,10 @@ export default function DashboardView({
 
               <div>
                 <div className="flex justify-between font-bold text-slate-700 mb-1">
-                  <span>🥛 {lang === 'en' ? 'Milk, Syrups & Ingredients' : 'ទឹកដោះគោ ទឹកស៊ីរ៉ូ & គ្រឿងផ្សំ'}</span>
+                  <span className="flex items-center gap-1.5">
+                    <Droplets size={13} className="text-blue-600" />
+                    <span>{lang === 'en' ? 'Milk, Syrups & Ingredients' : 'ទឹកដោះគោ ទឹកស៊ីរ៉ូ & គ្រឿងផ្សំ'}</span>
+                  </span>
                   <span className="font-mono text-slate-900">${netProfitBreakdown.softenerCost.toFixed(2)} ({netProfitBreakdown.totalCosts > 0 ? ((netProfitBreakdown.softenerCost / netProfitBreakdown.totalCosts) * 100).toFixed(1) : 0}%)</span>
                 </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
@@ -1167,7 +1176,10 @@ export default function DashboardView({
 
               <div>
                 <div className="flex justify-between font-bold text-slate-700 mb-1">
-                  <span>⚡ {lang === 'en' ? 'Espresso & Appliance Power' : 'ថាមពលម៉ាស៊ីនកាហ្វេ & ហ្គាស'}</span>
+                  <span className="flex items-center gap-1.5">
+                    <Zap size={13} className="text-amber-500" />
+                    <span>{lang === 'en' ? 'Espresso & Appliance Power' : 'ថាមពលម៉ាស៊ីនកាហ្វេ & ហ្គាស'}</span>
+                  </span>
                   <span className="font-mono text-slate-900">${netProfitBreakdown.gasCost.toFixed(2)} ({netProfitBreakdown.totalCosts > 0 ? ((netProfitBreakdown.gasCost / netProfitBreakdown.totalCosts) * 100).toFixed(1) : 0}%)</span>
                 </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
@@ -1177,7 +1189,10 @@ export default function DashboardView({
 
               <div>
                 <div className="flex justify-between font-bold text-slate-700 mb-1">
-                  <span>👥 {lang === 'en' ? 'Staff Salaries & Shift Covers' : 'ប្រាក់ខែបុគ្គលិក & ថ្លៃជំនួសវេន'}</span>
+                  <span className="flex items-center gap-1.5">
+                    <Users size={13} className="text-purple-600" />
+                    <span>{lang === 'en' ? 'Staff Salaries & Shift Covers' : 'ប្រាក់ខែបុគ្គលិក & ថ្លៃជំនួសវេន'}</span>
+                  </span>
                   <span className="font-mono text-slate-900">${netProfitBreakdown.salaryCost.toFixed(2)} ({netProfitBreakdown.totalCosts > 0 ? ((netProfitBreakdown.salaryCost / netProfitBreakdown.totalCosts) * 100).toFixed(1) : 0}%)</span>
                 </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
@@ -1187,7 +1202,10 @@ export default function DashboardView({
 
               <div>
                 <div className="flex justify-between font-bold text-slate-700 mb-1">
-                  <span>🏢 {lang === 'en' ? 'Utilities & General Expenses' : 'ថ្លៃទឹក ភ្លើង ជួលទីតាំង & ចំណាយផ្សេងៗ'}</span>
+                  <span className="flex items-center gap-1.5">
+                    <Building2 size={13} className="text-slate-600" />
+                    <span>{lang === 'en' ? 'Utilities & General Expenses' : 'ថ្លៃទឹក ភ្លើង ជួលទីតាំង & ចំណាយផ្សេងៗ'}</span>
+                  </span>
                   <span className="font-mono text-slate-900">${netProfitBreakdown.otherCost.toFixed(2)} ({netProfitBreakdown.totalCosts > 0 ? ((netProfitBreakdown.otherCost / netProfitBreakdown.totalCosts) * 100).toFixed(1) : 0}%)</span>
                 </div>
                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">

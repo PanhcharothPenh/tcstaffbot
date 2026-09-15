@@ -252,9 +252,15 @@ export default function GasRecordsView({
           </div>
           <div className="mt-2 text-xs">
             {getGasRemainingKg() <= 20 ? (
-              <span className="text-red-600 font-bold animate-pulse">⚠️ {lang === 'en' ? 'CRITICAL LOW LEVEL' : 'កម្រិតទាបគ្រោះថ្នាក់'}</span>
+              <span className="text-red-600 font-bold animate-pulse inline-flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-red-600"></span>
+                <span>{lang === 'en' ? 'CRITICAL LOW LEVEL' : 'កម្រិតទាបគ្រោះថ្នាក់'}</span>
+              </span>
             ) : (
-              <span className="text-emerald-600 font-medium font-sans">🟢 {lang === 'en' ? 'Safe Operating Margin' : 'ដំណើរការមានសុវត្ថិភាព'}</span>
+              <span className="text-emerald-600 font-medium font-sans inline-flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span>{lang === 'en' ? 'Safe Operating Margin' : 'ដំណើរការមានសុវត្ថិភាព'}</span>
+              </span>
             )}
           </div>
         </div>

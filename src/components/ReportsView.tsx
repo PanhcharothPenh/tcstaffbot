@@ -31,7 +31,16 @@ import {
   Wallet,
   Search,
   Crown,
-  BarChart2
+  BarChart2,
+  ShoppingCart,
+  Package,
+  Flame,
+  Droplets,
+  Sparkles,
+  Settings2,
+  Landmark,
+  Lock,
+  BarChart3
 } from 'lucide-react';
 import { 
   Income, Expense, Salary, Role, Branch, Attendance, InventoryItem, 
@@ -174,20 +183,20 @@ export default function ReportsView({
 
   // 14 Reports Index Definitions
   const REPORTS_LIST = [
-    { id: 'revenue', name: 'Revenue Report', khName: 'របាយការណ៍ចំណូលលម្អិត', icon: '💰', o: 'portrait' },
-    { id: 'expense', name: 'Expense Report', khName: 'របាយការណ៍លម្អិតការចំណាយ', icon: '🛒', o: 'portrait' },
-    { id: 'pnl', name: 'Profit & Loss Report', khName: 'របាយការណ៍ចំណេញ-ខាតប្រតិបត្តិការ', icon: '📈', o: 'portrait' },
-    { id: 'salary', name: 'Salary Report', khName: 'របាយការណ៍បៀវត្សនិងប្រាក់បុរេប្រទាន', icon: '💼', o: 'portrait' },
-    { id: 'attendance', name: 'Attendance Report', khName: 'របាយការណ៍វត្តមាននិងពេលវេលាការងារ', icon: '📅', o: 'portrait' },
-    { id: 'inventory', name: 'Inventory Report', khName: 'របាយការណ៍តំលៃនិងកម្រិតទំនិញស្តុក', icon: '📦', o: 'landscape' },
-    { id: 'coin', name: 'Coin Report', khName: 'របាយការណ៍បម្លែងកាក់បោកគក់', icon: '🪙', o: 'portrait' },
-    { id: 'gas', name: 'Gas Report', khName: 'របាយការណ៍ស្តុកនិងចំណាយហ្គាស LPG', icon: '🔥', o: 'portrait' },
-    { id: 'detergent', name: 'Detergent Report', khName: 'របាយការណ៍សាប៊ូទឹកកំហាប់បាញ់ម៉ាស៊ីន', icon: '🧴', o: 'portrait' },
-    { id: 'softener', name: 'Softener Report', khName: 'របាយការណ៍ទឹកក្រអូបថែរក្សាសរសៃក្រណាត់', icon: '🌸', o: 'portrait' },
-    { id: 'machine', name: 'Machine Report', khName: 'របាយការណ៍គ្រឿងម៉ាស៊ីននិងការប្រើប្រាស់', icon: '⚙️', o: 'landscape' },
-    { id: 'cashdrawer', name: 'Cash Drawer Report', khName: 'របាយការណ៍ផ្ទៀងផ្ទាត់ថតលុយប្រចាំវេន', icon: '🏦', o: 'portrait' },
-    { id: 'monthclosing', name: 'Month-End Closing Report', khName: 'របាយការណ៍បិទបញ្ជីរដ្ឋបាលប្រចាំខែ', icon: '🔐', o: 'portrait' },
-    { id: 'comparison', name: 'Branch Comparison Report', khName: 'របាយការណ៍ប្រៀបធៀបលទ្ធផលគ្រប់សាខា', icon: '📊', o: 'landscape' },
+    { id: 'revenue', name: 'Revenue Report', khName: 'របាយការណ៍ចំណូលលម្អិត', icon: DollarSign, o: 'portrait' },
+    { id: 'expense', name: 'Expense Report', khName: 'របាយការណ៍លម្អិតការចំណាយ', icon: ShoppingCart, o: 'portrait' },
+    { id: 'pnl', name: 'Profit & Loss Report', khName: 'របាយការណ៍ចំណេញ-ខាតប្រតិបត្តិការ', icon: TrendingUp, o: 'portrait' },
+    { id: 'salary', name: 'Salary Report', khName: 'របាយការណ៍បៀវត្សនិងប្រាក់បុរេប្រទាន', icon: Briefcase, o: 'portrait' },
+    { id: 'attendance', name: 'Attendance Report', khName: 'របាយការណ៍វត្តមាននិងពេលវេលាការងារ', icon: CalendarDays, o: 'portrait' },
+    { id: 'inventory', name: 'Inventory Report', khName: 'របាយការណ៍តំលៃនិងកម្រិតទំនិញស្តុក', icon: Package, o: 'landscape' },
+    { id: 'coin', name: 'Coin Report', khName: 'របាយការណ៍បម្លែងកាក់បោកគក់', icon: Coins, o: 'portrait' },
+    { id: 'gas', name: 'Gas Report', khName: 'របាយការណ៍ស្តុកនិងចំណាយហ្គាស LPG', icon: Flame, o: 'portrait' },
+    { id: 'detergent', name: 'Detergent Report', khName: 'របាយការណ៍សាប៊ូទឹកកំហាប់បាញ់ម៉ាស៊ីន', icon: Droplets, o: 'portrait' },
+    { id: 'softener', name: 'Softener Report', khName: 'របាយការណ៍ទឹកក្រអូបថែរក្សាសរសៃក្រណាត់', icon: Sparkles, o: 'portrait' },
+    { id: 'machine', name: 'Machine Report', khName: 'របាយការណ៍គ្រឿងម៉ាស៊ីននិងការប្រើប្រាស់', icon: Settings2, o: 'landscape' },
+    { id: 'cashdrawer', name: 'Cash Drawer Report', khName: 'របាយការណ៍ផ្ទៀងផ្ទាត់ថតលុយប្រចាំវេន', icon: Landmark, o: 'portrait' },
+    { id: 'monthclosing', name: 'Month-End Closing Report', khName: 'របាយការណ៍បិទបញ្ជីរដ្ឋបាលប្រចាំខែ', icon: Lock, o: 'portrait' },
+    { id: 'comparison', name: 'Branch Comparison Report', khName: 'របាយការណ៍ប្រៀបធៀបលទ្ធផលគ្រប់សាខា', icon: BarChart3, o: 'landscape' },
   ];
 
   const activeTemplate = backendTemplates[selectedReportId] || {
@@ -594,7 +603,7 @@ export default function ReportsView({
           ending: d.endingCash,
           diff: d.difference,
           status: d.status,
-          reconciled: d.reconciled ? 'Reconciled 🟢' : 'Pending 🔴'
+          reconciled: d.reconciled ? 'Reconciled' : 'Pending'
         }));
 
         summaryCardsData = [
@@ -988,6 +997,7 @@ export default function ReportsView({
             <div className="mt-3.5 space-y-1 max-h-96 overflow-y-auto pr-1 scrollbar-thin">
               {REPORTS_LIST.map((rep) => {
                 const isActive = selectedReportId === rep.id;
+                const IconComp = rep.icon;
                 return (
                   <button
                     key={rep.id}
@@ -1003,7 +1013,9 @@ export default function ReportsView({
                     `}
                   >
                     <div className="flex items-center gap-2.5">
-                      <span className="text-sm">{rep.icon}</span>
+                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-indigo-600'}`}>
+                        <IconComp size={14} />
+                      </div>
                       <div className="truncate">
                         <span className="block">{rep.name}</span>
                         <span className={`text-[9px] block mt-0.5 leading-none

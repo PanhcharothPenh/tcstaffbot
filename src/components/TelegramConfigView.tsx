@@ -24,7 +24,11 @@ import {
   Plus,
   Trash2,
   Edit2,
-  Clock
+  Clock,
+  Info,
+  Sparkles,
+  Droplets,
+  Zap
 } from 'lucide-react';
 import { Role, Branch } from '../types';
 
@@ -492,8 +496,8 @@ export default function TelegramConfigView({
                 disabled={isRegisteringWebhook}
                 className="px-4 py-2.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer shrink-0 disabled:opacity-50"
               >
-                {isRegisteringWebhook ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-                <span>{isRegisteringWebhook ? 'កំពុងចុះឈ្មោះ...' : (lang === 'kh' ? '⚡ ចុះឈ្មោះ Webhook ស្វ័យប្រវត្ត' : '⚡ Auto-Register Webhooks')}</span>
+                {isRegisteringWebhook ? <Loader2 size={15} className="animate-spin" /> : <Zap size={15} />}
+                <span>{isRegisteringWebhook ? 'កំពុងចុះឈ្មោះ...' : (lang === 'kh' ? 'ចុះឈ្មោះ Webhook ស្វ័យប្រវត្តិ' : 'Auto-Register Webhooks')}</span>
               </button>
             </div>
 
@@ -516,11 +520,14 @@ export default function TelegramConfigView({
               </span>
             </div>
 
-            <div className="p-3 bg-amber-50/80 border border-amber-200/60 rounded-xl text-[11px] text-amber-900 leading-relaxed">
-              💡 <b>{lang === 'kh' ? 'របៀបភ្ជាប់ Chat ID ងាយស្រួលបំផុត៖' : 'Easiest way to connect:'}</b>{' '}
+            <div className="p-3 bg-amber-50/80 border border-amber-200/60 rounded-xl text-[11px] text-amber-900 leading-relaxed flex items-start gap-2">
+              <Info size={15} className="text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <b>{lang === 'kh' ? 'របៀបភ្ជាប់ Chat ID ងាយស្រួលបំផុត៖' : 'Easiest way to connect:'}</b>{' '}
               {lang === 'kh' 
                 ? 'គ្រាន់តែ Add Bot សាខាចូលក្នុង Telegram Group របស់អ្នក ឬបើក Chat ជាមួយ Bot រួចវាយពាក្យ /id ឬ /start នោះប្រព័ន្ធនឹងរកឃើញ និងភ្ជាប់ Chat ID នេះដោយស្វ័យប្រវត្តិ! ឬអ្នកក៏អាច copy លេខ Chat ID មកដាក់ក្នុងប្រអប់ខាងក្រោមបានផងដែរ។'
                 : 'Simply add the branch bot to your Telegram group or send /id or /start directly to the bot. It will auto-bind the chat ID automatically! You can also paste the Chat ID directly below.'}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
@@ -579,7 +586,7 @@ export default function TelegramConfigView({
                         className={`flex-1 py-1.5 ${btnColorClass} text-white text-[11px] font-bold rounded-lg shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40`}
                       >
                         <Send size={11} />
-                        <span>{testingFeature === b.id ? 'Testing...' : (lang === 'kh' ? `🚀 តេស្តផ្ញើទៅ ${b.branchName}` : `Test ${b.branchName}`)}</span>
+                        <span>{testingFeature === b.id ? 'Testing...' : (lang === 'kh' ? `តេស្តផ្ញើទៅ ${b.branchName}` : `Test ${b.branchName}`)}</span>
                       </button>
                     </div>
                   </div>
@@ -1091,7 +1098,9 @@ export default function TelegramConfigView({
             {/* Card 1: Soap Entry */}
             <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-xs space-y-4">
               <div className="flex items-center gap-2.5">
-                <span className="text-2xl">🧼</span>
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                  <Droplets size={20} />
+                </div>
                 <div>
                   <h4 className="text-xs font-bold text-slate-800">
                     {lang === 'kh' ? '១. ចុះបញ្ជីសាប៊ូ' : '1. Soap Logs'}
@@ -1129,7 +1138,9 @@ export default function TelegramConfigView({
             {/* Card 2: Softener Entry */}
             <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-xs space-y-4">
               <div className="flex items-center gap-2.5">
-                <span className="text-2xl">🌸</span>
+                <div className="w-10 h-10 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center shrink-0">
+                  <Sparkles size={20} />
+                </div>
                 <div>
                   <h4 className="text-xs font-bold text-slate-800">
                     {lang === 'kh' ? '២. ចុះបញ្ជីទឹកក្រអូប' : '2. Softener Logs'}
@@ -1167,7 +1178,9 @@ export default function TelegramConfigView({
             {/* Card 3: Revenue Entry */}
             <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-xs space-y-4">
               <div className="flex items-center gap-2.5">
-                <span className="text-2xl">💵</span>
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <DollarSign size={20} />
+                </div>
                 <div>
                   <h4 className="text-xs font-bold text-slate-800">
                     {lang === 'kh' ? '៣. កត់ត្រាចំណូល' : '3. Revenues Entry'}
@@ -1206,7 +1219,8 @@ export default function TelegramConfigView({
           {/* Guidelines Tips Section */}
           <div className="bg-amber-50 border border-amber-100 text-slate-700 rounded-3xl p-5 text-xs space-y-2">
             <h5 className="font-extrabold text-amber-800 uppercase tracking-wider flex items-center gap-1.5 font-sans">
-              ⚠️ {lang === 'kh' ? 'ចំណុចសំខាន់ៗដែលត្រូវដឹង' : 'Important Guidelines'}
+              <AlertTriangle size={15} className="text-amber-700 shrink-0" />
+              <span>{lang === 'kh' ? 'ចំណុចសំខាន់ៗដែលត្រូវដឹង' : 'Important Guidelines'}</span>
             </h5>
             <ul className="list-disc pl-4 space-y-1.5 leading-relaxed font-sans">
               <li>

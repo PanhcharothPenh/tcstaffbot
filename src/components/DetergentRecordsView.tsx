@@ -14,7 +14,8 @@ import {
   FileText,
   Calendar,
   Layers,
-  Info
+  Info,
+  BarChart3
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { DetergentRecord, Role, Branch, InventoryItem, StockTransaction } from '../types';
@@ -763,23 +764,25 @@ export default function DetergentRecordsView({
           {/* Main Tabs switcher */}
           <button
             onClick={() => setActiveTab('sheet')}
-            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'sheet' 
                 ? 'bg-pink-600 text-white shadow-xs' 
                 : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
             }`}
           >
-            📋 {lang === 'en' ? 'Daily Sheet Form' : 'ទម្រង់សន្លឹកការងារ'}
+            <FileSpreadsheet size={13} />
+            <span>{lang === 'en' ? 'Daily Sheet Form' : 'ទម្រង់សន្លឹកការងារ'}</span>
           </button>
           <button
             onClick={() => setActiveTab('reports')}
-            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'reports' 
                 ? 'bg-pink-600 text-white shadow-xs' 
                 : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
             }`}
           >
-            📊 {lang === 'en' ? 'Reports Center' : 'មជ្ឈមណ្ឌលរបាយការណ៍'}
+            <BarChart3 size={13} />
+            <span>{lang === 'en' ? 'Reports Center' : 'មជ្ឈមណ្ឌលរបាយការណ៍'}</span>
           </button>
         </div>
       </div>
@@ -1052,8 +1055,9 @@ export default function DetergentRecordsView({
 
             {/* Bottom action panel helpful hints */}
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 print:hidden">
-              <span className="text-xs text-slate-500 font-sans">
-                💡 <strong className="text-slate-600">Tip:</strong> {lang === 'en' ? 'Values are automatically synchronised to cloud. Click "Save Month Data" to force a manual ledger locks check.' : 'តម្លៃសរុបត្រូវបានទូទាត់ភ្លាមៗទៅសន្និធិស្តុក។ ចុច "រក្សាទុកទិន្នន័យខែនេះ" សម្រាប់ធានាការផ្ទៀងផ្ទាត់។'}
+              <span className="text-xs text-slate-500 font-sans flex items-center gap-1.5">
+                <Info size={13} className="text-slate-400 shrink-0" />
+                <span><strong className="text-slate-600">Tip:</strong> {lang === 'en' ? 'Values are automatically synchronised to cloud. Click "Save Month Data" to force a manual ledger locks check.' : 'តម្លៃសរុបត្រូវបានទូទាត់ភ្លាមៗទៅសន្និធិស្តុក។ ចុច "រក្សាទុកទិន្នន័យខែនេះ" សម្រាប់ធានាការផ្ទៀងផ្ទាត់។'}</span>
               </span>
               <button
                 onClick={saveAllRows}
@@ -1082,7 +1086,7 @@ export default function DetergentRecordsView({
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              📝 {lang === 'en' ? 'Daily Report' : 'របាយការណ៍ប្រចាំថ្ងៃ'}
+              {lang === 'en' ? 'Daily Report' : 'របាយការណ៍ប្រចាំថ្ងៃ'}
             </button>
             <button
               onClick={() => setReportSubTab('monthly')}
@@ -1092,7 +1096,7 @@ export default function DetergentRecordsView({
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              📅 {lang === 'en' ? 'Monthly Report' : 'របាយការណ៍ប្រចាំខែ'}
+              {lang === 'en' ? 'Monthly Report' : 'របាយការណ៍ប្រចាំខែ'}
             </button>
             <button
               onClick={() => setReportSubTab('branch')}
@@ -1102,7 +1106,7 @@ export default function DetergentRecordsView({
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              🏢 {lang === 'en' ? 'Branch Report' : 'របាយការណ៍តាមសាខា'}
+              {lang === 'en' ? 'Branch Report' : 'របាយការណ៍តាមសាខា'}
             </button>
           </div>
 

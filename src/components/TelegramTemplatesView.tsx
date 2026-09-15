@@ -720,17 +720,24 @@ export default function TelegramTemplatesView({ branches }: TelegramTemplatesVie
                       }`} id="telegram_test_logs_panel">
                         {testLogs.success ? (
                           <div className="space-y-1.5">
-                            <span className="font-extrabold uppercase text-[10px] text-emerald-700 block tracking-wider">✓ TRANSIT DESPATCHED SUCCESSFUL</span>
+                            <span className="font-extrabold uppercase text-[10px] text-emerald-700 flex items-center gap-1 tracking-wider">
+                              <Check size={12} />
+                              TRANSIT DESPATCHED SUCCESSFUL
+                            </span>
                             <p className="text-[11px] leading-relaxed font-semibold">{testLogs.message}</p>
                             {testLogs.simulated && (
-                              <div className="mt-2 text-[10px] bg-emerald-100/50 p-2 rounded text-emerald-950 leading-relaxed font-bold">
-                                ℹ️ Message preview generated successfully! Please configure the Telegram Bot Token in Settings to receive live messages.
+                              <div className="mt-2 text-[10px] bg-emerald-100/50 p-2 rounded text-emerald-950 leading-relaxed font-bold flex items-start gap-1">
+                                <Info size={12} className="inline shrink-0 mt-0.5 text-emerald-800" />
+                                <span>Message preview generated successfully! Please configure the Telegram Bot Token in Settings to receive live messages.</span>
                               </div>
                             )}
                           </div>
                         ) : (
                           <div className="space-y-1">
-                            <span className="font-extrabold uppercase text-[10px] text-rose-700 block tracking-wider">❌ TRANSMISSION FAILED</span>
+                            <span className="font-extrabold uppercase text-[10px] text-rose-700 flex items-center gap-1 tracking-wider">
+                              <AlertCircle size={12} />
+                              TRANSMISSION FAILED
+                            </span>
                             <p className="text-[11px] leading-relaxed font-semibold">{testLogs.error}</p>
                           </div>
                         )}

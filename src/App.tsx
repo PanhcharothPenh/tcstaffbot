@@ -18,7 +18,8 @@ import {
   Clock,
   Menu,
   ChevronDown,
-  LogOut
+  LogOut,
+  AlertTriangle
 } from 'lucide-react';
 
 // Core imports
@@ -1385,7 +1386,7 @@ export default function App() {
                   <div className="space-y-2.5 max-h-60 overflow-y-auto">
                     {notifications.map((notif, index) => (
                       <div key={index} className="flex gap-2 items-start py-1 border-b border-slate-50 last:border-none">
-                        <span className="text-amber-500 shrink-0 text-xs">⚠️</span>
+                        <AlertTriangle size={13} className="text-amber-500 shrink-0 mt-0.5" />
                         <p className="text-[11px] text-slate-600 leading-relaxed font-medium">{notif}</p>
                       </div>
                     ))}

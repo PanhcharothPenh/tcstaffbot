@@ -506,7 +506,7 @@ export default function TelegramSchedulesView({ branches }: TelegramSchedulesVie
                     <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-y border-slate-100/85 py-3 text-[11px] leading-tight text-slate-600">
                       <div>
                         <span className="text-[10px] text-slate-400 block mb-0.5">Associated Branch:</span>
-                        <strong className="text-slate-750 font-bold">{s.branchId === 'all' ? '🌐 All Branches' : (branchObj?.branchName || 'Specific Branch')}</strong>
+                        <strong className="text-slate-750 font-bold">{s.branchId === 'all' ? 'All Branches' : (branchObj?.branchName || 'Specific Branch')}</strong>
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 block mb-0.5">Template Selected:</span>
@@ -627,7 +627,7 @@ export default function TelegramSchedulesView({ branches }: TelegramSchedulesVie
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-slate-400">Branch Attached:</span>
-                      <strong className="text-slate-700 font-medium">{r.branchId === 'all' ? '🌐 All Branches' : (bObj?.branchName || 'Assigned Branch')}</strong>
+                      <strong className="text-slate-700 font-medium">{r.branchId === 'all' ? 'All Branches' : (bObj?.branchName || 'Assigned Branch')}</strong>
                     </div>
 
                     <div className="flex items-center gap-1.5 ml-auto mt-2.5 pt-1.5 border-t border-dashed border-slate-100 w-full justify-end">
@@ -744,11 +744,11 @@ export default function TelegramSchedulesView({ branches }: TelegramSchedulesVie
                     onChange={e => setSchForm(prev => ({ ...prev, frequency: e.target.value as any }))}
                     className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl p-2.5 pr-8 focus:outline-none focus:ring-1 focus:ring-amber-500 font-bold"
                   >
-                    <option value="INSTANT">⚡ Instant Alert</option>
-                    <option value="DAILY">📅 Daily Alert</option>
-                    <option value="WEEKLY">🗓️ Weekly Alert</option>
-                    <option value="MONTHLY">🗓️ Monthly Alert</option>
-                    <option value="CUSTOM">⚙️ Custom Schedule</option>
+                    <option value="INSTANT">Instant Alert</option>
+                    <option value="DAILY">Daily Alert</option>
+                    <option value="WEEKLY">Weekly Alert</option>
+                    <option value="MONTHLY">Monthly Alert</option>
+                    <option value="CUSTOM">Custom Schedule</option>
                   </select>
                 </div>
 

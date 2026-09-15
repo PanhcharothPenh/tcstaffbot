@@ -918,8 +918,8 @@ export default function SalaryManagementView({
     // Strict branch isolation check
     if (selectedBranchId === 'all') {
       showBanner('error', lang === 'kh' 
-        ? '⚠️ សូមជ្រើសរើសសាខាជាក់លាក់មួយជាមុនសិន ដើម្បីធានាថាទិន្នន័យប្រាក់ខែមិនច្រឡូកច្រឡំចូលគ្នា!' 
-        : '⚠️ Please select a specific branch first to ensure payroll data is never mixed across branches!');
+        ? 'សូមជ្រើសរើសសាខាជាក់លាក់មួយជាមុនសិន ដើម្បីធានាថាទិន្នន័យប្រាក់ខែមិនច្រឡូកច្រឡំចូលគ្នា!' 
+        : 'Please select a specific branch first to ensure payroll data is never mixed across branches!');
       return;
     }
 
@@ -1031,7 +1031,7 @@ export default function SalaryManagementView({
               title={lang === 'kh' ? 'ផ្ញើដំណឹងដល់ថ្ងៃបើកប្រាក់ខែតាម Telegram សាខា' : 'Send Salary Due Alert to Branch Telegram'}
             >
               <Send size={15} className={`text-sky-600 ${isSendingTelegram ? 'animate-spin' : ''}`} />
-              <span>{isSendingTelegram ? (lang === 'kh' ? 'កំពុងផ្ញើ...' : 'Sending...') : (lang === 'kh' ? '📢 ដំណឹងបើកប្រាក់ខែ' : 'Salary Alert')}</span>
+              <span>{isSendingTelegram ? (lang === 'kh' ? 'កំពុងផ្ញើ...' : 'Sending...') : (lang === 'kh' ? 'ដំណឹងបើកប្រាក់ខែ' : 'Salary Alert')}</span>
             </button>
 
             {/* Export Excel Button */}
@@ -1706,8 +1706,8 @@ export default function SalaryManagementView({
                   <Save size={15} />
                   <span>
                     {editingShiftId 
-                      ? (lang === 'kh' ? '💾 ធ្វើបច្ចុប្បន្នភាពជំនួសវេន' : 'Update Shift Cover')
-                      : (lang === 'kh' ? '💾 កត់ត្រាជំនួសវេន' : 'Save Shift Cover')}
+                      ? (lang === 'kh' ? 'ធ្វើបច្ចុប្បន្នភាពជំនួសវេន' : 'Update Shift Cover')
+                      : (lang === 'kh' ? 'កត់ត្រាជំនួសវេន' : 'Save Shift Cover')}
                   </span>
                 </button>
                 {editingShiftId && (
@@ -2743,7 +2743,7 @@ export default function SalaryManagementView({
                           : 'text-slate-500 hover:text-slate-800'
                       }`}
                     >
-                      💵 $ USD
+                      $ USD
                     </button>
                     <button
                       type="button"
@@ -3062,8 +3062,9 @@ export default function SalaryManagementView({
             <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs space-y-1.5 text-slate-700">
               <div>បុគ្គលិក: <span className="font-bold text-slate-900">{salaryToDelete.staffName}</span></div>
               <div>កាលបរិច្ឆេទ/ខែ: <span className="font-bold">{salaryToDelete.period}</span></div>
-              <div className="text-amber-600 text-[11px] pt-1">
-                💡 បន្ទាប់ពីលុប ស្ថានភាពបុគ្គលិកនេះនឹងត្រឡប់ទៅជា <b>« មិនទាន់បើក (Unpaid) »</b> វិញ ដើម្បីឱ្យលោកអ្នកអាចគណនា ឬទូទាត់ឡើងវិញបាន។
+              <div className="text-amber-700 text-[11px] pt-1 flex items-start gap-1.5">
+                <Info size={13} className="text-amber-600 shrink-0 mt-0.5" />
+                <span>បន្ទាប់ពីលុប ស្ថានភាពបុគ្គលិកនេះនឹងត្រឡប់ទៅជា <b>« មិនទាន់បើក (Unpaid) »</b> វិញ ដើម្បីឱ្យលោកអ្នកអាចគណនា ឬទូទាត់ឡើងវិញបាន។</span>
               </div>
             </div>
 

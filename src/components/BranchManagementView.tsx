@@ -22,7 +22,8 @@ import {
   Crosshair,
   Link2,
   Loader2,
-  Trash2
+  Trash2,
+  Info
 } from 'lucide-react';
 import { Branch, Role, User } from '../types';
 import { translations, db } from '../mockData';
@@ -459,7 +460,7 @@ export default function BranchManagementView({
                   className="px-2.5 py-1 bg-white hover:bg-blue-50 text-[#003D9B] border border-blue-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition cursor-pointer"
                 >
                   <Crosshair size={12} />
-                  <span>{isDetectingGps ? 'កំពុងស្វែងរក GPS...' : '📍 យកទីតាំងបច្ចុប្បន្ន'}</span>
+                  <span>{isDetectingGps ? 'កំពុងស្វែងរក GPS...' : 'យកទីតាំងបច្ចុប្បន្ន'}</span>
                 </button>
               </div>
 
@@ -494,8 +495,9 @@ export default function BranchManagementView({
                     </button>
                   )}
                 </div>
-                <p className="text-[10.5px] text-slate-500 leading-normal">
-                  💡 គ្រាន់តែ Copy link ពី Google Maps (ឬលេខកូអរដោនេ) រួច Paste ចូលទីនេះ ប្រព័ន្ធនឹងទាញយក <b>Latitude</b> & <b>Longitude</b> ដោយស្វ័យប្រវត្តិតែម្តង។
+                <p className="text-[10.5px] text-slate-500 leading-normal flex items-start gap-1">
+                  <Info size={12} className="text-blue-500 shrink-0 mt-0.5" />
+                  <span>គ្រាន់តែ Copy link ពី Google Maps (ឬលេខកូអរដោនេ) រួច Paste ចូលទីនេះ ប្រព័ន្ធនឹងទាញយក <b>Latitude</b> & <b>Longitude</b> ដោយស្វ័យប្រវត្តិតែម្តង។</span>
                 </p>
               </div>
 
