@@ -271,7 +271,11 @@ export default async function handler(req: any, res: any) {
         createdAt: new Date().toISOString()
       });
       if (logs.length > 500) logs.length = 500;
-      await supabase.from('tc_collections').upsert({ id: 'telegramLogs', data: logs, updated_at: new Date().toISOString() });
+      const item = { id: 'telegramLogs', data: logs, updated_at: new Date().toISOString() };
+      const { error } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
+      if (error) {
+        await supabase.from('tc_collections').update({ data: logs, updated_at: item.updated_at }).eq('id', 'telegramLogs');
+      }
     } catch (e) {}
   }
 

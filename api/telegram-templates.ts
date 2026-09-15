@@ -113,12 +113,21 @@ export default async function handler(req: any, res: any) {
       variables: body.variables || [],
       createdAt: new Date().toISOString()
     };
-    templates.push(newTemplate);
+    const saveTemplates = async (data: any[]) => {
+      if (!supabase) return null;
+      const item = { id: 'telegramTemplates', data, updated_at: new Date().toISOString() };
+      const { error } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
+      if (!error) return null;
+      const { error: updErr } = await supabase.from('tc_collections').update({
+        data,
+        updated_at: item.updated_at
+      }).eq('id', 'telegramTemplates');
+      return updErr || null;
+    };
+
     if (supabase) {
-      const { error } = await supabase.from('tc_collections').upsert({ id: 'telegramTemplates', data: templates, updated_at: new Date().toISOString() });
-      if (error) {
-        return res.status(500).json({ error: error.message });
-      }
+      const err = await saveTemplates(templates);
+      if (err) return res.status(500).json({ error: err.message });
     }
     return res.status(201).json(newTemplate);
   }
@@ -128,9 +137,14 @@ export default async function handler(req: any, res: any) {
     if (idx === -1) return res.status(404).json({ error: 'Template not found' });
     templates[idx] = { ...templates[idx], ...req.body, id: targetId };
     if (supabase) {
-      const { error } = await supabase.from('tc_collections').upsert({ id: 'telegramTemplates', data: templates, updated_at: new Date().toISOString() });
+      const item = { id: 'telegramTemplates', data: templates, updated_at: new Date().toISOString() };
+      const { error } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
       if (error) {
-        return res.status(500).json({ error: error.message });
+        const { error: updErr } = await supabase.from('tc_collections').update({
+          data: templates,
+          updated_at: item.updated_at
+        }).eq('id', 'telegramTemplates');
+        if (updErr) return res.status(500).json({ error: updErr.message });
       }
     }
     return res.status(200).json(templates[idx]);
@@ -139,9 +153,14 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'DELETE') {
     const filtered = templates.filter(t => t.id !== targetId);
     if (supabase) {
-      const { error } = await supabase.from('tc_collections').upsert({ id: 'telegramTemplates', data: filtered, updated_at: new Date().toISOString() });
+      const item = { id: 'telegramTemplates', data: filtered, updated_at: new Date().toISOString() };
+      const { error } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
       if (error) {
-        return res.status(500).json({ error: error.message });
+        const { error: updErr } = await supabase.from('tc_collections').update({
+          data: filtered,
+          updated_at: item.updated_at
+        }).eq('id', 'telegramTemplates');
+        if (updErr) return res.status(500).json({ error: updErr.message });
       }
     }
     return res.status(200).json({ success: true });

@@ -279,9 +279,22 @@ export default async function handler(req: any, res: any) {
     if (!supabase) return false;
     const item = { id, data: list, updated_at: new Date().toISOString() };
     try {
-      await supabase.from('tc_collections').upsert(item);
-      return true;
-    } catch {
+      const { error: upsertErr } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
+      if (!upsertErr) return true;
+
+      console.warn(`[api/index] Upsert failed for ${id}: ${upsertErr.message}, trying update...`);
+      const { error: updateErr } = await supabase.from('tc_collections').update({
+        data: list,
+        updated_at: item.updated_at
+      }).eq('id', id);
+
+      if (!updateErr) return true;
+
+      console.warn(`[api/index] Update failed for ${id}: ${updateErr.message}, trying insert...`);
+      const { error: insertErr } = await supabase.from('tc_collections').insert(item);
+      return !insertErr;
+    } catch (err: any) {
+      console.error(`[api/index] Exception saving collection ${id}:`, err?.message);
       return false;
     }
   };
@@ -736,9 +749,10 @@ export default async function handler(req: any, res: any) {
       let staff: any = null;
       let tgId: string = telegramId ? String(telegramId) : '';
       let tgName: string = (telegramUsername || '').toLowerCase().replace(/^@/, '').trim();
+      let val: any = null;
 
       if (initData) {
-        const val = validateTelegramInitData(initData, allBotTokens);
+        val = validateTelegramInitData(initData, allBotTokens);
         if (val.valid && val.user) {
           if (!tgId) tgId = String(val.user.id);
           if (!tgName) tgName = (val.user.username || '').toLowerCase().replace(/^@/, '').trim();
@@ -950,9 +964,10 @@ export default async function handler(req: any, res: any) {
       let staff: any = null;
       let tgId: string = telegramId ? String(telegramId) : '';
       let tgName: string = (telegramUsername || '').toLowerCase().replace(/^@/, '').trim();
+      let val: any = null;
 
       if (initData) {
-        const val = validateTelegramInitData(initData, allBotTokens);
+        val = validateTelegramInitData(initData, allBotTokens);
         if (val.valid && val.user) {
           if (!tgId) tgId = String(val.user.id);
           if (!tgName) tgName = (val.user.username || '').toLowerCase().replace(/^@/, '').trim();
@@ -1159,7 +1174,8 @@ export default async function handler(req: any, res: any) {
   // 7. ATTENDANCE HISTORY (GET /api/attendance/history)
   if (path === '/api/attendance/history' && req.method === 'GET') {
     try {
-      const { staffId, month, year } = req.query || {};
+      const qParams = req.query || Object.fromEntries(new URL(req.url || '', 'http://localhost').searchParams);
+      const { staffId, month, year } = qParams;
       if (!staffId) return res.status(400).json({ success: false, error: 'staffId is required' });
 
       const currentYear = year ? String(year) : String(new Date().getFullYear());

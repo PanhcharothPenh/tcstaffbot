@@ -384,6 +384,7 @@ export default function App() {
           updateIfChanged(s.extraShifts, db.getExtraShifts, setExtraShifts, db.saveExtraShifts);
           updateIfChanged(s.tempShiftCovers, db.getTempShiftCovers, setTempShiftCovers, db.saveTempShiftCovers);
           updateIfChanged(s.staffExpenses, db.getStaffExpenses, setStaffExpenses, db.saveStaffExpenses);
+          updateIfChanged(s.leaveRequests, db.getLeaveRequests, () => {}, db.saveLeaveRequests);
           if (s.adjustments && typeof s.adjustments === 'object') {
             setPayrollAdjustments((prev: any) => {
               const merged = { ...prev, ...s.adjustments };

@@ -175,21 +175,48 @@ export default async function handler(req: any, res: any) {
       if (supabase) {
         const nowIso = new Date().toISOString();
 
+        // Helper to reliably save or update a single collection row
+        const saveOrUpdateRow = async (row: { id: string; data: any; updated_at: string }) => {
+          const { error: upsertErr } = await supabase.from('tc_collections').upsert(row, { onConflict: 'id' });
+          if (!upsertErr) return true;
+
+          console.warn(`[sync-data] Upsert with onConflict failed for ${row.id}: ${upsertErr.message}, trying update...`);
+          const { error: updateErr } = await supabase.from('tc_collections').update({
+            data: row.data,
+            updated_at: row.updated_at
+          }).eq('id', row.id);
+
+          if (!updateErr) return true;
+
+          console.warn(`[sync-data] Update failed for ${row.id}: ${updateErr.message}, trying insert...`);
+          const { error: insertErr } = await supabase.from('tc_collections').insert(row);
+          if (insertErr) {
+            console.error(`[sync-data] Insert also failed for ${row.id}:`, insertErr.message);
+            return false;
+          }
+          return true;
+        };
+
         // 1. Explicit item deletion from a collection
         if (body.deleteCollectionItem && body.collection && body.itemId) {
           const { collection, itemId } = body;
           const { data: row } = await supabase.from('tc_collections').select('data').eq('id', collection).maybeSingle();
           const existingList = (row && Array.isArray(row.data)) ? row.data : [];
-          const filtered = existingList.filter((item: any) => item && item.id !== itemId);
-          const { error: delErr } = await supabase.from('tc_collections').upsert({
+          const clientList = Array.isArray(body[collection]) ? body[collection] : null;
+          const baseList = clientList || existingList;
+          const filtered = baseList.filter((item: any) => item && item.id !== itemId);
+
+          const ok = await saveOrUpdateRow({
             id: collection,
             data: filtered,
             updated_at: nowIso
           });
-          if (delErr) {
-            console.error(`[sync-data] Failed to delete item ${itemId} from ${collection}:`, delErr);
-            return res.status(500).json({ success: false, error: delErr.message });
+
+          if (!ok) {
+            console.error(`[sync-data] Failed to delete item ${itemId} from ${collection}`);
+            return res.status(500).json({ success: false, error: `Failed to delete item from ${collection}` });
           }
+
           return res.status(200).json({
             success: true,
             collection,
@@ -203,8 +230,8 @@ export default async function handler(req: any, res: any) {
         const { data: existingRows } = await supabase.from('tc_collections').select('id, data');
         const existingMap: Record<string, any> = {};
         if (Array.isArray(existingRows)) {
-          for (const row of existingRows) {
-            if (row && row.id) existingMap[row.id] = row.data;
+          for (const r of existingRows) {
+            if (r && r.id) existingMap[r.id] = r.data;
           }
         }
 
@@ -221,12 +248,16 @@ export default async function handler(req: any, res: any) {
         }
 
         if (rows.length > 0) {
-          const { error: upsertErr } = await supabase.from('tc_collections').upsert(rows);
-          if (upsertErr) {
-            console.error('[sync-data] Supabase upsert error:', upsertErr);
-            return res.status(500).json({ success: false, error: upsertErr.message });
+          // Attempt bulk upsert first with { onConflict: 'id' }
+          const { error: batchErr } = await supabase.from('tc_collections').upsert(rows, { onConflict: 'id' });
+          if (batchErr) {
+            console.warn('[sync-data] Batch upsert error, falling back to individual row upsert/update:', batchErr.message);
+            for (const row of rows) {
+              await saveOrUpdateRow(row);
+            }
           }
         }
+
         return res.status(200).json({
           success: true,
           data: body,

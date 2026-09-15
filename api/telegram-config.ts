@@ -129,7 +129,11 @@ export default async function handler(req: any, res: any) {
     const updated = { ...storedConfig, ...body, updatedAt: new Date().toISOString() };
     if (supabase) {
       try {
-        await supabase.from('tc_collections').upsert({ id: 'telegramConfig', data: updated, updated_at: new Date().toISOString() });
+        const item = { id: 'telegramConfig', data: updated, updated_at: new Date().toISOString() };
+        const { error } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
+        if (error) {
+          await supabase.from('tc_collections').update({ data: updated, updated_at: item.updated_at }).eq('id', 'telegramConfig');
+        }
       } catch (e) {}
     }
     return res.status(200).json({ success: true, config: updated });

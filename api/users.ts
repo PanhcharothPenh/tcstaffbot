@@ -49,10 +49,21 @@ async function saveUsers(users: any[]) {
     data: users,
     updated_at: new Date().toISOString()
   };
-  const { error } = await supabase.from('tc_collections').upsert(payload);
+  const { error } = await supabase.from('tc_collections').upsert(payload, { onConflict: 'id' });
   if (error) {
-    console.error('[users.ts] Supabase upsert error:', error);
-    throw new Error(`Supabase error saving users: ${error.message}`);
+    console.warn('[users.ts] Supabase upsert error:', error.message, 'trying update...');
+    const { error: updErr } = await supabase.from('tc_collections').update({
+      data: users,
+      updated_at: payload.updated_at
+    }).eq('id', 'users');
+    if (updErr) {
+      console.warn('[users.ts] Supabase update error:', updErr.message, 'trying insert...');
+      const { error: insErr } = await supabase.from('tc_collections').insert(payload);
+      if (insErr) {
+        console.error('[users.ts] Supabase insert error:', insErr);
+        throw new Error(`Supabase error saving users: ${insErr.message}`);
+      }
+    }
   }
 }
 

@@ -48,11 +48,18 @@ export default async function handler(req: any, res: any) {
       createdAt: new Date().toISOString()
     };
     schedules.push(newSchedule);
-    if (supabase) {
+    const saveSchedules = async (data: any[]) => {
+      if (!supabase) return;
       try {
-        await supabase.from('tc_collections').upsert({ id: 'telegramSchedules', data: schedules, updated_at: new Date().toISOString() });
+        const item = { id: 'telegramSchedules', data, updated_at: new Date().toISOString() };
+        const { error } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
+        if (error) {
+          await supabase.from('tc_collections').update({ data, updated_at: item.updated_at }).eq('id', 'telegramSchedules');
+        }
       } catch (e) {}
-    }
+    };
+
+    await saveSchedules(schedules);
     return res.status(201).json(newSchedule);
   }
 
@@ -62,7 +69,11 @@ export default async function handler(req: any, res: any) {
     schedules[idx] = { ...schedules[idx], ...req.body, id: targetId };
     if (supabase) {
       try {
-        await supabase.from('tc_collections').upsert({ id: 'telegramSchedules', data: schedules, updated_at: new Date().toISOString() });
+        const item = { id: 'telegramSchedules', data: schedules, updated_at: new Date().toISOString() };
+        const { error } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
+        if (error) {
+          await supabase.from('tc_collections').update({ data: schedules, updated_at: item.updated_at }).eq('id', 'telegramSchedules');
+        }
       } catch (e) {}
     }
     return res.status(200).json(schedules[idx]);
@@ -72,7 +83,11 @@ export default async function handler(req: any, res: any) {
     const filtered = schedules.filter(s => s.id !== targetId);
     if (supabase) {
       try {
-        await supabase.from('tc_collections').upsert({ id: 'telegramSchedules', data: filtered, updated_at: new Date().toISOString() });
+        const item = { id: 'telegramSchedules', data: filtered, updated_at: new Date().toISOString() };
+        const { error } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
+        if (error) {
+          await supabase.from('tc_collections').update({ data: filtered, updated_at: item.updated_at }).eq('id', 'telegramSchedules');
+        }
       } catch (e) {}
     }
     return res.status(200).json({ success: true });

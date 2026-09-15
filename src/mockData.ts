@@ -624,6 +624,9 @@ export const db = {
   getPayrollAdjustments: (): any => getStored('PAYROLL_ADJUSTMENTS', {}),
   savePayrollAdjustments: (data: any) => setStored('PAYROLL_ADJUSTMENTS', data),
 
+  getLeaveRequests: (): any[] => getStored('LEAVE_REQUESTS', []),
+  saveLeaveRequests: (data: any[]) => setStored('LEAVE_REQUESTS', data),
+
   getAuditLogs: (): string[] => getStored('AUDIT_LOGS', []),
   saveAuditLogs: (logs: string[]) => setStored('AUDIT_LOGS', logs),
   

@@ -43,9 +43,22 @@ export default async function handler(req: any, res: any) {
     if (!supabase) return false;
     const item = { id, data: list, updated_at: new Date().toISOString() };
     try {
-      await supabase.from('tc_collections').upsert(item);
-      return true;
-    } catch {
+      const { error: upsertErr } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
+      if (!upsertErr) return true;
+
+      console.warn(`[leave-requests] Upsert failed for ${id}: ${upsertErr.message}, trying update...`);
+      const { error: updateErr } = await supabase.from('tc_collections').update({
+        data: list,
+        updated_at: item.updated_at
+      }).eq('id', id);
+
+      if (!updateErr) return true;
+
+      console.warn(`[leave-requests] Update failed for ${id}: ${updateErr.message}, trying insert...`);
+      const { error: insertErr } = await supabase.from('tc_collections').insert(item);
+      return !insertErr;
+    } catch (err: any) {
+      console.error(`[leave-requests] Exception saving ${id}:`, err?.message);
       return false;
     }
   };

@@ -180,7 +180,11 @@ async function pushCollectionToSupabase(collectionId: string) {
   if (!supabase) return;
   try {
     const row = { id: collectionId, data: localDb[collectionId], updated_at: new Date().toISOString() };
-    await supabase.from('tc_collections').upsert(row);
+    const { error } = await supabase.from('tc_collections').upsert(row, { onConflict: 'id' });
+    if (error) {
+      console.warn(`[TC Staff Server] Upsert with onConflict failed for ${collectionId}, trying update:`, error.message);
+      await supabase.from('tc_collections').update({ data: row.data, updated_at: row.updated_at }).eq('id', collectionId);
+    }
   } catch (err: any) {
     console.error(`[TC Staff Server] Supabase push for ${collectionId} failed:`, err.message);
   }

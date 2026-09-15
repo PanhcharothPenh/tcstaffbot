@@ -24,7 +24,11 @@ async function saveDbCollection(supabase: any, id: string, payload: any): Promis
     const { error } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
     if (error) {
       console.warn(`[saveDbCollection] Upsert with onConflict failed for ${id}, trying update:`, error.message);
-      await supabase.from('tc_collections').update({ data: payload, updated_at: item.updated_at }).eq('id', id);
+      const { error: updErr } = await supabase.from('tc_collections').update({ data: payload, updated_at: item.updated_at }).eq('id', id);
+      if (updErr) {
+        console.warn(`[saveDbCollection] Update also failed for ${id}, trying insert:`, updErr.message);
+        await supabase.from('tc_collections').insert(item);
+      }
     }
   } catch (err: any) {
     console.warn(`[saveDbCollection] Exception saving ${id}:`, err?.message);
@@ -53,9 +57,9 @@ function updateMemCache(id: string, data: any, ttlMs = 30000) {
   MEM_CACHE[id] = { data, expires: Date.now() + ttlMs };
 }
 
-function saveDbCollectionAsync(supabase: any, id: string, payload: any): void {
+async function saveDbCollectionAsync(supabase: any, id: string, payload: any): Promise<void> {
   updateMemCache(id, payload);
-  saveDbCollection(supabase, id, payload).catch(() => {});
+  await saveDbCollection(supabase, id, payload);
 }
 
 async function loadMultipleCollections(supabase: any, ids: string[], ttlMs = 30000): Promise<Record<string, any>> {
@@ -481,7 +485,7 @@ export default async function handler(req: any, res: any) {
               } else {
                 allUsers.push(matchedUser);
               }
-              saveDbCollectionAsync(supabase, 'users', allUsers);
+              await saveDbCollectionAsync(supabase, 'users', allUsers);
               updateMemCache('users', allUsers);
             }
           }
@@ -539,7 +543,7 @@ export default async function handler(req: any, res: any) {
             const sIdx = rawStaff.findIndex((s: any) => s.id === matchedStaff.id);
             if (sIdx >= 0) {
               rawStaff[sIdx] = { ...rawStaff[sIdx], telegramId, telegramLinked: true };
-              saveDbCollectionAsync(supabase, 'staff', rawStaff);
+              await saveDbCollectionAsync(supabase, 'staff', rawStaff);
               updateMemCache('staff', rawStaff);
             }
           }
@@ -568,10 +572,10 @@ export default async function handler(req: any, res: any) {
                 regArr.push(regEntry);
               }
               chatRegistry = regArr;
-              saveDbCollectionAsync(supabase, 'telegram_chat_registry', regArr);
+              await saveDbCollectionAsync(supabase, 'telegram_chat_registry', regArr);
 
               // Also update telegramRecentUsers for auto-detect in Web User Management
-              saveDbCollectionAsync(supabase, 'telegramRecentUsers', {
+              await saveDbCollectionAsync(supabase, 'telegramRecentUsers', {
                 chatId: telegramId,
                 username: cleanTgHandle,
                 firstName: firstName,
@@ -970,7 +974,7 @@ export default async function handler(req: any, res: any) {
 
       if (pendingLeaveSession && matchedStaff) {
         if (supabase) {
-          saveDbCollectionAsync(supabase, 'pending_leave_' + telegramId, null);
+          await saveDbCollectionAsync(supabase, 'pending_leave_' + telegramId, null);
         } else {
           updateMemCache('pending_leave_' + telegramId, null);
         }
@@ -1950,7 +1954,7 @@ export default async function handler(req: any, res: any) {
           };
           updateMemCache('pending_leave_' + telegramId, sessionPayload, 900000);
           if (supabase) {
-            saveDbCollectionAsync(supabase, 'pending_leave_' + telegramId, sessionPayload);
+            await saveDbCollectionAsync(supabase, 'pending_leave_' + telegramId, sessionPayload);
           }
 
           const leavePrompt = `📝 <b>[ពាក្យសុំច្បាប់៖ ${typeTitle}]</b>\n\n` +

@@ -76,6 +76,19 @@ export default async function handler(req: any, res: any) {
   const isPermissions = url.includes('/permissions') && !targetId;
   const isRolePermissions = url.includes('/role-permissions') || subAction === 'role-permissions';
 
+  async function saveRoleCollection(colId: string, payload: any) {
+    const item = { id: colId, data: payload, updated_at: new Date().toISOString() };
+    const { error } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
+    if (!error) return null;
+    const { error: updErr } = await supabase.from('tc_collections').update({
+      data: payload,
+      updated_at: item.updated_at
+    }).eq('id', colId);
+    if (!updErr) return null;
+    const { error: insErr } = await supabase.from('tc_collections').insert(item);
+    return insErr || null;
+  }
+
   // 1. Get static permissions list
   if (isPermissions) {
     return res.status(200).json({ success: true, permissions: GENERATED_PERMISSIONS });
@@ -93,9 +106,9 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ success: true, rolePermissions: rolePerms });
     }
     if (req.method === 'POST' || req.method === 'PUT') {
-      const { error } = await supabase.from('tc_collections').upsert({ id: 'rolePermissions', data: body, updated_at: new Date().toISOString() });
-      if (error) {
-        return res.status(500).json({ success: false, error: error.message });
+      const err = await saveRoleCollection('rolePermissions', body);
+      if (err) {
+        return res.status(500).json({ success: false, error: err.message });
       }
       return res.status(200).json({ success: true, rolePermissions: body });
     }
@@ -134,7 +147,7 @@ export default async function handler(req: any, res: any) {
       createdAt: new Date().toISOString()
     };
     roles.push(newRole);
-    const { error: saveErr } = await supabase.from('tc_collections').upsert({ id: 'roles', data: roles, updated_at: new Date().toISOString() });
+    const saveErr = await saveRoleCollection('roles', roles);
     if (saveErr) {
       return res.status(500).json({ success: false, error: saveErr.message });
     }
@@ -154,7 +167,7 @@ export default async function handler(req: any, res: any) {
       const { data: curMapRow } = await supabase.from('tc_collections').select('data').eq('id', 'rolePermissions').maybeSingle();
       const mapData = (curMapRow && curMapRow.data) || {};
       mapData[targetId] = perms;
-      await supabase.from('tc_collections').upsert({ id: 'rolePermissions', data: mapData, updated_at: new Date().toISOString() });
+      await saveRoleCollection('rolePermissions', mapData);
     } else {
       roles[idx] = {
         ...roles[idx],
@@ -164,7 +177,7 @@ export default async function handler(req: any, res: any) {
       };
     }
 
-    const { error: saveErr } = await supabase.from('tc_collections').upsert({ id: 'roles', data: roles, updated_at: new Date().toISOString() });
+    const saveErr = await saveRoleCollection('roles', roles);
     if (saveErr) {
       return res.status(500).json({ success: false, error: saveErr.message });
     }
@@ -179,7 +192,7 @@ export default async function handler(req: any, res: any) {
       return res.status(403).json({ error: 'Cannot delete system role' });
     }
     const filtered = roles.filter((r: any) => r.id !== targetId);
-    const { error: saveErr } = await supabase.from('tc_collections').upsert({ id: 'roles', data: filtered, updated_at: new Date().toISOString() });
+    const saveErr = await saveRoleCollection('roles', filtered);
     if (saveErr) {
       return res.status(500).json({ success: false, error: saveErr.message });
     }

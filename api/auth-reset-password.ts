@@ -78,7 +78,11 @@ export default async function handler(req: any, res: any) {
         const idx = users.findIndex((u: any) => u.id === targetUserId);
         if (idx !== -1) {
           users[idx].passwordChangedAt = new Date().toISOString();
-          await supabase.from('tc_collections').upsert({ id: 'users', data: users, updated_at: new Date().toISOString() });
+          const item = { id: 'users', data: users, updated_at: new Date().toISOString() };
+          const { error } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
+          if (error) {
+            await supabase.from('tc_collections').update({ data: users, updated_at: item.updated_at }).eq('id', 'users');
+          }
         }
       } catch (e) {}
     }

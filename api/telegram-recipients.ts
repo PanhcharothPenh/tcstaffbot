@@ -45,11 +45,18 @@ export default async function handler(req: any, res: any) {
       createdAt: new Date().toISOString()
     };
     recipients.push(newRec);
-    if (supabase) {
+    const saveRecipients = async (data: any[]) => {
+      if (!supabase) return;
       try {
-        await supabase.from('tc_collections').upsert({ id: 'telegramRecipients', data: recipients, updated_at: new Date().toISOString() });
+        const item = { id: 'telegramRecipients', data, updated_at: new Date().toISOString() };
+        const { error } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
+        if (error) {
+          await supabase.from('tc_collections').update({ data, updated_at: item.updated_at }).eq('id', 'telegramRecipients');
+        }
       } catch (e) {}
-    }
+    };
+
+    await saveRecipients(recipients);
     return res.status(201).json(newRec);
   }
 
@@ -59,7 +66,11 @@ export default async function handler(req: any, res: any) {
     recipients[idx] = { ...recipients[idx], ...req.body, id: targetId };
     if (supabase) {
       try {
-        await supabase.from('tc_collections').upsert({ id: 'telegramRecipients', data: recipients, updated_at: new Date().toISOString() });
+        const item = { id: 'telegramRecipients', data: recipients, updated_at: new Date().toISOString() };
+        const { error } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
+        if (error) {
+          await supabase.from('tc_collections').update({ data: recipients, updated_at: item.updated_at }).eq('id', 'telegramRecipients');
+        }
       } catch (e) {}
     }
     return res.status(200).json(recipients[idx]);
@@ -69,7 +80,11 @@ export default async function handler(req: any, res: any) {
     const filtered = recipients.filter(r => r.id !== targetId);
     if (supabase) {
       try {
-        await supabase.from('tc_collections').upsert({ id: 'telegramRecipients', data: filtered, updated_at: new Date().toISOString() });
+        const item = { id: 'telegramRecipients', data: filtered, updated_at: new Date().toISOString() };
+        const { error } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
+        if (error) {
+          await supabase.from('tc_collections').update({ data: filtered, updated_at: item.updated_at }).eq('id', 'telegramRecipients');
+        }
       } catch (e) {}
     }
     return res.status(200).json({ success: true });
