@@ -40,7 +40,10 @@ import {
   Coffee,
   MapPin,
   Building2,
-  LayoutDashboard
+  LayoutDashboard,
+  PanelLeftClose,
+  PanelLeftOpen,
+  ChevronLeft
 } from 'lucide-react';
 import { Role, User, Branch } from '../types';
 import { translations } from '../mockData';
@@ -233,6 +236,19 @@ export default function Sidebar({
               </button>
             )}
 
+            {/* Desktop collapse toggle button */}
+            {setIsCollapsed && (
+              <button 
+                type="button"
+                onClick={() => setIsCollapsed(true)}
+                className="hidden lg:flex absolute right-2.5 top-2.5 p-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 hover:border-slate-300 rounded-xl text-slate-500 hover:text-slate-800 cursor-pointer transition-all shadow-2xs active:scale-95 z-20"
+                title={lang === 'kh' ? 'លាក់ម៉ឺនុយចំហៀង (Hide Sidebar)' : 'Hide Sidebar'}
+                aria-label="Hide Sidebar"
+              >
+                <PanelLeftClose size={16} />
+              </button>
+            )}
+
             {/* Centered & Big Brand Logo */}
             <div className="flex flex-col items-center justify-center text-center w-full py-1">
               <TCLogo className="h-20 sm:h-24 cursor-pointer hover:scale-102 transition-transform" />
@@ -265,13 +281,15 @@ export default function Sidebar({
           </>
         ) : (
           /* COLLAPSED HEADER: Centered Brand Logo / Toggle Button */
-          <div className="flex flex-col items-center justify-center gap-2">
+          <div className="flex flex-col items-center justify-center gap-2 py-1">
             <button
-              onClick={() => setIsCollapsed && setIsCollapsed(!isCollapsed)}
-              className="w-13 h-13 hover:bg-slate-100 p-1.5 rounded-2xl flex items-center justify-center cursor-pointer transition-all active:scale-95 group"
-              title="Expand Sidebar"
+              type="button"
+              onClick={() => setIsCollapsed && setIsCollapsed(false)}
+              className="w-12 h-12 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 text-slate-600 hover:text-blue-600 p-2 rounded-2xl flex items-center justify-center cursor-pointer transition-all active:scale-95 shadow-2xs group"
+              title={lang === 'kh' ? 'បង្ហាញម៉ឺនុយចំហៀង (Show Sidebar)' : 'Show Sidebar'}
+              aria-label="Show Sidebar"
             >
-              <img src="/logo.png" alt="TC Staff" className="w-10 h-10 object-contain group-hover:scale-105 transition-transform" />
+              <PanelLeftOpen size={20} className="group-hover:scale-110 transition-transform" />
             </button>
           </div>
         )}
@@ -461,6 +479,28 @@ export default function Sidebar({
         )}
 
       </div>
+
+      {/* 4. BOTTOM FOOTER TOGGLE BAR (Desktop) */}
+      {setIsCollapsed && (
+        <div className="p-2.5 border-t border-slate-200/80 bg-white hidden lg:flex items-center justify-center shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-slate-200 hover:border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 text-xs font-bold transition-all cursor-pointer shadow-2xs active:scale-98 ${isCollapsed ? 'px-0' : 'px-3'}`}
+            title={isCollapsed ? (lang === 'kh' ? 'បង្ហាញម៉ឺនុយចំហៀង (Show Sidebar)' : 'Show Sidebar') : (lang === 'kh' ? 'លាក់ម៉ឺនុយចំហៀង (Hide Sidebar)' : 'Hide Sidebar')}
+            aria-label="Toggle Sidebar"
+          >
+            {isCollapsed ? (
+              <PanelLeftOpen size={17} className="text-blue-600" />
+            ) : (
+              <>
+                <PanelLeftClose size={15} />
+                <span>{lang === 'kh' ? 'លាក់ម៉ឺនុយចំហៀង' : 'Hide Sidebar'}</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
     </aside>
   );

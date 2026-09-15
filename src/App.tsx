@@ -19,7 +19,9 @@ import {
   Menu,
   ChevronDown,
   LogOut,
-  AlertTriangle
+  AlertTriangle,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react';
 
 // Core imports
@@ -1251,11 +1253,19 @@ export default function App() {
           {/* Menu Trigger, Title and Branch Switcher */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button 
-              onClick={() => setMobileMenuOpen(true)}
-              className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 lg:hidden cursor-pointer transition-colors shrink-0"
-              aria-label="Open Navigation Menu"
+              type="button"
+              onClick={() => {
+                if (window.innerWidth < 1024) {
+                  setMobileMenuOpen(true);
+                } else {
+                  handleSetSidebarCollapsed(prev => !prev);
+                }
+              }}
+              className="p-2 hover:bg-slate-100 border border-slate-200/80 hover:border-slate-300 rounded-xl text-slate-700 cursor-pointer transition-all shadow-2xs active:scale-95 shrink-0 flex items-center justify-center"
+              title={sidebarCollapsed ? (lang === 'kh' ? 'បង្ហាញម៉ឺនុយចំហៀង (Show Sidebar)' : 'Show Sidebar') : (lang === 'kh' ? 'លាក់ម៉ឺនុយចំហៀង (Hide Sidebar)' : 'Hide Sidebar')}
+              aria-label="Toggle Navigation Sidebar"
             >
-              <Menu size={20} />
+              {sidebarCollapsed ? <PanelLeftOpen size={18} className="text-blue-600" /> : <PanelLeftClose size={18} />}
             </button>
             
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
