@@ -58,7 +58,11 @@ import {
   Info,
   Globe,
   Crown,
-  CheckCircle
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
+  Zap,
+  Ban
 } from 'lucide-react';
 import { User, Role, Branch, RoleDefinition, Permission } from '../types';
 import { userApi, roleApi, FALLBACK_PERMISSIONS, FALLBACK_ROLES } from '../utils/api';
@@ -106,7 +110,8 @@ export default function UserManagementView({
   const [rolePermissionsList, setRolePermissionsList] = useState<string[]>(() => FALLBACK_ROLES[1]?.permissions?.map(p => p.id) || []);
   const [permSearchQuery, setPermSearchQuery] = useState('');
   const [permCategoryFilter, setPermCategoryFilter] = useState<'all' | 'staff' | 'payroll' | 'system'>('all');
-  const [matrixViewMode, setMatrixViewMode] = useState<'matrix' | 'cards'>('matrix');
+  const [matrixViewMode, setMatrixViewMode] = useState<'matrix' | 'cards'>('cards');
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -566,6 +571,106 @@ export default function UserManagementView({
     if (defaultDef && defaultDef.permissions) {
       setRolePermissionsList(defaultDef.permissions.map(p => p.id));
       showBanner('success', lang === 'en' ? `Reset permissions to ${defaultDef.name} default` : `បានកំណត់សិទ្ធិដើមសម្រាប់ ${defaultDef.name}`);
+    }
+  };
+
+  // Module Access Level Helpers (Easy & Intuitive Configuration)
+  const getModuleAccessLevel = (modName: string): 'none' | 'view' | 'standard' | 'full' | 'custom' => {
+    const modPerms = permissions.filter(p => p.module === modName);
+    if (modPerms.length === 0) return 'none';
+    const activeActions = modPerms
+      .filter(p => rolePermissionsList.includes(p.id))
+      .map(p => p.action);
+
+    if (activeActions.length === 0) return 'none';
+    if (activeActions.length === modPerms.length) return 'full';
+
+    // Check if View only
+    if (activeActions.length === 1 && activeActions[0] === 'View') return 'view';
+
+    // Check if standard editor (View, Create, Edit, Export PDF, Export Excel, Print)
+    const standardSet = new Set(['View', 'Create', 'Edit', 'Export PDF', 'Export Excel', 'Print']);
+    if (
+      activeActions.length === standardSet.size &&
+      activeActions.every(a => standardSet.has(a))
+    ) {
+      return 'standard';
+    }
+
+    return 'custom';
+  };
+
+  const handleSetModuleAccessLevel = (modName: string, level: 'none' | 'view' | 'standard' | 'full') => {
+    const modPerms = permissions.filter(p => p.module === modName);
+    const modPermIds = new Set(modPerms.map(p => p.id));
+    
+    // Filter out existing permissions for this module
+    let next = rolePermissionsList.filter(id => !modPermIds.has(id));
+    
+    if (level === 'view') {
+      const viewPerm = modPerms.find(p => p.action === 'View');
+      if (viewPerm) next.push(viewPerm.id);
+    } else if (level === 'standard') {
+      const standardActions = new Set(['View', 'Create', 'Edit', 'Export PDF', 'Export Excel', 'Print']);
+      const standardIds = modPerms.filter(p => standardActions.has(p.action)).map(p => p.id);
+      next.push(...standardIds);
+    } else if (level === 'full') {
+      next.push(...modPerms.map(p => p.id));
+    }
+    
+    setRolePermissionsList(Array.from(new Set(next)));
+  };
+
+  const toggleModuleExpanded = (modName: string) => {
+    setExpandedModules(prev => ({
+      ...prev,
+      [modName]: !prev[modName]
+    }));
+  };
+
+  const handleApplyRoleTemplate = (templateType: 'full' | 'manager' | 'accountant' | 'staff' | 'view_only' | 'clear') => {
+    if (!selectedRoleForPerms || selectedRoleForPerms.id === 'owner') return;
+
+    if (templateType === 'full') {
+      setRolePermissionsList(permissions.map(p => p.id));
+      showBanner('success', lang === 'en' ? 'Applied Full Administrator template' : 'បានកំណត់គំរូ: គ្រប់គ្រងពេញលេញ (Full Admin)');
+    } else if (templateType === 'manager') {
+      const allowed = permissions.filter(p => {
+        if (['Staff', 'Shift Roster', 'Attendance'].includes(p.module)) return true;
+        if (['Salary', 'Reports'].includes(p.module)) {
+          return ['View', 'Create', 'Edit', 'Export PDF', 'Export Excel', 'Print', 'Approve'].includes(p.action);
+        }
+        if (p.module === 'Branch') return p.action === 'View';
+        if (p.module === 'Telegram Settings') return ['View', 'Configure'].includes(p.action);
+        return false;
+      });
+      setRolePermissionsList(allowed.map(p => p.id));
+      showBanner('success', lang === 'en' ? 'Applied Branch Manager template' : 'បានកំណត់គំរូ: មេការសាខា (Branch Manager)');
+    } else if (templateType === 'accountant') {
+      const allowed = permissions.filter(p => {
+        if (['Salary', 'Reports'].includes(p.module)) return true;
+        if (['Staff', 'Shift Roster', 'Attendance'].includes(p.module)) return p.action === 'View';
+        return false;
+      });
+      setRolePermissionsList(allowed.map(p => p.id));
+      showBanner('success', lang === 'en' ? 'Applied Accountant template' : 'បានកំណត់គំរូ: គណនេយ្យករ (Accountant)');
+    } else if (templateType === 'staff') {
+      const allowed = permissions.filter(p => {
+        if (p.module === 'Attendance') return ['View', 'Create'].includes(p.action);
+        if (p.module === 'Shift Roster') return p.action === 'View';
+        if (p.module === 'Salary') return p.action === 'View';
+        if (p.module === 'Staff') return p.action === 'View';
+        return false;
+      });
+      setRolePermissionsList(allowed.map(p => p.id));
+      showBanner('success', lang === 'en' ? 'Applied Barista / Staff template' : 'បានកំណត់គំរូ: បុគ្គលិកទូទៅ / Barista');
+    } else if (templateType === 'view_only') {
+      const allowed = permissions.filter(p => p.action === 'View');
+      setRolePermissionsList(allowed.map(p => p.id));
+      showBanner('success', lang === 'en' ? 'Applied View-Only template' : 'បានកំណត់គំរូ: មើលប៉ុណ្ណោះ (View Only)');
+    } else if (templateType === 'clear') {
+      setRolePermissionsList([]);
+      showBanner('success', lang === 'en' ? 'Cleared all permissions' : 'បានបិទសិទ្ធិទាំងអស់ (Clear All)');
     }
   };
 
@@ -1110,141 +1215,241 @@ export default function UserManagementView({
           const activePercent = totalRolePerms > 0 ? Math.round((activeCount / totalRolePerms) * 100) : 0;
 
           return (
-            <div className="space-y-5 animate-in fade-in duration-150">
-              {/* TOP ROLE SELECTOR CARDS */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="space-y-4 animate-in fade-in duration-150">
+              
+              {/* 1. TOP ROLE SELECTOR CARDS (COMPACT & MODERN) */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                 {roles.map(r => {
                   const isSelected = selectedRoleForPerms?.id === r.id;
                   const isRoleOwner = r.id === 'owner';
                   const rolePermCount = isRoleOwner 
                     ? totalRolePerms 
                     : (isSelected ? rolePermissionsList.length : (r.permissions?.length || 0));
+                  const pct = totalRolePerms > 0 ? Math.round((rolePermCount / totalRolePerms) * 100) : 0;
+
+                  // Role Specific Icons
+                  const RoleIcon = isRoleOwner ? Crown : r.id === 'admin' ? ShieldAlert : r.id === 'manager' ? Users : UserCheck;
 
                   return (
-                    <div
+                    <button
                       key={r.id}
+                      type="button"
                       onClick={() => handleSelectRole(r)}
-                      className={`relative p-4 rounded-2xl border transition-all cursor-pointer select-none flex flex-col justify-between text-left ${
+                      className={`relative p-3 rounded-2xl border transition-all text-left cursor-pointer flex items-center justify-between gap-2.5 ${
                         isSelected
                           ? isRoleOwner
-                            ? 'bg-gradient-to-br from-amber-500 to-amber-600 border-amber-600 text-white shadow-lg shadow-amber-500/25 ring-2 ring-amber-400/50'
-                            : 'bg-gradient-to-br from-blue-600 to-blue-700 border-blue-600 text-white shadow-lg shadow-blue-600/25 ring-2 ring-blue-400/50'
-                          : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-xs text-slate-700'
+                            ? 'bg-amber-500 border-amber-600 text-white shadow-md shadow-amber-500/20 ring-2 ring-amber-400/50'
+                            : 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-600/20 ring-2 ring-blue-400/50'
+                          : 'bg-white border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/70 text-slate-750 shadow-2xs'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                            isSelected 
-                              ? 'bg-white/20 text-white' 
-                              : isRoleOwner 
-                                ? 'bg-amber-100 text-amber-700' 
-                                : 'bg-slate-100 text-slate-700'
-                          }`}>
-                            <Shield size={16} />
-                          </div>
-                          <div>
-                            <span className="text-xs font-black tracking-wide uppercase font-sans block">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                          isSelected 
+                            ? 'bg-white/20 text-white' 
+                            : isRoleOwner 
+                              ? 'bg-amber-50 text-amber-600' 
+                              : r.id === 'admin'
+                                ? 'bg-indigo-50 text-indigo-600'
+                                : r.id === 'manager'
+                                  ? 'bg-sky-50 text-sky-600'
+                                  : 'bg-emerald-50 text-emerald-600'
+                        }`}>
+                          <RoleIcon size={18} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-black tracking-wide font-sans truncate">
                               {r.name}
                             </span>
-                            <span className={`text-[10px] ${isSelected ? 'text-white/80' : 'text-slate-400'}`}>
-                              {isRoleOwner ? 'ម្ចាស់ហាងចម្បង' : r.id.toUpperCase()}
-                            </span>
+                            {isSelected && (
+                              <span className="w-4 h-4 rounded-full bg-white text-blue-750 flex items-center justify-center shrink-0">
+                                <Check size={10} strokeWidth={3} />
+                              </span>
+                            )}
                           </div>
-                        </div>
-
-                        {isSelected && (
-                          <span className="w-5 h-5 rounded-full bg-white text-blue-700 flex items-center justify-center shrink-0">
-                            <Check size={12} strokeWidth={3} />
+                          <span className={`text-[10px] block truncate ${isSelected ? 'text-white/80' : 'text-slate-400'}`}>
+                            {isRoleOwner ? 'ម្ចាស់ហាងចម្បង' : r.id === 'admin' ? 'អ្នកគ្រប់គ្រងប្រព័ន្ធ' : r.id === 'manager' ? 'មេការសាខា' : 'បុគ្គលិកទូទៅ'}
                           </span>
-                        )}
+                        </div>
                       </div>
 
-                      <p className={`text-[11px] line-clamp-2 mb-3 leading-relaxed ${
-                        isSelected ? 'text-white/90' : 'text-slate-500'
-                      }`}>
-                        {r.description || (isRoleOwner ? t.ownerFullPrivilege : 'Role access configuration')}
-                      </p>
-
-                      <div className="flex items-center justify-between pt-2.5 border-t border-white/20">
-                        <span className={`text-[10px] font-semibold ${isSelected ? 'text-white/80' : 'text-slate-400'}`}>
-                          {isRoleOwner ? 'អភ័យឯកសិទ្ធិពេញលេញ' : 'សិទ្ធិសរុប'}
-                        </span>
-                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                      <div className="text-right shrink-0">
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full inline-block ${
                           isSelected 
                             ? 'bg-white/25 text-white' 
-                            : 'bg-slate-100 text-slate-700'
+                            : 'bg-slate-100 text-slate-650'
                         }`}>
-                          {rolePermCount} / {totalRolePerms}
+                          {isRoleOwner ? '100%' : `${pct}%`}
                         </span>
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
 
-              {/* ACTION BAR & STATS */}
-              <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-2xs space-y-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  {/* Left: Role title & Live count badge */}
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                      <Sliders size={20} />
+              {/* 2. QUICK 1-CLICK ROLE PRESETS (គំរូសិទ្ធិរហ័ស) */}
+              {selectedRoleForPerms?.id !== 'owner' && (
+                <div className="p-3 bg-white border border-slate-200/90 rounded-2xl shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                      <Sparkles size={13} className="text-amber-500" />
+                      <span>{lang === 'kh' ? 'គំរូសិទ្ធិតួនាទីរហ័ស (1-Click Presets):' : 'Quick 1-Click Role Presets:'}</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {lang === 'kh' ? 'ចុចដើម្បីកំណត់សិទ្ធិទាំងអស់ក្នុងពេលតែមួយ' : 'Click to apply pre-configured permission package'}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleApplyRoleTemplate('full')}
+                      className="px-2.5 py-1 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <Zap size={11} className="text-emerald-600" />
+                      <span>{lang === 'kh' ? 'គ្រប់គ្រងពេញលេញ (Full Admin)' : 'Full Admin (100%)'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApplyRoleTemplate('manager')}
+                      className="px-2.5 py-1 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <Users size={11} className="text-blue-600" />
+                      <span>{lang === 'kh' ? 'មេការហាង (Store Manager)' : 'Store Manager'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApplyRoleTemplate('accountant')}
+                      className="px-2.5 py-1 bg-slate-50 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <DollarSign size={11} className="text-amber-600" />
+                      <span>{lang === 'kh' ? 'គណនេយ្យករ (Accountant)' : 'Accountant'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApplyRoleTemplate('staff')}
+                      className="px-2.5 py-1 bg-slate-50 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <UserCheck size={11} className="text-sky-600" />
+                      <span>{lang === 'kh' ? 'បុគ្គលិកទូទៅ (Barista / Staff)' : 'Barista / Staff'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApplyRoleTemplate('view_only')}
+                      className="px-2.5 py-1 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <Eye size={11} className="text-indigo-600" />
+                      <span>{lang === 'kh' ? 'មើលប៉ុណ្ណោះ (View Only)' : 'View Only'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApplyRoleTemplate('clear')}
+                      className="px-2.5 py-1 bg-slate-50 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <Ban size={11} className="text-rose-500" />
+                      <span>{lang === 'kh' ? 'បិទទាំងអស់ (Clear All)' : 'Clear All'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handlePresetResetRoleDefault}
+                      className="px-2.5 py-1 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-500 transition flex items-center gap-1 cursor-pointer ml-auto"
+                    >
+                      <RotateCcw size={11} />
+                      <span>{lang === 'kh' ? 'កំណត់ដើម' : 'Reset Default'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 3. ACTION & CONTROLS HEADER BAR */}
+              <div className="p-3.5 bg-white border border-slate-200/90 rounded-2xl shadow-2xs space-y-3">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  
+                  {/* Left: Role Info & Stats */}
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      selectedRoleForPerms?.id === 'owner' ? 'bg-amber-100 text-amber-700' : 'bg-blue-50 text-blue-600'
+                    }`}>
+                      <Sliders size={18} />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-black text-slate-900 font-sans">
-                          {selectedRoleForPerms?.name} — {t.rolesHeaderTitle}
+                        <h3 className="text-xs font-black text-slate-900 font-sans">
+                          {selectedRoleForPerms?.name} — {lang === 'kh' ? 'កំណត់កម្រិតសិទ្ធិប្រើប្រាស់' : 'Access Permissions'}
                         </h3>
                         {selectedRoleForPerms?.id === 'owner' ? (
-                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold border border-amber-300">
-                            FULL ROOT ACCESS (100%)
+                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold border border-amber-300">
+                            ROOT PRIVILEGE (100%)
                           </span>
                         ) : (
-                          <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold border border-blue-200 flex items-center gap-1">
-                            <CheckCheck size={12} />
+                          <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10.5px] font-bold border border-blue-200 flex items-center gap-1">
+                            <CheckCheck size={11} />
                             {activeCount} / {totalRolePerms} ({activePercent}%)
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {selectedRoleForPerms?.id === 'owner' 
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {selectedRoleForPerms?.id === 'owner'
                           ? t.ownerFullPrivilege
-                          : 'ចុចលើប្រអប់ដើម្បីបើក/បិទសិទ្ធិ ឬប្រើប្រាស់ Presets ខាងក្រោមដើម្បីកំណត់លឿន'
-                        }
+                          : (lang === 'kh' ? 'ជ្រើសរើសកម្រិតសិទ្ធិនៃមុខងារនីមួយៗ (គ្មានសិទ្ធិ / មើល / កែប្រែ / ពេញលេញ) ឬចុចកំណត់លម្អិត' : 'Set module access levels or click customize for fine-grained permissions')}
                       </p>
                     </div>
                   </div>
 
-                  {/* Right: Save button */}
-                  {selectedRoleForPerms?.id !== 'owner' && (
-                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                  {/* Right: View Switcher & Save Button */}
+                  <div className="flex items-center gap-2 self-end md:self-auto">
+                    {/* View Switcher */}
+                    <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs">
                       <button
                         type="button"
-                        onClick={handlePresetResetRoleDefault}
-                        className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors flex items-center gap-1.5 cursor-pointer"
-                        title="Reset to default role permissions"
+                        onClick={() => setMatrixViewMode('cards')}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                          matrixViewMode === 'cards'
+                            ? 'bg-white text-blue-700 shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
                       >
-                        <RotateCcw size={13} />
-                        <span>កំណត់ដើម</span>
+                        <LayoutGrid size={12} />
+                        <span>{lang === 'kh' ? 'ទម្រង់ងាយស្រួល (Simple)' : 'Simple Cards'}</span>
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setMatrixViewMode('matrix')}
+                        className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                          matrixViewMode === 'matrix'
+                            ? 'bg-white text-blue-700 shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <Table size={12} />
+                        <span>{lang === 'kh' ? 'ទម្រង់តារាង (Matrix)' : 'Matrix Table'}</span>
+                      </button>
+                    </div>
 
+                    {selectedRoleForPerms?.id !== 'owner' && (
                       <button
                         type="button"
                         onClick={handleSaveRolePermissions}
                         disabled={submitting}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 cursor-pointer"
+                        className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white rounded-xl text-xs font-bold transition shadow-sm shadow-blue-600/20 cursor-pointer shrink-0"
                       >
-                        {submitting ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                        {submitting ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
                         <span>{t.savePermsBtn}</span>
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 {/* Progress bar visual */}
                 {selectedRoleForPerms?.id !== 'owner' && (
-                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                  <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                     <div 
                       className="bg-blue-600 h-full rounded-full transition-all duration-300"
                       style={{ width: `${activePercent}%` }}
@@ -1253,154 +1458,279 @@ export default function UserManagementView({
                 )}
               </div>
 
-              {/* SEARCH & MATRIX CONTROLS TOOLBAR */}
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-3 bg-slate-50 border border-slate-200 rounded-2xl">
-                {/* Search & Category Filter */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="relative min-w-[220px]">
-                    <Search className="absolute left-3 top-2.5 text-slate-400" size={15} />
-                    <input
-                      type="text"
-                      placeholder="ស្វែងរកមុខងារ (Search module)..."
-                      value={permSearchQuery}
-                      onChange={e => setPermSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-sans"
-                    />
-                  </div>
-
-                  {/* Category Pills */}
-                  <div className="flex items-center gap-1 bg-white p-1 border border-slate-200 rounded-xl">
-                    <button
-                      type="button"
-                      onClick={() => setPermCategoryFilter('all')}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                        permCategoryFilter === 'all' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      ទាំងអស់ ({allModulesInPerms.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPermCategoryFilter('staff')}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
-                        permCategoryFilter === 'staff' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      <Users size={12} />
-                      <span>បុគ្គលិក & វេន (Staff & Shifts)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPermCategoryFilter('payroll')}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
-                        permCategoryFilter === 'payroll' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      <DollarSign size={12} />
-                      <span>ប្រាក់ខែ & របាយការណ៍ (Payroll & Reports)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPermCategoryFilter('system')}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
-                        permCategoryFilter === 'system' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      <Building2 size={12} />
-                      <span>សាខា & ប្រព័ន្ធ (Branches & System)</span>
-                    </button>
-                  </div>
+              {/* 4. SEARCH & CATEGORY FILTER TOOLBAR */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2.5 bg-slate-50/80 border border-slate-200/80 rounded-2xl">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
+                  <input
+                    type="text"
+                    placeholder={lang === 'kh' ? 'ស្វែងរកមុខងារ (Search module)...' : 'Search module...'}
+                    value={permSearchQuery}
+                    onChange={e => setPermSearchQuery(e.target.value)}
+                    className="w-full pl-8.5 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                  />
                 </div>
 
-                {/* Bulk Actions Presets & View Switcher */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {selectedRoleForPerms?.id !== 'owner' && (
-                    <div className="flex items-center gap-1.5 bg-white p-1 border border-slate-200 rounded-xl">
-                      <button
-                        type="button"
-                        onClick={() => handlePresetSelectAll(visiblePermissions)}
-                        className="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                        title="Select all permissions for visible modules"
-                      >
-                        <CheckCheck size={12} />
-                        <span>បើកទាំងអស់</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handlePresetViewOnly(visiblePermissions)}
-                        className="px-2.5 py-1 text-[11px] font-semibold text-sky-700 hover:bg-sky-50 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                        title="Set to View only for visible modules"
-                      >
-                        <Eye size={12} />
-                        <span>មើលតែប៉ុណ្ណោះ</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handlePresetClearAll(visiblePermissions)}
-                        className="px-2.5 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                        title="Clear all permissions for visible modules"
-                      >
-                        <X size={12} />
-                        <span>បិទទាំងអស់</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* View Mode Switcher */}
-                  <div className="flex items-center bg-white p-1 border border-slate-200 rounded-xl">
-                    <button
-                      type="button"
-                      onClick={() => setMatrixViewMode('matrix')}
-                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                        matrixViewMode === 'matrix' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-500 hover:bg-slate-100'
-                      }`}
-                      title="Matrix Grid View"
-                    >
-                      <Table size={15} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMatrixViewMode('cards')}
-                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                        matrixViewMode === 'cards' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-500 hover:bg-slate-100'
-                      }`}
-                      title="Grouped Cards View"
-                    >
-                      <LayoutGrid size={15} />
-                    </button>
-                  </div>
+                {/* Category Pills */}
+                <div className="flex items-center gap-1 bg-white p-1 border border-slate-200/80 rounded-xl overflow-x-auto text-[11px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setPermCategoryFilter('all')}
+                    className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0 ${
+                      permCategoryFilter === 'all' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {lang === 'kh' ? `ទាំងអស់ (${allModulesInPerms.length})` : `All (${allModulesInPerms.length})`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPermCategoryFilter('staff')}
+                    className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
+                      permCategoryFilter === 'staff' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Users size={11} />
+                    <span>{lang === 'kh' ? 'បុគ្គលិក & វេន' : 'Staff & Shifts'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPermCategoryFilter('payroll')}
+                    className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
+                      permCategoryFilter === 'payroll' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <DollarSign size={11} />
+                    <span>{lang === 'kh' ? 'ប្រាក់ខែ & របាយការណ៍' : 'Payroll & Reports'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPermCategoryFilter('system')}
+                    className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
+                      permCategoryFilter === 'system' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Building2 size={11} />
+                    <span>{lang === 'kh' ? 'សាខា & ប្រព័ន្ធ' : 'Branches & System'}</span>
+                  </button>
                 </div>
               </div>
 
-              {/* PERMISSIONS MATRIX DISPLAY */}
+              {/* 5. PERMISSIONS DISPLAY */}
               {selectedRoleForPerms?.id === 'owner' ? (
-                <div className="p-8 bg-gradient-to-r from-amber-50 to-amber-100/60 border border-amber-200 rounded-3xl flex items-start gap-4 shadow-sm">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/30">
-                    <ShieldCheck size={26} />
+                <div className="p-6 bg-gradient-to-r from-amber-50 to-amber-100/50 border border-amber-200/80 rounded-2xl flex items-start gap-3.5 shadow-2xs">
+                  <div className="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm shadow-amber-500/30">
+                    <ShieldCheck size={22} />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-black text-amber-950 font-sans tracking-wide">
+                      <h4 className="text-xs font-black text-amber-950 font-sans tracking-wide">
                         Owner (Executive Administrator / ម្ចាស់ហាងចម្បង)
                       </h4>
-                      <span className="px-2.5 py-0.5 bg-amber-200/80 text-amber-900 rounded-full text-[10px] font-black uppercase">
-                        ROOT PRIVILEGE
+                      <span className="px-2 py-0.5 bg-amber-200/80 text-amber-900 rounded-full text-[10px] font-bold uppercase">
+                        ROOT PRIVILEGE (100%)
                       </span>
                     </div>
                     <p className="text-xs text-amber-900 leading-relaxed font-medium">
-                      {t.ownerFullPrivilege} គ្រប់សិទ្ធិទាំងអស់ចំនួន {totalRolePerms} សិទ្ធិ ត្រូវបានបើកដំណើរការដោយស្វ័យប្រវត្តិតាមស្ថាបត្យកម្មសុវត្ថិភាពស្នូលរបស់ប្រព័ន្ធ និងមិនអាចកែប្រែ ឬដកសិទ្ធិបានឡើយ។
+                      {t.ownerFullPrivilege} គ្រប់សិទ្ធិទាំងអស់ចំនួន {totalRolePerms} សិទ្ធិ ត្រូវបានបើកដំណើរការជាអចិន្ត្រៃយ៍ ដើម្បីធានាសុវត្ថិភាពខ្ពស់បំផុត និងមិនអាចកែប្រែបានឡើយ។
                     </p>
                   </div>
                 </div>
-              ) : matrixViewMode === 'matrix' ? (
-                /* TRUE MATRIX TABLE VIEW */
-                <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+              ) : matrixViewMode === 'cards' ? (
+                /* ============================================================ */
+                /* VIEW 1: SIMPLE & INTUITIVE MODULE ACCESS CARDS (DEFAULT)    */
+                /* ============================================================ */
+                <div className="space-y-3">
+                  {filteredModules.length === 0 ? (
+                    <div className="py-10 text-center text-slate-400 text-xs font-medium bg-white rounded-2xl border border-slate-200/80">
+                      រកមិនឃើញមុខងារដែលត្រូវគ្នានឹងការស្វែងរករបស់អ្នកទេ។
+                    </div>
+                  ) : (
+                    filteredModules.map(modName => {
+                      const meta = MODULE_META[modName] || {
+                        labelKh: modName,
+                        category: 'system',
+                        icon: FileText,
+                        desc: 'មុខងារទូទៅ'
+                      };
+                      const ModIcon = meta.icon;
+                      const modPerms = permissions.filter(p => p.module === modName);
+                      const modPermIds = modPerms.map(p => p.id);
+                      const activePermCount = modPerms.filter(p => rolePermissionsList.includes(p.id)).length;
+                      const currentLevel = getModuleAccessLevel(modName);
+                      const isExpanded = !!expandedModules[modName];
+
+                      return (
+                        <div 
+                          key={modName}
+                          className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs hover:border-slate-300 transition-all space-y-3.5"
+                        >
+                          {/* Module Header & Access Level Controls */}
+                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                            {/* Left: Icon & Info */}
+                            <div className="flex items-start gap-3 min-w-0">
+                              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+                                <ModIcon size={18} />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="text-xs font-black text-slate-900 font-sans truncate">
+                                    {meta.labelKh}
+                                  </h4>
+                                  <span className="text-[10px] text-slate-400 font-mono">
+                                    ({modName})
+                                  </span>
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                    currentLevel === 'none' 
+                                      ? 'bg-slate-100 text-slate-500' 
+                                      : currentLevel === 'view'
+                                        ? 'bg-sky-50 text-sky-700 border border-sky-200/50'
+                                        : currentLevel === 'standard'
+                                          ? 'bg-amber-50 text-amber-700 border border-amber-200/50'
+                                          : currentLevel === 'full'
+                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50'
+                                            : 'bg-purple-50 text-purple-700 border border-purple-200/50'
+                                  }`}>
+                                    {currentLevel === 'none' && (lang === 'kh' ? '🚫 គ្មានសិទ្ធិ' : 'No Access')}
+                                    {currentLevel === 'view' && (lang === 'kh' ? '👁️ មើលប៉ុណ្ណោះ' : 'View Only')}
+                                    {currentLevel === 'standard' && (lang === 'kh' ? '✏️ កែប្រែ & ចាត់ចែង' : 'Standard Editor')}
+                                    {currentLevel === 'full' && (lang === 'kh' ? '⚡ ពេញលេញ' : 'Full Access')}
+                                    {currentLevel === 'custom' && (lang === 'kh' ? `⚙️ កំណត់លម្អិត (${activePermCount}/${modPerms.length})` : `Custom (${activePermCount}/${modPerms.length})`)}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                                  {meta.desc}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Right: 4 Access Level Selectors */}
+                            <div className="flex flex-wrap items-center gap-1.5 self-start lg:self-auto bg-slate-50 p-1 border border-slate-200 rounded-xl">
+                              <button
+                                type="button"
+                                onClick={() => handleSetModuleAccessLevel(modName, 'none')}
+                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                  currentLevel === 'none'
+                                    ? 'bg-white text-slate-800 shadow-2xs border border-slate-200'
+                                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/60'
+                                }`}
+                              >
+                                <Ban size={11} className={currentLevel === 'none' ? 'text-rose-500' : 'text-slate-400'} />
+                                <span>{lang === 'kh' ? 'គ្មានសិទ្ធិ' : 'None'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleSetModuleAccessLevel(modName, 'view')}
+                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                  currentLevel === 'view'
+                                    ? 'bg-white text-sky-700 shadow-2xs border border-sky-200'
+                                    : 'text-slate-600 hover:text-sky-700 hover:bg-slate-100/60'
+                                }`}
+                              >
+                                <Eye size={11} className={currentLevel === 'view' ? 'text-sky-600' : 'text-slate-400'} />
+                                <span>{lang === 'kh' ? 'មើល' : 'View'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleSetModuleAccessLevel(modName, 'standard')}
+                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                  currentLevel === 'standard'
+                                    ? 'bg-white text-blue-700 shadow-2xs border border-blue-200'
+                                    : 'text-slate-600 hover:text-blue-700 hover:bg-slate-100/60'
+                                }`}
+                              >
+                                <Edit size={11} className={currentLevel === 'standard' ? 'text-blue-600' : 'text-slate-400'} />
+                                <span>{lang === 'kh' ? 'កែប្រែ & ចាត់ចែង' : 'Editor'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleSetModuleAccessLevel(modName, 'full')}
+                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                  currentLevel === 'full'
+                                    ? 'bg-white text-emerald-700 shadow-2xs border border-emerald-200'
+                                    : 'text-slate-600 hover:text-emerald-700 hover:bg-slate-100/60'
+                                }`}
+                              >
+                                <CheckCircle2 size={11} className={currentLevel === 'full' ? 'text-emerald-600' : 'text-slate-400'} />
+                                <span>{lang === 'kh' ? 'ពេញលេញ' : 'Full'}</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Toggle Fine-Grained Action Chips */}
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                            <button
+                              type="button"
+                              onClick={() => toggleModuleExpanded(modName)}
+                              className="text-[11px] font-bold text-slate-500 hover:text-blue-600 flex items-center gap-1.5 cursor-pointer py-0.5"
+                            >
+                              {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                              <span>
+                                {isExpanded 
+                                  ? (lang === 'kh' ? 'លាក់សិទ្ធិលម្អិត' : 'Hide granular actions') 
+                                  : (lang === 'kh' ? `កំណត់សិទ្ធិលម្អិត (${activePermCount}/${modPerms.length} សកម្ម)` : `Customize granular actions (${activePermCount}/${modPerms.length})`)}
+                              </span>
+                            </button>
+
+                            <span className="text-[10px] text-slate-400">
+                              {activePermCount === modPerms.length ? 'បើកគ្រប់សកម្មភាព' : activePermCount === 0 ? 'បិទគ្រប់សកម្មភាព' : `បើក ${activePermCount} ក្នុងចំណោម ${modPerms.length}`}
+                            </span>
+                          </div>
+
+                          {/* Collapsible Action Chips Grid */}
+                          {isExpanded && (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-2 bg-slate-50/70 p-3 rounded-xl border border-slate-200/70 animate-in fade-in duration-150">
+                              {modPerms.map(perm => {
+                                const isChecked = rolePermissionsList.includes(perm.id);
+                                const actMeta = ACTION_LABELS[perm.action];
+
+                                return (
+                                  <button
+                                    key={perm.id}
+                                    type="button"
+                                    onClick={() => handleTogglePermissionId(perm.id)}
+                                    className={`flex items-center justify-between p-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border select-none ${
+                                      isChecked
+                                        ? 'bg-blue-50 border-blue-300 text-blue-900 shadow-2xs'
+                                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <div className={`w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 border ${
+                                        isChecked ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 bg-white'
+                                      }`}>
+                                        {isChecked && <Check size={10} strokeWidth={3} />}
+                                      </div>
+                                      <span className="text-[11px] truncate">
+                                        {actMeta ? actMeta.kh : perm.action}
+                                      </span>
+                                    </div>
+                                    <span className="text-[9px] text-slate-400 font-normal">
+                                      {perm.action}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              ) : (
+                /* ============================================================ */
+                /* VIEW 2: CLEAN & ELEGANT MATRIX TABLE                         */
+                /* ============================================================ */
+                <div className="bg-white border border-slate-200/90 rounded-2xl shadow-2xs overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse min-w-[980px]">
                       <thead>
-                        <tr className="bg-slate-900 text-white border-b border-slate-800">
+                        <tr className="bg-slate-50/90 text-slate-700 border-b border-slate-200 text-xs">
                           {/* Module Header Column */}
-                          <th className="py-3 px-4 text-xs font-bold uppercase tracking-wider sticky left-0 z-20 bg-slate-900 min-w-[260px]">
+                          <th className="py-3 px-4 font-bold uppercase tracking-wider sticky left-0 z-20 bg-slate-50 min-w-[280px]">
                             <div className="flex items-center justify-between">
                               <span>មុខងារប្រព័ន្ធ (Module)</span>
                               <span className="text-[10px] text-slate-400 font-normal">
@@ -1419,15 +1749,15 @@ export default function UserManagementView({
                             return (
                               <th 
                                 key={action}
-                                className="py-3 px-2 text-center text-xs font-bold tracking-wider min-w-[84px]"
+                                className="py-2.5 px-2 text-center text-xs font-bold tracking-wider min-w-[80px]"
                               >
                                 <button
                                   type="button"
                                   onClick={() => handleToggleActionForVisibleModules(action, visiblePermissions)}
-                                  className="w-full flex flex-col items-center justify-center gap-1 group cursor-pointer hover:bg-slate-800 py-1 px-1 rounded-lg transition-colors"
+                                  className="w-full flex flex-col items-center justify-center gap-0.5 group cursor-pointer hover:bg-slate-100 py-1 px-1 rounded-lg transition-colors"
                                   title={`Toggle '${action}' for all visible modules`}
                                 >
-                                  <span className="text-[11px] font-extrabold group-hover:text-blue-400 transition-colors">
+                                  <span className="text-[11px] font-bold text-slate-750 group-hover:text-blue-600 transition-colors">
                                     {actMeta ? actMeta.kh : action}
                                   </span>
                                   <span className="text-[9px] text-slate-400 font-normal">
@@ -1435,10 +1765,10 @@ export default function UserManagementView({
                                   </span>
                                   <span className={`w-3.5 h-3.5 rounded flex items-center justify-center mt-0.5 border text-[9px] transition-colors ${
                                     allColChecked 
-                                      ? 'bg-blue-600 border-blue-500 text-white' 
+                                      ? 'bg-blue-600 border-blue-600 text-white' 
                                       : someColChecked 
-                                        ? 'bg-blue-900/60 border-blue-400 text-blue-200' 
-                                        : 'border-slate-700 text-transparent group-hover:border-slate-500'
+                                        ? 'bg-blue-100 border-blue-400 text-blue-700' 
+                                        : 'border-slate-300 text-transparent group-hover:border-slate-400 bg-white'
                                   }`}>
                                     ✓
                                   </span>
@@ -1448,7 +1778,7 @@ export default function UserManagementView({
                           })}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-200/80">
+                      <tbody className="divide-y divide-slate-100">
                         {filteredModules.length === 0 ? (
                           <tr>
                             <td colSpan={ALL_ACTIONS.length + 1} className="py-12 text-center text-slate-400 text-xs font-medium">
@@ -1466,26 +1796,25 @@ export default function UserManagementView({
                             const ModIcon = meta.icon;
                             const modPerms = permissions.filter(p => p.module === modName);
                             const modPermIds = modPerms.map(p => p.id);
-                            const allRowChecked = modPermIds.length > 0 && modPermIds.every(id => rolePermissionsList.includes(id));
-                            const someRowChecked = modPermIds.some(id => rolePermissionsList.includes(id));
+                            const currentLevel = getModuleAccessLevel(modName);
                             const isEven = idx % 2 === 0;
 
                             return (
                               <tr 
                                 key={modName} 
-                                className={`transition-colors hover:bg-blue-50/40 ${isEven ? 'bg-white' : 'bg-slate-50/40'}`}
+                                className={`transition-colors hover:bg-blue-50/30 ${isEven ? 'bg-white' : 'bg-slate-50/40'}`}
                               >
                                 {/* Module Info + Row Bulk Toggle */}
-                                <td className={`py-3 px-4 sticky left-0 z-10 border-r border-slate-200/80 ${
+                                <td className={`py-3 px-4 sticky left-0 z-10 border-r border-slate-100 ${
                                   isEven ? 'bg-white' : 'bg-slate-50'
                                 }`}>
                                   <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2.5 min-w-0">
-                                      <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                                      <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
                                         <ModIcon size={16} />
                                       </div>
                                       <div className="min-w-0">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-1.5">
                                           <span className="text-xs font-bold text-slate-900 font-sans truncate">
                                             {meta.labelKh}
                                           </span>
@@ -1493,27 +1822,24 @@ export default function UserManagementView({
                                             ({modName})
                                           </span>
                                         </div>
-                                        <p className="text-[10.5px] text-slate-500 truncate mt-0.5">
+                                        <p className="text-[10.5px] text-slate-400 truncate mt-0.5">
                                           {meta.desc}
                                         </p>
                                       </div>
                                     </div>
 
-                                    {/* Quick Row Toggle button */}
-                                    <button
-                                      type="button"
-                                      onClick={() => handleToggleAllForModule(modPermIds)}
-                                      className={`px-2 py-1 rounded-md text-[10px] font-bold shrink-0 transition-colors cursor-pointer border ${
-                                        allRowChecked
-                                          ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                                          : someRowChecked
-                                            ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-                                            : 'bg-transparent text-slate-400 border-transparent hover:border-slate-200 hover:bg-slate-100'
-                                      }`}
-                                      title={allRowChecked ? 'Deselect all in row' : 'Select all in row'}
+                                    {/* Row Quick Access Level Dropdown */}
+                                    <select
+                                      value={currentLevel}
+                                      onChange={e => handleSetModuleAccessLevel(modName, e.target.value as any)}
+                                      className="text-[10px] font-bold py-1 px-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 outline-none cursor-pointer shrink-0"
                                     >
-                                      {allRowChecked ? 'ដោះ' : 'ទាំងអស់'}
-                                    </button>
+                                      <option value="none">🚫 គ្មានសិទ្ធិ</option>
+                                      <option value="view">👁️ មើល</option>
+                                      <option value="standard">✏️ កែប្រែ</option>
+                                      <option value="full">⚡ ពេញលេញ</option>
+                                      {currentLevel === 'custom' && <option value="custom">⚙️ លម្អិត</option>}
+                                    </select>
                                   </div>
                                 </td>
 
@@ -1535,14 +1861,14 @@ export default function UserManagementView({
                                       <button
                                         type="button"
                                         onClick={() => handleTogglePermissionId(perm.id)}
-                                        className={`w-7 h-7 rounded-lg inline-flex items-center justify-center transition-all cursor-pointer border ${
+                                        className={`w-6 h-6 rounded-lg inline-flex items-center justify-center transition-all cursor-pointer border ${
                                           isChecked
-                                            ? 'bg-blue-600 border-blue-600 text-white shadow-xs hover:bg-blue-700 hover:scale-105'
-                                            : 'bg-white border-slate-300 text-transparent hover:border-blue-400 hover:bg-blue-50/50'
+                                            ? 'bg-blue-600 border-blue-600 text-white shadow-2xs hover:bg-blue-700'
+                                            : 'bg-white border-slate-250 text-transparent hover:border-blue-400 hover:bg-blue-50/50'
                                         }`}
                                         title={`${meta.labelKh} → ${action}: ${isChecked ? 'អនុញ្ញាត (Allowed)' : 'បិទ (Disallowed)'}`}
                                       >
-                                        <Check size={14} strokeWidth={3} className={isChecked ? 'text-white' : 'text-slate-300'} />
+                                        <Check size={12} strokeWidth={3} className={isChecked ? 'text-white' : 'text-slate-300'} />
                                       </button>
                                     </td>
                                   );
@@ -1554,98 +1880,6 @@ export default function UserManagementView({
                       </tbody>
                     </table>
                   </div>
-                </div>
-              ) : (
-                /* CATEGORIZED ACCORDION / CARDS VIEW */
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredModules.map(modName => {
-                    const meta = MODULE_META[modName] || {
-                      labelKh: modName,
-                      category: 'system',
-                      icon: FileText,
-                      desc: 'មុខងារទូទៅ'
-                    };
-                    const ModIcon = meta.icon;
-                    const modPerms = permissions.filter(p => p.module === modName);
-                    const modPermIds = modPerms.map(p => p.id);
-                    const allChecked = modPermIds.length > 0 && modPermIds.every(id => rolePermissionsList.includes(id));
-                    const checkedCount = modPerms.filter(p => rolePermissionsList.includes(p.id)).length;
-
-                    return (
-                      <div 
-                        key={modName}
-                        className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-shadow space-y-3"
-                      >
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                              <ModIcon size={16} />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-bold text-slate-900 font-sans">
-                                  {meta.labelKh}
-                                </span>
-                                <span className="text-[10px] text-slate-400">
-                                  ({modName})
-                                </span>
-                              </div>
-                              <span className="text-[10.5px] text-slate-500 block">
-                                {meta.desc}
-                              </span>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleToggleAllForModule(modPermIds)}
-                            className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition-colors cursor-pointer border ${
-                              allChecked
-                                ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            {allChecked ? 'ដោះទាំងអស់' : `បើកទាំងអស់ (${checkedCount}/${modPerms.length})`}
-                          </button>
-                        </div>
-
-                        {/* Action Chips Grid */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                          {modPerms.map(perm => {
-                            const isChecked = rolePermissionsList.includes(perm.id);
-                            const actMeta = ACTION_LABELS[perm.action];
-
-                            return (
-                              <button
-                                key={perm.id}
-                                type="button"
-                                onClick={() => handleTogglePermissionId(perm.id)}
-                                className={`flex items-center justify-between p-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border select-none ${
-                                  isChecked
-                                    ? 'bg-blue-50 border-blue-300 text-blue-900 shadow-2xs'
-                                    : 'bg-slate-50/80 border-slate-200 text-slate-500 hover:bg-slate-100 hover:border-slate-300'
-                                }`}
-                              >
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  <div className={`w-3.5 h-3.5 rounded flex items-center justify-center shrink-0 border ${
-                                    isChecked ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-400 bg-white'
-                                  }`}>
-                                    {isChecked && <Check size={10} strokeWidth={3} />}
-                                  </div>
-                                  <span className="text-[11px] truncate">
-                                    {actMeta ? actMeta.kh : perm.action}
-                                  </span>
-                                </div>
-                                <span className="text-[9px] text-slate-400 font-normal">
-                                  {perm.action}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
                 </div>
               )}
             </div>
