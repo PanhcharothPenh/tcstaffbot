@@ -941,6 +941,130 @@ export default async function handler(req: any, res: any) {
       }
 
       // =================================================================================
+      // ACTION: ✍️ HANDLE STAFF TYPED REASON FOR LEAVE REQUEST (PENDING SESSION)
+      // =================================================================================
+      let pendingLeaveSession: any = null;
+      if (!isCallback && userText && !userText.startsWith('/')) {
+        const isNavCommand = 
+          userText.includes('ចុះឈ្មោះចូល') || 
+          userText.includes('ចុះឈ្មោះចេញ') || 
+          userText.includes('ព័ត៌មានគណនី') || 
+          userText.includes('របៀបប្រើប្រាស់') || 
+          userText.includes('វត្តមានបុគ្គលិកទាំងអស់') || 
+          userText.includes('ពាក្យសុំច្បាប់ទាំងអស់') ||
+          userText.includes('មើលប្រវត្តិវត្តមាន') ||
+          userText === '📝 សុំច្បាប់' ||
+          userText === 'សុំច្បាប់';
+
+        if (!isNavCommand) {
+          if (MEM_CACHE['pending_leave_' + telegramId]?.data) {
+            pendingLeaveSession = MEM_CACHE['pending_leave_' + telegramId].data;
+          } else if (supabase) {
+            try {
+              const row: any = await loadDbCollection(supabase, 'pending_leave_' + telegramId);
+              if (row?.typeCode) pendingLeaveSession = row;
+            } catch (_) {}
+          }
+        }
+      }
+
+      if (pendingLeaveSession && matchedStaff) {
+        if (supabase) {
+          saveDbCollectionAsync(supabase, 'pending_leave_' + telegramId, null);
+        } else {
+          updateMemCache('pending_leave_' + telegramId, null);
+        }
+
+        const leaveReason = userText.trim();
+        const newLeaveId = 'leave_' + Date.now();
+        const leaveType = pendingLeaveSession.typeName || 'ច្បាប់ទូទៅ';
+        const leaveDate = pendingLeaveSession.date || phnomPenhDateStr;
+        const leaveFullDetail = `សុំច្បាប់ ${leaveType} (${leaveReason})`;
+
+        if (supabase) {
+          try {
+            let leaveList = (await loadDbCollection(supabase, 'leaveRequests')) || [];
+            const newLeave = {
+              id: newLeaveId,
+              staffId: matchedStaff.id,
+              staffName: matchedStaff.fullName,
+              staffTelegramId: String(telegramId || matchedStaff.telegramId || chatId || ''),
+              staffChatId: String(chatId || ''),
+              branchId: staffSpecificBranchId,
+              branchName: staffSpecificBranchName,
+              details: leaveFullDetail,
+              reason: leaveReason,
+              leaveType: leaveType,
+              status: 'Pending',
+              createdAt: new Date().toISOString(),
+              date: leaveDate
+            };
+            leaveList.unshift(newLeave);
+            await saveDbCollection(supabase, 'leaveRequests', leaveList);
+            updateMemCache('leaveRequests', leaveList);
+          } catch (err) {
+            console.error('Failed to save leave request:', err);
+          }
+        }
+
+        const confirmStaffMsg = `✅ <b>ពាក្យសុំច្បាប់ត្រូវបានទទួលជោគជ័យ</b>\n\n` +
+          `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff.fullName}</b>\n` +
+          `🏢 <b>សាខា:</b> ${staffSpecificBranchName}\n` +
+          `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leaveDate, displayDateStr)}</code>\n` +
+          `🏷️ <b>ប្រភេទច្បាប់:</b> ${pendingLeaveSession.typeTitle || leaveType}\n` +
+          `📝 <b>មូលហេតុ:</b> ${leaveReason}\n\n` +
+          `⏳ <b>ស្ថានភាព:</b> 🟡 <b>រង់ចាំការអនុម័តពី Admin / Manager</b>\n\n` +
+          `🔔 ប្រព័ន្ធបានផ្ញើពាក្យសុំច្បាប់នេះទៅកាន់អ្នកគ្រប់គ្រងរួចរាល់ហើយ។`;
+
+        const leaveActionButtons = {
+          inline_keyboard: [
+            [
+              { text: '✅ អនុម័ត', callback_data: `leave_appr_${newLeaveId}` },
+              { text: '❌ បដិសេធ', callback_data: `leave_rejc_${newLeaveId}` }
+            ]
+          ]
+        };
+
+        const alertMsg = `🔔 <b>សំណើសុំច្បាប់ថ្មី</b>\n\n` +
+          `👤 <b>បុគ្គលិក:</b> ${matchedStaff.fullName}\n` +
+          `💼 <b>តួនាទី:</b> ${matchedStaff.position || 'Staff'}\n` +
+          `🏢 <b>សាខា:</b> ${staffSpecificBranchName}\n\n` +
+          `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leaveDate, displayDateStr)}</code>\n` +
+          `🕒 <b>ម៉ោងស្នើសុំ:</b> <code>${displayTimeStr}</code>\n` +
+          `🏷️ <b>ប្រភេទច្បាប់:</b> ${pendingLeaveSession.typeTitle || leaveType}\n` +
+          `📝 <b>មូលហេតុ:</b> ${leaveReason}\n\n` +
+          `⏳ <b>ស្ថានភាព:</b> 🟡 <b>រង់ចាំការអនុម័ត</b>\n\n` +
+          `👇 <b>សូមជ្រើសរើស៖</b>`;
+
+        const branchTargetChatId = storedConfig?.chatIds?.branches?.[staffSpecificBranchId] || storedConfig?.chatIds?.branches?.[effectiveBranchId] || storedConfig?.chatIds?.branches?.b1;
+        const targetRecipients = new Set<string>();
+        if (branchTargetChatId && branchTargetChatId !== chatId) targetRecipients.add(branchTargetChatId);
+        if (chatId !== '8412569939' && matchedStaff.telegramId !== '8412569939') targetRecipients.add('8412569939');
+
+        for (const targetId of targetRecipients) {
+          try {
+            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: targetId,
+                text: alertMsg,
+                parse_mode: 'HTML',
+                reply_markup: leaveActionButtons
+              })
+            });
+          } catch (e) {}
+        }
+
+        return sendOrReply(res, botToken, {
+          chat_id: chatId,
+          text: confirmStaffMsg,
+          parse_mode: 'HTML',
+          reply_markup: persistentReplyKeyboard
+        });
+      }
+
+      // =================================================================================
       // ACTION: 🧹 REMOVE UNWANTED OLD KEYBOARD (e.g. Hospital VPNs, NSSF Branches, etc.)
       // =================================================================================
       const isUnwantedKeyboard = 
@@ -1815,13 +1939,27 @@ export default async function handler(req: any, res: any) {
             typeCode === 'personal' ? 'ធុរៈផ្ទាល់ខ្លួន (Personal Leave)' :
             typeCode === 'annual' ? 'សម្រាកប្រចាំឆ្នាំ (Annual Leave)' : 'ច្បាប់ទូទៅ';
 
+          // Save pending session (valid for 15 mins)
+          const sessionPayload = {
+            staffId: matchedStaff.id,
+            typeCode,
+            typeName,
+            typeTitle,
+            date: phnomPenhDateStr,
+            createdAt: Date.now()
+          };
+          updateMemCache('pending_leave_' + telegramId, sessionPayload, 900000);
+          if (supabase) {
+            saveDbCollectionAsync(supabase, 'pending_leave_' + telegramId, sessionPayload);
+          }
+
           const leavePrompt = `📝 <b>[ពាក្យសុំច្បាប់៖ ${typeTitle}]</b>\n\n` +
             `👤 <b>បុគ្គលិក៖</b> <b>${matchedStaff.fullName}</b>\n` +
-            `🏢 <b>សាខា៖</b> <b>${staffSpecificBranchName}</b>\n\n` +
-            `👉 <b>សូមវាយផ្ញើសារតាមទម្រង់ខាងក្រោមមកកាន់ Bot៖</b>\n` +
-            `សុំច្បាប់ ${typeName} ថ្ងៃទី ${phnomPenhDateStr} មូលហេតុ [មូលហេតុរបស់អ្នក]\n\n` +
-            `📌 <b>ឧទាហរណ៍៖</b>\n` +
-            `សុំច្បាប់ ${typeName} ថ្ងៃទី ${phnomPenhDateStr} មូលហេតុ ឈឺក្បាលក្តៅខ្លួនមិនអាចមកធ្វើការបាន`;
+            `🏢 <b>សាខា៖</b> <b>${staffSpecificBranchName}</b>\n` +
+            `📅 <b>កាលបរិច្ឆេទ៖</b> <code>${displayDateStr}</code>\n\n` +
+            `👉 <b>សូមវាយផ្ញើសារ «មូលហេតុ» របស់អ្នកមកកាន់ Bot ឥឡូវនេះ៖</b>\n` +
+            `<i>(ឧទាហរណ៍៖ «ឈឺក្បាលក្តៅខ្លួនមិនអាចមកធ្វើការបាន» ឬ «ទៅខេត្តជួបជុំគ្រួសារ»)</i>\n\n` +
+            `ℹ️ <i>អ្នកគ្រាន់តែវាយមូលហេតុធម្មតា Bot នឹងកត់ត្រា និងជូនដំណឹងទៅ Admin ដោយស្វ័យប្រវត្តិ។</i>`;
 
           return sendOrReply(res, botToken, {
             chat_id: chatId,
@@ -1831,14 +1969,15 @@ export default async function handler(req: any, res: any) {
           });
         }
 
-        // 2. Handle detailed leave submission text (e.g. "សុំច្បាប់ឈឺ ថ្ងៃទី... មូលហេតុ...")
-        const isDetailedLeaveSubmission = userText.length > 10 && (
+        // 2. Handle detailed leave submission text (e.g. "សុំច្បាប់ឈឺ...", "សុំច្បាប់ ទៅហៅយាយរាល់...", etc.)
+        const cleanTextWithoutCmd = userText.replace(/^(📝\s*)?សុំច្បាប់\s*/i, '').replace(/^(📝\s*)?សុំឈប់\s*/i, '').replace(/^\/leave\s*/i, '').trim();
+        const isDetailedLeaveSubmission = cleanTextWithoutCmd.length >= 2 || (userText.length > 10 && (
           userText.includes('ថ្ងៃ') || 
           userText.includes('មូលហេតុ') || 
           userText.includes('ឈឺ') || 
           userText.includes('ធុរៈ') || 
           userText.includes('ខែ')
-        );
+        ));
 
         if (isDetailedLeaveSubmission) {
           const newLeaveId = 'leave_' + Date.now();
@@ -1967,6 +2106,43 @@ export default async function handler(req: any, res: any) {
       const checkInTime = todayAttendance?.checkIn || '--';
       const checkOutTime = todayAttendance?.checkOut || '--';
       const staffPos = matchedStaff.position || 'Staff';
+
+      // 1. Polite acknowledgements (e.g. "ok", "បាទ", "ចាស", "អរគុណ")
+      const trimmedText = (userText || '').trim().toLowerCase();
+      const isThanksOrOk = /^(ok|okay|yes|okបាទ|okចាស|បាទ|ចាស|អរគុណ|អគុណ|thanks|thank you|good|ល្អ|យល់ព្រម)$/i.test(trimmedText);
+      if (isThanksOrOk) {
+        return sendOrReply(res, botToken, {
+          chat_id: chatId,
+          text: `🙏 <b>រីករាយក្នុងការជួយសម្រួលការងាររបស់អ្នក!</b>\n\nប្រសិនបើលោកអ្នកមានតម្រូវការ ឬចម្ងល់អ្វីផ្សេងទៀត សូមជ្រើសរើសមុខងារពីប៊ូតុងម៉ឺនុយខាងក្រោម។`,
+          parse_mode: 'HTML',
+          reply_markup: persistentReplyKeyboard
+        });
+      }
+
+      // 2. Explicit start / menu commands or greetings
+      const isExplicitStart = 
+        trimmedText === '/start' || 
+        trimmedText === '/menu' || 
+        trimmedText === 'start' || 
+        trimmedText === 'menu' || 
+        trimmedText.includes('សួស្តី') || 
+        trimmedText === 'hello' || 
+        trimmedText === 'hi' ||
+        !userText;
+
+      if (!isExplicitStart) {
+        const notUnderstoodMsg = `🤖 <b>[TC Staff Bot]</b>\n\n` +
+          `សួស្តី <b>${greetingName}</b>!\n` +
+          `ខ្ញុំមិនទាន់យល់ពីពាក្យបញ្ជា <i>«${userText.substring(0, 50)}»</i> របស់អ្នកនៅឡើយទេ។\n\n` +
+          `👇 <b>សូមចុចជ្រើសរើសមុខងារពីប៊ូតុងម៉ឺនុយខាងក្រោម ឬវាយ <code>/help</code> សម្រាប់ជំនួយ៖</b>`;
+
+        return sendOrReply(res, botToken, {
+          chat_id: chatId,
+          text: notUnderstoodMsg,
+          parse_mode: 'HTML',
+          reply_markup: persistentReplyKeyboard
+        });
+      }
 
       const welcomeText = `👋 <b>សួស្តី ${greetingName}!</b>\n\n` +
         `🏢 <b>សាខា:</b> ${branchDisplay}\n` +
