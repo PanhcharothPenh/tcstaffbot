@@ -646,12 +646,29 @@ export default async function handler(req: any, res: any) {
         (matchedStaff.position && matchedStaff.position.toLowerCase().includes('owner'))
       );
 
-      const assignedIds = Array.isArray(matchedStaff?.assignedBranchIds) ? matchedStaff.assignedBranchIds : [];
-      const hasAllBranches = 
-        isOwner || 
+      const assignedIds = Array.isArray(matchedStaff?.assignedBranchIds) 
+        ? matchedStaff.assignedBranchIds.filter((id: string) => id && String(id).trim() !== '') 
+        : [];
+
+      // Determine staff specific branch ID
+      const staffBranchId = 
+        (assignedIds.length === 1 && assignedIds[0] !== 'all' ? assignedIds[0] : null) ||
+        matchedStaff.assignedBranchId || 
+        matchedStaff.branchId || 
+        (allBranches.length > 0 ? allBranches[0].id : 'b1');
+
+      const staffBranchObj = allBranches.find((b: any) => b.id === staffBranchId) || allBranches[0];
+      const singleBranchName = staffBranchObj?.branchName || 'TC Staff';
+
+      // Only show All Branches if:
+      // 1. Owner role without a specific single branch assigned
+      // 2. Explicitly assigned to 'all'
+      // 3. Explicitly assigned to multiple branches covering all branches in system
+      const hasAllBranches = Boolean(
+        (isOwner && (assignedIds.length === 0 || assignedIds.includes('all'))) || 
         assignedIds.includes('all') || 
-        assignedIds.length === 0 || 
-        (allBranches.length > 0 && assignedIds.length >= allBranches.length);
+        (assignedIds.length > 1 && allBranches.length > 0 && assignedIds.length >= allBranches.length)
+      );
 
       let branchDisplayName = '';
       if (hasAllBranches) {
@@ -663,17 +680,16 @@ export default async function handler(req: any, res: any) {
         });
         branchDisplayName = names.join(' | ');
       } else {
-        const singleBranch = allBranches.find((b: any) => b.id === (assignedIds[0] || matchedStaff.branchId));
-        branchDisplayName = singleBranch?.branchName || 'TC Staff';
+        branchDisplayName = singleBranchName;
       }
 
       const branch = {
-        id: matchedStaff.branchId || 'b1',
+        id: staffBranchId,
         branchName: branchDisplayName,
-        latitude: allBranches[0]?.latitude || 11.53,
-        longitude: allBranches[0]?.longitude || 104.88,
-        allowedRadius: 100,
-        locationVerificationEnabled: false
+        latitude: staffBranchObj?.latitude || 11.53,
+        longitude: staffBranchObj?.longitude || 104.88,
+        allowedRadius: staffBranchObj?.allowedRadius || 100,
+        locationVerificationEnabled: Boolean(staffBranchObj?.locationVerificationEnabled)
       };
 
       const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });

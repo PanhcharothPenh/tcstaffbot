@@ -62,7 +62,15 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   const [isTelegramWebview, setIsTelegramWebview] = useState(false);
   const [isLoadingUser, setIsLoadingUser] = useState<boolean>(() => !cachedData);
   const [staffInfo, setStaffInfo] = useState<any>(() => cachedData?.staff || null);
-  const [branchInfo, setBranchInfo] = useState<any>(() => cachedData?.branch || null);
+  const [branchInfo, setBranchInfo] = useState<any>(() => {
+    if (cachedData?.branch) {
+      if (cachedData.branch.branchName?.includes('គ្រប់សាខា') && cachedData.staff?.position !== 'Owner' && cachedData.staff?.role !== 'Owner') {
+        return { ...cachedData.branch, branchName: '' };
+      }
+      return cachedData.branch;
+    }
+    return null;
+  });
   const [todayAttendance, setTodayAttendance] = useState<any>(() => cachedData?.todayAttendance || null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [detectedTgUser, setDetectedTgUser] = useState<any>(null);
