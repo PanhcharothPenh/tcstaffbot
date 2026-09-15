@@ -559,6 +559,7 @@ export default function App() {
           cashDrawers,
           cashDrawerTransactions,
           monthClosings,
+          leaveRequests: db.getLeaveRequests(),
           settings: { shopName: "TC Staff Management" }
         };
         const serialized = JSON.stringify(payload);
@@ -623,6 +624,7 @@ export default function App() {
       extraShifts,
       tempShiftCovers,
       staffExpenses,
+      leaveRequests: db.getLeaveRequests(),
       adjustments: payrollAdjustments,
       settings: { shopName: "TC Staff Management" }
     };

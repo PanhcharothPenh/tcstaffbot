@@ -39,7 +39,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Attendance, Staff, Role, Branch } from '../types';
-import { translations } from '../mockData';
+import { translations, db } from '../mockData';
 import { printElement, getPhnomPenhDateStr } from '../utils';
 import { generateAttendancePdf } from '../utils/AttendancePdfService';
 
@@ -80,8 +80,14 @@ export default function AttendanceView({
       setFilterBranchId(activeBranchId);
     }
   }, [activeBranchId]);
-  // Leave Requests State
-  const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
+  // Leave Requests State (load cached immediately for instant UI)
+  const [leaveRequests, setLeaveRequests] = useState<any[]>(() => {
+    try {
+      return (typeof db !== 'undefined' && db.getLeaveRequests) ? db.getLeaveRequests() : [];
+    } catch {
+      return [];
+    }
+  });
   const [isLoadingLeaves, setIsLoadingLeaves] = useState(false);
   const [leaveActionLoading, setLeaveActionLoading] = useState<string | null>(null);
   const [leaveFilterStatus, setLeaveFilterStatus] = useState<string>('all');
@@ -90,15 +96,37 @@ export default function AttendanceView({
   const fetchLeaveRequests = async () => {
     setIsLoadingLeaves(true);
     try {
+      // 1. Direct fetch from dedicated leave-requests API
       const res = await fetch('/api/leave-requests');
       if (res.ok) {
         const json = await res.json();
-        if (Array.isArray(json?.data)) {
-          setLeaveRequests(json.data);
+        const records = Array.isArray(json?.data) ? json.data : (Array.isArray(json?.leaveRequests) ? json.leaveRequests : null);
+        if (Array.isArray(records)) {
+          setLeaveRequests(records);
+          try { db.saveLeaveRequests(records); } catch {}
+          return;
+        }
+      }
+
+      // 2. Fallback to /api/sync-data if dedicated endpoint returned empty or non-200
+      const syncRes = await fetch('/api/sync-data');
+      if (syncRes.ok) {
+        const syncJson = await syncRes.json();
+        const s = syncJson?.data || syncJson?.db;
+        if (Array.isArray(s?.leaveRequests) && s.leaveRequests.length > 0) {
+          setLeaveRequests(s.leaveRequests);
+          try { db.saveLeaveRequests(s.leaveRequests); } catch {}
+          return;
         }
       }
     } catch (e) {
       console.error('Failed to fetch leave requests:', e);
+      try {
+        const local = db.getLeaveRequests();
+        if (Array.isArray(local) && local.length > 0) {
+          setLeaveRequests(local);
+        }
+      } catch {}
     } finally {
       setIsLoadingLeaves(false);
     }
@@ -122,6 +150,7 @@ export default function AttendanceView({
         }
         if (s?.leaveRequests && Array.isArray(s.leaveRequests)) {
           setLeaveRequests(s.leaveRequests);
+          try { db.saveLeaveRequests(s.leaveRequests); } catch {}
         }
       }
     } catch (e: any) {
@@ -149,7 +178,11 @@ export default function AttendanceView({
       });
       const data = await res.json();
       if (data.success) {
-        setLeaveRequests(prev => prev.map(l => l.id === leave.id ? { ...l, status: 'Approved', approvedBy: currentRole || 'Admin', approvedAt: new Date().toISOString() } : l));
+        setLeaveRequests(prev => {
+          const next = prev.map(l => l.id === leave.id ? { ...l, status: 'Approved', approvedBy: currentRole || 'Admin', approvedAt: new Date().toISOString() } : l);
+          try { db.saveLeaveRequests(next); } catch {}
+          return next;
+        });
         if (Array.isArray(data.attendance)) {
           setAttendance(data.attendance);
         } else {
@@ -212,7 +245,11 @@ export default function AttendanceView({
       });
       const data = await res.json();
       if (data.success) {
-        setLeaveRequests(prev => prev.map(l => l.id === leave.id ? { ...l, status: 'Rejected', rejectedBy: currentRole || 'Admin', rejectedAt: new Date().toISOString(), reviewNote: reason } : l));
+        setLeaveRequests(prev => {
+          const next = prev.map(l => l.id === leave.id ? { ...l, status: 'Rejected', rejectedBy: currentRole || 'Admin', rejectedAt: new Date().toISOString(), reviewNote: reason } : l);
+          try { db.saveLeaveRequests(next); } catch {}
+          return next;
+        });
         onAddLog(lang === 'kh' ? `បានបដិសេធពាក្យសុំច្បាប់របស់ ${leave.staffName}` : `Rejected leave for ${leave.staffName}`);
       } else {
         alert(data.error || 'Failed to reject');

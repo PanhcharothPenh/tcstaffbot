@@ -51,6 +51,7 @@ interface SyncPayload {
   telegramLogs?: any[];
   salarySchedules?: any[];
   salaryAdvances?: any[];
+  leaveRequests?: any[];
 }
 
 const app = express();
@@ -212,7 +213,8 @@ let localDb: SyncPayload = {
   rolePermissions: {},
   loginHistory: [],
   refreshTokens: [],
-  passwordResetTokens: []
+  passwordResetTokens: [],
+  leaveRequests: []
 };
 
 // Load saved data if exists
@@ -243,6 +245,7 @@ if (!localDb.gasRecords) localDb.gasRecords = [];
 if (!localDb.detergentRecords) localDb.detergentRecords = [];
 if (!localDb.softenerRecords) localDb.softenerRecords = [];
 if (!localDb.stockTransactions) localDb.stockTransactions = [];
+if (!localDb.leaveRequests) localDb.leaveRequests = [];
 if (!localDb.users || localDb.users.length === 0) {
   localDb.users = [
     {
@@ -991,7 +994,8 @@ app.use((req, res, next) => {
     '/api/attendance/history',
     '/api/admin/attendance',
     '/api/sync-data',
-    '/api/softener'
+    '/api/softener',
+    '/api/leave-requests'
   ];
 
   // If path is not starting with /api, or is explicitly listed in public paths, pass through
@@ -2433,6 +2437,68 @@ app.post('/api/sync-data', (req, res) => {
     localDb = { ...localDb, ...payload };
     saveLocalDb();
     res.json({ success: true, message: 'Server-side data synchronized successfully' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Leave Requests APIs
+app.get('/api/leave-requests', (req, res) => {
+  const leaves = (localDb as any).leaveRequests || [];
+  res.json({ success: true, leaveRequests: leaves, data: leaves });
+});
+
+app.post('/api/leave-requests', async (req, res) => {
+  try {
+    const { action, leaveId, approvedBy, rejectedBy, note, leaveData } = req.body || {};
+    if (!localDb.attendance) localDb.attendance = [];
+    if (!(localDb as any).leaveRequests) (localDb as any).leaveRequests = [];
+    let leaveList = (localDb as any).leaveRequests;
+
+    if (action === 'approve') {
+      const idx = leaveList.findIndex((l: any) => l.id === leaveId);
+      if (idx !== -1) {
+        leaveList[idx].status = 'Approved';
+        leaveList[idx].approvedBy = approvedBy || 'Admin';
+        leaveList[idx].approvedAt = new Date().toISOString();
+        const leave = leaveList[idx];
+        const leaveDate = leave.date || new Date().toISOString().substring(0, 10);
+        const existingAttIdx = localDb.attendance.findIndex((a: any) => a.staffId === leave.staffId && a.date === leaveDate);
+        if (existingAttIdx >= 0) {
+          localDb.attendance[existingAttIdx].status = 'Permission';
+          localDb.attendance[existingAttIdx].notes = `ច្បាប់ឈប់សម្រាក (${leave.details || 'Approved by Admin'})`;
+        } else {
+          localDb.attendance.unshift({
+            id: 'att_perm_' + Date.now(),
+            staffId: leave.staffId,
+            staffName: leave.staffName,
+            branchId: leave.branchId || 'b1',
+            branchName: leave.branchName || 'Toto By Chi Chi MC Park',
+            date: leaveDate,
+            checkIn: '--',
+            checkOut: '--',
+            workHours: 0,
+            overtimeHours: 0,
+            status: 'Permission',
+            source: 'manual',
+            notes: `ច្បាប់ឈប់សម្រាក (${leave.details || 'Approved by Admin'})`,
+            createdAt: new Date().toISOString()
+          });
+        }
+      }
+    } else if (action === 'reject') {
+      const idx = leaveList.findIndex((l: any) => l.id === leaveId);
+      if (idx !== -1) {
+        leaveList[idx].status = 'Rejected';
+        leaveList[idx].rejectedBy = rejectedBy || 'Admin';
+        leaveList[idx].rejectedAt = new Date().toISOString();
+        leaveList[idx].rejectionNote = note || '';
+      }
+    } else if (action === 'create' && leaveData) {
+      leaveList.unshift(leaveData);
+    }
+    saveLocalDb();
+    res.json({ success: true, leaveRequests: leaveList, data: leaveList, attendance: localDb.attendance });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

@@ -31,9 +31,14 @@ export default async function handler(req: any, res: any) {
   const loadCollection = async (id: string): Promise<any[]> => {
     if (!supabase) return [];
     try {
-      const { data: tcRow } = await supabase.from('tc_collections').select('data, updated_at').eq('id', id).maybeSingle().catch(() => ({ data: null }));
+      const { data: tcRow, error } = await supabase.from('tc_collections').select('data, updated_at').eq('id', id).maybeSingle();
+      if (error) {
+        console.warn(`[leave-requests] Error loading ${id}:`, error.message);
+        return [];
+      }
       return Array.isArray(tcRow?.data) ? tcRow.data : [];
-    } catch {
+    } catch (err: any) {
+      console.error(`[leave-requests] Exception loading ${id}:`, err?.message);
       return [];
     }
   };

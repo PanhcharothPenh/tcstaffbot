@@ -74,6 +74,14 @@
       "destination": "/api/telegram-templates"
     },
     {
+      "source": "/api/leave-requests",
+      "destination": "/api/leave-requests"
+    },
+    {
+      "source": "/api/leave-requests/:path*",
+      "destination": "/api/leave-requests"
+    },
+    {
       "source": "/api/attendance/:path*",
       "destination": "/api/index"
     },

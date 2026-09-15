@@ -9,9 +9,14 @@ function getSupabase() {
 async function loadDbCollection(supabase: any, id: string): Promise<any> {
   if (!supabase) return null;
   try {
-    const { data: tcRow } = await supabase.from('tc_collections').select('data, updated_at').eq('id', id).maybeSingle().catch(() => ({ data: null }));
+    const { data: tcRow, error } = await supabase.from('tc_collections').select('data, updated_at').eq('id', id).maybeSingle();
+    if (error) {
+      console.warn(`[telegram-webhook] Error loading collection ${id}:`, error.message);
+      return null;
+    }
     return tcRow?.data ?? null;
-  } catch (e) {
+  } catch (e: any) {
+    console.warn(`[telegram-webhook] Exception loading collection ${id}:`, e?.message);
     return null;
   }
 }
@@ -79,7 +84,10 @@ async function loadMultipleCollections(supabase: any, ids: string[], ttlMs = 300
   if (missingIds.length === 0) return result;
 
   try {
-    const { data: tcRows } = await supabase.from('tc_collections').select('id, data, updated_at').in('id', missingIds).catch(() => ({ data: null }));
+    const { data: tcRows, error } = await supabase.from('tc_collections').select('id, data, updated_at').in('id', missingIds);
+    if (error) {
+      console.warn('Batch load error:', error.message);
+    }
 
     const tcMap: Record<string, any> = {};
     if (Array.isArray(tcRows)) {
