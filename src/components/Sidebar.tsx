@@ -119,7 +119,7 @@ export default function Sidebar({
 
   // Navigation Items Definitions - Pure Staff Management Suite
   const navItems = [
-    { id: 'staff', label: lang === 'en' ? 'Staff & Baristas' : 'បុគ្គលិក & Barista', icon: Users, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
+    { id: 'staff', label: lang === 'en' ? 'Staff' : 'បុគ្គលិក', icon: Users, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
     { id: 'shifts', label: lang === 'en' ? 'Shift Roster Calendar' : 'ប្រតិទិនវេនការងារ', icon: CalendarDays, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
     { id: 'attendance', label: t.attendance, icon: Calendar, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },
     { id: 'salary', label: t.salary, icon: DollarSign, roles: ['Owner', 'Admin', 'Manager', 'Staff'] },

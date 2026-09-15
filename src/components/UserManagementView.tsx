@@ -663,7 +663,7 @@ export default function UserManagementView({
         return false;
       });
       setRolePermissionsList(allowed.map(p => p.id));
-      showBanner('success', lang === 'en' ? 'Applied Barista / Staff template' : 'បានកំណត់គំរូ: បុគ្គលិកទូទៅ / Barista');
+      showBanner('success', lang === 'en' ? 'Applied Staff template' : 'បានកំណត់គំរូ: បុគ្គលិកទូទៅ');
     } else if (templateType === 'view_only') {
       const allowed = permissions.filter(p => p.action === 'View');
       setRolePermissionsList(allowed.map(p => p.id));
@@ -1157,7 +1157,7 @@ export default function UserManagementView({
         {activeTab === 'roles' && (() => {
           // Module metadata mapping strictly for TC Staff Management suite
           const MODULE_META: Record<string, { labelKh: string; category: 'staff' | 'payroll' | 'system'; icon: any; desc: string }> = {
-            'Staff': { labelKh: 'បុគ្គលិក & Barista', category: 'staff', icon: Users, desc: 'ប្រវត្តិរូប ព័ត៌មានលម្អិត ប្រាក់ខែគោល មុខតំណែង និងកិច្ចសន្យា' },
+            'Staff': { labelKh: 'បុគ្គលិក', category: 'staff', icon: Users, desc: 'ប្រវត្តិរូប ព័ត៌មានលម្អិត ប្រាក់ខែគោល មុខតំណែង និងកិច្ចសន្យា' },
             'Shift Roster': { labelKh: 'ប្រតិទិនវេនការងារ', category: 'staff', icon: CalendarDays, desc: 'កាលវិភាគវេនការងារ បែងចែកវេនព្រឹក/រសៀល/យប់ និងវេនជំនួស' },
             'Attendance': { labelKh: 'វត្តមានបុគ្គលិក & GPS', category: 'staff', icon: CalendarCheck, desc: 'កត់ត្រាវត្តមាន ស្កេន GPS ម៉ោងចូល/ចេញ យឺត និងច្បាប់' },
             'Salary': { labelKh: 'ការបើកប្រាក់បៀវត្សរ៍', category: 'payroll', icon: Wallet, desc: 'គណនាប្រាក់បៀវត្សរ៍ បុរេប្រទាន ប្រាក់បន្ថែមម៉ោង និងប័ណ្ណបើកប្រាក់ខែ' },
@@ -1335,7 +1335,7 @@ export default function UserManagementView({
                       className="px-2.5 py-1 bg-slate-50 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 transition flex items-center gap-1 cursor-pointer"
                     >
                       <UserCheck size={11} className="text-sky-600" />
-                      <span>{lang === 'kh' ? 'បុគ្គលិកទូទៅ (Barista / Staff)' : 'Barista / Staff'}</span>
+                      <span>{lang === 'kh' ? 'បុគ្គលិកទូទៅ (Staff)' : 'Staff'}</span>
                     </button>
 
                     <button

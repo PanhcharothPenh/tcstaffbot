@@ -1260,7 +1260,7 @@ export default function App() {
             
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <h1 className="text-sm sm:text-xl font-black text-slate-900 tracking-tight leading-tight truncate">
-                {activeTab === 'staff' ? (lang === 'en' ? 'Staff & Barista' : 'បុគ្គលិក & Barista') :
+                {activeTab === 'staff' ? (lang === 'en' ? 'Staff' : 'បុគ្គលិក') :
                  activeTab === 'shifts' ? (lang === 'en' ? 'Shift Calendar' : 'ប្រតិទិនវេនការងារ') :
                  activeTab === 'attendance' ? (lang === 'en' ? 'Staff Attendance' : 'វត្តមានបុគ្គលិក') :
                  activeTab === 'salary' ? (lang === 'en' ? 'Salary Management' : 'ការបើកប្រាក់បៀវត្សរ៍') :
@@ -1268,7 +1268,7 @@ export default function App() {
                  activeTab === 'users' ? (lang === 'en' ? 'User Accounts & Roles' : 'គណនី & សិទ្ធិប្រើប្រាស់') :
                  activeTab === 'telegram_config' ? (lang === 'en' ? 'Telegram Config' : 'កំណត់ Telegram Bot') :
                  activeTab === 'settings' ? (lang === 'en' ? 'Settings' : 'ការកំណត់') :
-                 (lang === 'en' ? 'Staff & Barista' : 'បុគ្គលិក & Barista')}
+                 (lang === 'en' ? 'Staff' : 'បុគ្គលិក')}
               </h1>
             </div>
           </div>
