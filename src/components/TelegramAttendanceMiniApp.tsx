@@ -88,6 +88,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   // DOM Video & Canvas Refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Helper to extract Telegram credentials from all possible sources (SDK, hash, query params)
   const extractTelegramCredentials = () => {
@@ -206,13 +207,13 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
   // Auto-start camera as soon as UI mounts in parallel with auth check
   useEffect(() => {
-    if (!authError && activeView === 'action' && !resultData && !capturedImage && !isCameraActive) {
+    if (!authError && !errorMessage && activeView === 'action' && !resultData && !capturedImage && !isCameraActive) {
       const timer = setTimeout(() => {
         startCamera();
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [authError, activeView, resultData, capturedImage, isCameraActive]);
+  }, [authError, errorMessage, activeView, resultData, capturedImage, isCameraActive]);
 
   const validateSession = async (dataStr: string, isSilent: boolean = false, overrideUser: any = null) => {
     if (!isSilent) {
@@ -476,6 +477,38 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     submitAttendance(photoDataUrl, vector);
   };
 
+  // Fallback for native camera capture or image selection if WebRTC stream is blocked in webview
+  const handleNativeCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const minDim = Math.min(img.width, img.height);
+        const startX = (img.width - minDim) / 2;
+        const startY = (img.height - minDim) / 2;
+        const targetDim = Math.min(480, minDim);
+        canvas.width = targetDim;
+        canvas.height = targetDim;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, startX, startY, minDim, minDim, 0, 0, targetDim, targetDim);
+          const photoDataUrl = canvas.toDataURL('image/jpeg', 0.75);
+          const vector = generateFaceDescriptorFromCanvas(canvas);
+          setCapturedImage(photoDataUrl);
+          setCapturedVector(vector);
+          stopCamera();
+          submitAttendance(photoDataUrl, vector);
+        }
+      };
+      img.src = ev.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
   // 3. Submit Attendance Check-In / Check-Out
   const submitAttendance = async (photo: string, vector: number[]) => {
     setIsVerifying(true);
@@ -491,6 +524,9 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           initData,
+          staffId: staffInfo?.id,
+          telegramId: detectedTgUser?.id ? String(detectedTgUser.id) : undefined,
+          telegramUsername: detectedTgUser?.username || undefined,
           faceDescriptor: vector,
           photo,
           latitude: locationCoords?.lat,
@@ -504,7 +540,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       if (data.success) {
         setResultData(data);
         // Refresh status silently in background without resetting UI to loading screen
-        validateSession(initData, true);
+        validateSession(initData, true, detectedTgUser);
       } else {
         setErrorMessage(data.error || 'ការចុះវត្តមានបរាជ័យ!');
       }
@@ -920,19 +956,40 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
                 {/* Camera Buttons */}
                 {!isCameraActive ? (
-                  <button
-                    type="button"
-                    onClick={startCamera}
-                    disabled={isVerifying}
-                    className={`w-full py-3.5 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-md ${
-                      currentAction === 'checkin'
-                        ? 'bg-[#003D9B] hover:bg-blue-800 shadow-blue-900/10'
-                        : 'bg-rose-600 hover:bg-rose-700 shadow-rose-900/10'
-                    }`}
-                  >
-                    <Camera size={16} />
-                    <span>{currentAction === 'checkin' ? 'ថតរូបចុះឈ្មោះចូល' : 'ថតរូបចុះឈ្មោះចេញ'}</span>
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={startCamera}
+                      disabled={isVerifying}
+                      className={`w-full py-3.5 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-md ${
+                        currentAction === 'checkin'
+                          ? 'bg-[#003D9B] hover:bg-blue-800 shadow-blue-900/10'
+                          : 'bg-rose-600 hover:bg-rose-700 shadow-rose-900/10'
+                      }`}
+                    >
+                      <Camera size={16} />
+                      <span>{currentAction === 'checkin' ? 'បើក Camera ចុះឈ្មោះចូល' : 'បើក Camera ចុះឈ្មោះចេញ'}</span>
+                    </button>
+
+                    {/* Native Camera / File Picker Fallback */}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isVerifying}
+                      className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 border border-slate-200"
+                    >
+                      <Smartphone size={14} className="text-slate-500" />
+                      <span>ថតរូបតាមទូរស័ព្ទផ្ទាល់ (Native Camera)</span>
+                    </button>
+                    <input 
+                      ref={fileInputRef} 
+                      type="file" 
+                      accept="image/*" 
+                      capture="user" 
+                      className="hidden" 
+                      onChange={handleNativeCameraCapture} 
+                    />
+                  </div>
                 ) : (
                   <div className="flex gap-2">
                     <button

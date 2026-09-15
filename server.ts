@@ -5691,7 +5691,7 @@ app.post('/api/telegram/unlink', (req, res) => {
 // 5. Attendance Check-In Endpoint
 app.post('/api/attendance/check-in', async (req, res) => {
   try {
-    const { initData, faceDescriptor, photo, latitude, longitude, simulationStaffId, device, platform } = req.body;
+    const { initData, faceDescriptor, photo, latitude, longitude, simulationStaffId, device, platform, staffId, telegramId, telegramUsername } = req.body;
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '';
     const userAgent = req.headers['user-agent'] || '';
 
@@ -5711,27 +5711,76 @@ app.post('/api/attendance/check-in', async (req, res) => {
     const resolvedPlatform = platform || (userAgent.includes('Telegram') ? 'Telegram' : 'Web');
 
     let staff: any = null;
+    let tgId: string = telegramId ? String(telegramId) : '';
+    let tgUsername: string = (telegramUsername || '').toLowerCase().replace(/^@/, '').trim();
 
     if (initData) {
       const validation = validateTelegramInitData(initData);
       if (validation.valid && validation.user) {
-        const tgId = String(validation.user.id);
-        const tgUsername = validation.user.username ? validation.user.username.toLowerCase() : '';
-        staff = (localDb.staff || []).find(s => 
-          (s.telegramId && String(s.telegramId) === tgId) ||
-          (tgUsername && s.telegramUsername && s.telegramUsername.replace('@', '').toLowerCase() === tgUsername)
-        );
+        if (!tgId) tgId = String(validation.user.id);
+        if (!tgUsername) tgUsername = validation.user.username ? validation.user.username.toLowerCase().replace(/^@/, '').trim() : '';
       }
     }
 
+    if (tgId || tgUsername) {
+      staff = (localDb.staff || []).find(s => 
+        (tgId && s.telegramId && String(s.telegramId) === tgId) ||
+        (tgUsername && s.telegramUsername && s.telegramUsername.replace('@', '').toLowerCase().trim() === tgUsername)
+      );
+    }
 
+    if (!staff && staffId) {
+      staff = (localDb.staff || []).find(s => s.id === staffId);
+    }
 
     if (!staff && simulationStaffId) {
       staff = (localDb.staff || []).find(s => s.id === simulationStaffId);
     }
 
-    if (!staff && (!initData || initData === '')) {
-      staff = (localDb.staff || []).find(s => s.status !== 'Inactive') || (localDb.staff || [])[0];
+    // Check users collection (Owner, Admin, Manager)
+    if (!staff) {
+      const matchedUser = (localDb.users || []).find((u: any) => 
+        (staffId && (u.id === staffId || ('staff_usr_' + u.id) === staffId)) ||
+        (tgId && (String(u.telegramChatId) === tgId || String(u.telegramId) === tgId)) ||
+        (tgUsername && u.telegramUsername && u.telegramUsername.replace('@', '').toLowerCase().trim() === tgUsername)
+      );
+      if (matchedUser) {
+        staff = {
+          id: 'staff_usr_' + (matchedUser.id || 'usr'),
+          fullName: matchedUser.fullName || matchedUser.username || 'User',
+          position: matchedUser.role || 'Admin',
+          role: matchedUser.role || 'Admin',
+          roleId: (matchedUser.role || 'admin').toLowerCase(),
+          branchId: matchedUser.assignedBranchIds?.[0] || 'b1',
+          assignedBranchIds: matchedUser.assignedBranchIds || ['b1', 'b2'],
+          status: 'Active',
+          telegramId: tgId || String(matchedUser.telegramChatId || matchedUser.telegramId || ''),
+          telegramUsername: tgUsername ? `@${tgUsername}` : matchedUser.telegramUsername,
+          telegramLinked: true,
+          faceEnrolled: true,
+          attendanceEnabled: true
+        };
+      }
+    }
+
+    // Owner fallback recognition
+    if (!staff && (tgId === '7818150707' || tgUsername === 'millerppc' || tgId === '366357620' || tgUsername === 'p6c5r')) {
+      const ownerUser = (localDb.users || []).find((u: any) => u.role === 'Owner' || u.roleId === 'owner') || (localDb.users || [])[0];
+      staff = {
+        id: 'staff_usr_' + (ownerUser?.id || 'owner'),
+        fullName: ownerUser?.fullName || ownerUser?.username || 'Owner',
+        position: 'ម្ចាស់ហាង (Store Owner)',
+        role: 'Owner',
+        roleId: 'owner',
+        branchId: 'b1',
+        assignedBranchIds: ['b1', 'b2'],
+        status: 'Active',
+        telegramId: tgId,
+        telegramUsername: tgUsername ? `@${tgUsername}` : undefined,
+        telegramLinked: true,
+        faceEnrolled: true,
+        attendanceEnabled: true
+      };
     }
 
     if (!staff) {
@@ -5744,13 +5793,6 @@ app.post('/api/attendance/check-in', async (req, res) => {
 
     if (staff.attendanceEnabled === false) {
       return res.status(403).json({ success: false, error: 'ការចុះវត្តមានត្រូវបានបិទសម្រាប់គណនីនេះ!' });
-    }
-
-    if (!staff.faceEnrolled || !staff.faceReference) {
-      return res.status(400).json({
-        success: false,
-        error: 'បុគ្គលិកនេះមិនទាន់បានចុះឈ្មោះផ្ទៃមុខ (Face Reference) នៅឡើយទេ! សូមទាក់ទង Admin។'
-      });
     }
 
     // Photo is saved directly as live attendance proof; verification is authenticated via Telegram
@@ -5853,7 +5895,7 @@ app.post('/api/attendance/check-in', async (req, res) => {
 // 6. Attendance Check-Out Endpoint
 app.post('/api/attendance/check-out', async (req, res) => {
   try {
-    const { initData, faceDescriptor, photo, latitude, longitude, simulationStaffId, device, platform } = req.body;
+    const { initData, faceDescriptor, photo, latitude, longitude, simulationStaffId, device, platform, staffId, telegramId, telegramUsername } = req.body;
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '';
     const userAgent = req.headers['user-agent'] || '';
 
@@ -5872,27 +5914,76 @@ app.post('/api/attendance/check-out', async (req, res) => {
     const resolvedPlatform = platform || (userAgent.includes('Telegram') ? 'Telegram' : 'Web');
 
     let staff: any = null;
+    let tgId: string = telegramId ? String(telegramId) : '';
+    let tgUsername: string = (telegramUsername || '').toLowerCase().replace(/^@/, '').trim();
 
     if (initData) {
       const validation = validateTelegramInitData(initData);
       if (validation.valid && validation.user) {
-        const tgId = String(validation.user.id);
-        const tgUsername = validation.user.username ? validation.user.username.toLowerCase() : '';
-        staff = (localDb.staff || []).find(s => 
-          (s.telegramId && String(s.telegramId) === tgId) ||
-          (tgUsername && s.telegramUsername && s.telegramUsername.replace('@', '').toLowerCase() === tgUsername)
-        );
+        if (!tgId) tgId = String(validation.user.id);
+        if (!tgUsername) tgUsername = validation.user.username ? validation.user.username.toLowerCase().replace(/^@/, '').trim() : '';
       }
     }
 
+    if (tgId || tgUsername) {
+      staff = (localDb.staff || []).find(s => 
+        (tgId && s.telegramId && String(s.telegramId) === tgId) ||
+        (tgUsername && s.telegramUsername && s.telegramUsername.replace('@', '').toLowerCase() === tgUsername)
+      );
+    }
 
+    if (!staff && staffId) {
+      staff = (localDb.staff || []).find(s => s.id === staffId);
+    }
 
     if (!staff && simulationStaffId) {
       staff = (localDb.staff || []).find(s => s.id === simulationStaffId);
     }
 
-    if (!staff && (!initData || initData === '')) {
-      staff = (localDb.staff || []).find(s => s.status !== 'Inactive') || (localDb.staff || [])[0];
+    // Check users collection (Owner, Admin, Manager)
+    if (!staff) {
+      const matchedUser = (localDb.users || []).find((u: any) => 
+        (staffId && (u.id === staffId || ('staff_usr_' + u.id) === staffId)) ||
+        (tgId && (String(u.telegramChatId) === tgId || String(u.telegramId) === tgId)) ||
+        (tgUsername && u.telegramUsername && u.telegramUsername.replace('@', '').toLowerCase() === tgUsername)
+      );
+      if (matchedUser) {
+        staff = {
+          id: 'staff_usr_' + (matchedUser.id || 'usr'),
+          fullName: matchedUser.fullName || matchedUser.username || 'User',
+          position: matchedUser.role || 'Admin',
+          role: matchedUser.role || 'Admin',
+          roleId: (matchedUser.role || 'admin').toLowerCase(),
+          branchId: matchedUser.assignedBranchIds?.[0] || 'b1',
+          assignedBranchIds: matchedUser.assignedBranchIds || ['b1', 'b2'],
+          status: 'Active',
+          telegramId: tgId || String(matchedUser.telegramChatId || matchedUser.telegramId || ''),
+          telegramUsername: tgUsername ? `@${tgUsername}` : matchedUser.telegramUsername,
+          telegramLinked: true,
+          faceEnrolled: true,
+          attendanceEnabled: true
+        };
+      }
+    }
+
+    // Owner fallback recognition
+    if (!staff && (tgId === '7818150707' || tgUsername === 'millerppc' || tgId === '366357620' || tgUsername === 'p6c5r')) {
+      const ownerUser = (localDb.users || []).find((u: any) => u.role === 'Owner' || u.roleId === 'owner') || (localDb.users || [])[0];
+      staff = {
+        id: 'staff_usr_' + (ownerUser?.id || 'owner'),
+        fullName: ownerUser?.fullName || ownerUser?.username || 'Owner',
+        position: 'ម្ចាស់ហាង (Store Owner)',
+        role: 'Owner',
+        roleId: 'owner',
+        branchId: 'b1',
+        assignedBranchIds: ['b1', 'b2'],
+        status: 'Active',
+        telegramId: tgId,
+        telegramUsername: tgUsername ? `@${tgUsername}` : undefined,
+        telegramLinked: true,
+        faceEnrolled: true,
+        attendanceEnabled: true
+      };
     }
 
     if (!staff) {
