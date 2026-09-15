@@ -480,28 +480,6 @@ export default function Sidebar({
 
       </div>
 
-      {/* 4. BOTTOM FOOTER TOGGLE BAR (Desktop) */}
-      {setIsCollapsed && (
-        <div className="p-2.5 border-t border-slate-200/80 bg-white hidden lg:flex items-center justify-center shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-slate-200 hover:border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 text-xs font-bold transition-all cursor-pointer shadow-2xs active:scale-98 ${isCollapsed ? 'px-0' : 'px-3'}`}
-            title={isCollapsed ? (lang === 'kh' ? 'បង្ហាញម៉ឺនុយចំហៀង (Show Sidebar)' : 'Show Sidebar') : (lang === 'kh' ? 'លាក់ម៉ឺនុយចំហៀង (Hide Sidebar)' : 'Hide Sidebar')}
-            aria-label="Toggle Sidebar"
-          >
-            {isCollapsed ? (
-              <PanelLeftOpen size={17} className="text-blue-600" />
-            ) : (
-              <>
-                <PanelLeftClose size={15} />
-                <span>{lang === 'kh' ? 'លាក់ម៉ឺនុយចំហៀង' : 'Hide Sidebar'}</span>
-              </>
-            )}
-          </button>
-        </div>
-      )}
-
     </aside>
   );
 }
