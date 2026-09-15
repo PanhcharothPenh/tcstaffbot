@@ -223,7 +223,7 @@ export default function ShiftCalendarView({
 
       scheduleLines += `\n📅 <b>${dayName} (${dStr.substring(8, 10)}/${dStr.substring(5, 7)}):</b>\n`;
       if (shifts.length === 0) {
-        scheduleLines += `  • <i>គ្មានបុគ្គលិក</i>\n`;
+        scheduleLines += `  • (គ្មានបុគ្គលិក)\n`;
       } else {
         shifts.forEach(s => {
           const shiftIcon = s.shift === 'Morning' ? '🌅' : s.shift === 'Afternoon' ? '☀️' : s.shift === 'Night' ? '🌙' : '🔄';
@@ -237,7 +237,7 @@ export default function ShiftCalendarView({
       `🗓️ <b>ខែ:</b> ${monthText} ${currentYear}\n` +
       `----------------------------------------` +
       scheduleLines +
-      `\n🔔 <i>សូម Barista & បុគ្គលិកទាំងអស់មកបំពេញការងារឱ្យបានទៀងម៉ោង និងចុះឈ្មោះ Check-In តាម Telegram Bot ឱ្យបានត្រឹមត្រូវ!</i>`;
+      `\n🔔 <b>សូមបុគ្គលិកទាំងអស់មកបំពេញការងារឱ្យបានទៀងម៉ោង និងចុះឈ្មោះ Check-In តាម Telegram Bot ឱ្យបានត្រឹមត្រូវ!</b>`;
 
     try {
       const res = await fetch('/api/telegram-trigger-instant', {

@@ -168,7 +168,7 @@ export default async function handler(req: any, res: any) {
           `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhTime}</code>\n` +
           `🌐 <b>ប្រព័ន្ធ:</b> TC Staff Management Web Portal\n` +
           `🛡️ <b>ស្ថានភាព:</b> បានផ្ទៀងផ្ទាត់ 2FA ជោគជ័យ (Authorized Session)\n\n` +
-          `🔔 <i>គណនីនេះទើបតែបាន Login ចូលកាន់ផ្ទាំងគ្រប់គ្រង TC Staff Management ដោយជោគជ័យ។</i>`;
+          `🔔 គណនីនេះទើបតែបាន Login ចូលកាន់ផ្ទាំងគ្រប់គ្រង TC Staff Management ដោយជោគជ័យ។`;
 
         fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',

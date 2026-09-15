@@ -4788,7 +4788,7 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
       let summaryText = `👥 <b>[វត្តមានបុគ្គលិកប្រចាំថ្ងៃ]</b>\n📅 <code>${todayStr}</code>\n\n`;
       summaryText += `🟢 <b>បានចុះឈ្មោះចូល (${presentList.length} នាក់)៖</b>\n`;
       if (presentList.length === 0) {
-        summaryText += `<i>(មិនទាន់មានបុគ្គលិកណាចូលធ្វើការនៅឡើយទេ)</i>\n`;
+        summaryText += `(មិនទាន់មានបុគ្គលិកណាចូលធ្វើការនៅឡើយទេ)\n`;
       } else {
         presentList.forEach((r: any, idx: number) => {
           const st = allStaff.find((s: any) => s.id === r.staffId);
@@ -4832,7 +4832,7 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
         pendingLeaves.forEach((l: any, idx: number) => {
           leaveMsg += `${idx + 1}. 👤 <b>${l.staffName || 'បុគ្គលិក'}</b>\n` +
             `📅 ថ្ងៃ៖ <code>${l.date || ''}</code>\n` +
-            `📝 មូលហេតុ៖ <i>${l.details || l.reason || 'ច្បាប់'}</i>\n` +
+            `📝 មូលហេតុ៖ <b>${l.details || l.reason || 'ច្បាប់'}</b>\n` +
             `──────────────\n`;
         });
       }

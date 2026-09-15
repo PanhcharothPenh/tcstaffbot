@@ -833,7 +833,7 @@ export default async function handler(req: any, res: any) {
             `🏢 <b>សាខា:</b> ${branch?.branchName || 'TC Staff'}\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
             `🕒 <b>ម៉ោងចូល:</b> <code>${timeStr}</code>\n\n` +
-            `✨ <i>សូមជូនពរឱ្យការងារថ្ងៃនេះប្រព្រឹត្តទៅដោយរលូន។</i>`;
+            `✨ សូមជូនពរឱ្យការងារថ្ងៃនេះប្រព្រឹត្តទៅដោយរលូន។`;
 
           sendTelegramNotification(branchBotToken, staff.telegramId, staffMsg, photo || staff.photoUrl).catch(() => {});
         }
@@ -984,7 +984,7 @@ export default async function handler(req: any, res: any) {
             `🏢 <b>សាខា:</b> ${branch?.branchName || 'TC Staff'}\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
             `🕒 <b>ម៉ោងចេញ:</b> <code>${timeStr}</code>\n\n` +
-            `🙏 <i>សូមអរគុណសម្រាប់ការបំពេញការងារថ្ងៃនេះ។</i>`;
+            `🙏 សូមអរគុណសម្រាប់ការបំពេញការងារថ្ងៃនេះ។`;
 
           sendTelegramNotification(branchBotToken, staff.telegramId, staffCheckOutMsg, photo || attRecord.checkOutPhoto || staff.photoUrl).catch(() => {});
         }

@@ -976,7 +976,7 @@ export default async function handler(req: any, res: any) {
           `👥 <b>ប្រភេទ Chat:</b> <code>${chatType}</code>\n` +
           `☕ <b>សាខាដែលបានភ្ជាប់:</b> <b>${currentBoundBranch}</b>\n` +
           `👤 <b>អ្នកផ្ញើ:</b> ${firstName} (${cleanTgHandle ? '@' + cleanTgHandle : 'គ្មាន Username'})\n\n` +
-          `ℹ️ <i>សូមចម្លង Chat ID / Telegram ID ខាងលើ ដើម្បីយកទៅកំណត់លើផ្ទាំងគ្រប់គ្រងគេហទំព័រ (Settings > Telegram Config)។</i>`;
+          `ℹ️ សូមចម្លង Chat ID / Telegram ID ខាងលើ ដើម្បីយកទៅកំណត់លើផ្ទាំងគ្រប់គ្រងគេហទំព័រ (Settings > Telegram Config)។`;
 
         return sendOrReply(res, botToken, { 
             chat_id: chatId, 
@@ -1019,7 +1019,7 @@ export default async function handler(req: any, res: any) {
             `🏢 <b>សាខា:</b> ${branchDisplay}\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n` +
             `🕒 <b>ម៉ោងចូល:</b> <code>${todayAttendance.checkIn}</code>\n\n` +
-            `✨ <i>សូមជូនពរឱ្យការងារថ្ងៃនេះប្រព្រឹត្តទៅដោយរលូន។</i>`;
+            `✨ សូមជូនពរឱ្យការងារថ្ងៃនេះប្រព្រឹត្តទៅដោយរលូន។`;
 
           const startedButtons = {
             inline_keyboard: [
@@ -1082,7 +1082,7 @@ export default async function handler(req: any, res: any) {
             `🏢 <b>សាខា:</b> ${branchDisplay}\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n` +
             `🕒 <b>ម៉ោងចេញ:</b> <code>${todayAttendance.checkOut}</code>\n\n` +
-            `🙏 <i>សូមអរគុណសម្រាប់ការបំពេញការងារថ្ងៃនេះ។</i>`;
+            `🙏 សូមអរគុណសម្រាប់ការបំពេញការងារថ្ងៃនេះ។`;
 
           const completedButtons = {
             inline_keyboard: [
@@ -1149,7 +1149,7 @@ export default async function handler(req: any, res: any) {
           `🟢 <b>បានចុះឈ្មោះចូល (${presentStaff.length} នាក់)៖</b>\n`;
 
         if (presentStaff.length === 0) {
-          summaryText += `<i>(មិនទាន់មានបុគ្គលិកចុះឈ្មោះចូលនៅឡើយទេ)</i>\n`;
+          summaryText += `(មិនទាន់មានបុគ្គលិកចុះឈ្មោះចូលនៅឡើយទេ)\n`;
         } else {
           presentStaff.forEach((r: any, idx: number) => {
             const st = allStaff.find((s: any) => s.id === r.staffId);
@@ -1392,7 +1392,7 @@ export default async function handler(req: any, res: any) {
           return sendOrReply(res, botToken, {
             chat_id: chatId,
             text: `✍️ <b>សូមវាយបញ្ចូលមូលហេតុនៃការបដិសេធច្បាប់របស់ ${targetLeave.staffName}៖</b>\n\n` +
-              `<i>💡 លោកអ្នកអាចវាយសារផ្ញើផ្ទាល់ ឬជ្រើសរើសមូលហេតុរហ័សខាងក្រោម៖</i>`,
+              `💡 លោកអ្នកអាចវាយសារផ្ញើផ្ទាល់ ឬជ្រើសរើសមូលហេតុរហ័សខាងក្រោម៖`,
             parse_mode: 'HTML',
             reply_markup: {
               inline_keyboard: [
@@ -1891,7 +1891,7 @@ export default async function handler(req: any, res: any) {
         `💼 <b>តួនាទី:</b> ${staffPos}\n` +
         `📅 <b>ថ្ងៃនេះ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
         `⏱️ <b>វត្តមាន:</b> 🟢 <code>${checkInTime}</code> → 🔴 <code>${checkOutTime}</code>\n\n` +
-        `👇 <i>ជ្រើសរើសមុខងារពីប៊ូតុងម៉ឺនុយខាងក្រោម៖</i>`;
+        `👇 <b>ជ្រើសរើសមុខងារពីប៊ូតុងម៉ឺនុយខាងក្រោម៖</b>`;
 
       // Set the 5 persistent bottom reply keyboard buttons for instant access
       return sendOrReply(res, botToken, {

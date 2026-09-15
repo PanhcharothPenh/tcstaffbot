@@ -209,7 +209,7 @@ export default async function handler(req: any, res: any) {
       finalMessage = `⚠️ <b>[Cafe - ការព្រមានស្តុកជិតអស់ / Low Stock Alert]</b>\n\n` +
         `☕ <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
         `${details || ''}\n\n` +
-        `🔔 <i>សូមអ្នកគ្រប់គ្រងសាខា ឬ Admin ត្រៀមកុម្ម៉ង់ទិញគ្រាប់កាហ្វេ/វត្ថុធាតុដើមបន្ថែមជាបន្ទាន់!</i>`;
+        `🔔 សូមអ្នកគ្រប់គ្រងសាខា ឬ Admin ត្រៀមកុម្ម៉ង់ទិញគ្រាប់កាហ្វេ/វត្ថុធាតុដើមបន្ថែមជាបន្ទាន់!`;
     } else {
       const alertHeading = alertType || `[Cafe Alert: ${category || 'System'}]`;
       const detailsContent = details || 'Instant Notification Event';
