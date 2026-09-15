@@ -5213,13 +5213,16 @@ app.post('/api/telegram/validate-init-data', (req, res) => {
       return st !== 'inactive' && st !== 'terminated' && st !== 'resigned' && st !== 'disabled' && st !== 'locked';
     };
 
-    const isMatchingTg = (storedId: any, storedUser: any) => {
+    const isMatchingTg = (storedId: any, storedUser: any, storedPhone?: any) => {
       const sId = String(storedId || '').trim();
       const sUser = String(storedUser || '').replace(/^@/, '').toLowerCase().trim();
+      const sPhone = String(storedPhone || '').replace(/\D/g, '');
+      const targetPhone = cleanTgId.replace(/\D/g, '');
 
       if (cleanTgId) {
         if (sId === cleanTgId) return true;
-        if (sUser === cleanTgId) return true;
+        if (sUser === cleanTgId.toLowerCase()) return true;
+        if (targetPhone.length >= 8 && sPhone && sPhone.endsWith(targetPhone.slice(-8))) return true;
       }
       if (cleanTgName) {
         if (sUser === cleanTgName) return true;
@@ -5231,13 +5234,13 @@ app.post('/api/telegram/validate-init-data', (req, res) => {
     if (cleanTgId || cleanTgName) {
       // 1. Check localDb.staff
       staff = (localDb.staff || []).find(s => 
-        isStaffNotInactive(s) && isMatchingTg(s.telegramId, s.telegramUsername)
+        isStaffNotInactive(s) && isMatchingTg(s.telegramId, s.telegramUsername, s.phone)
       );
 
       // 2. Check localDb.users (User Management: Owner, Admin, Manager, Staff)
       if (!staff) {
         const matchedUser = (localDb.users || []).find((u: any) => 
-          isStaffNotInactive(u) && isMatchingTg(u.telegramChatId || u.telegramId, u.telegramUsername)
+          isStaffNotInactive(u) && isMatchingTg(u.telegramChatId || u.telegramId, u.telegramUsername, u.phone)
         );
 
         if (matchedUser) {
@@ -5282,7 +5285,7 @@ app.post('/api/telegram/validate-init-data', (req, res) => {
       return res.status(404).json({
         success: false,
         unlinked: true,
-        user: tgUser || { id: cleanTgId, username: cleanTgName },
+        user: (cleanTgId || cleanTgName) ? { id: cleanTgId, username: cleanTgName } : (tgUser && (tgUser.id || tgUser.username) ? tgUser : null),
         error: 'គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយបុគ្គលិក TC Staff ណាម្នាក់ឡើយ។'
       });
     }

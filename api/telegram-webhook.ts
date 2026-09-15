@@ -17,11 +17,18 @@ async function loadDbCollection(supabase: any, id: string): Promise<any> {
 }
 
 async function saveDbCollection(supabase: any, id: string, payload: any): Promise<void> {
+  updateMemCache(id, payload);
   if (!supabase) return;
   const item = { id, data: payload, updated_at: new Date().toISOString() };
   try {
-    await supabase.from('tc_collections').upsert(item);
-  } catch (_) {}
+    const { error } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
+    if (error) {
+      console.warn(`[saveDbCollection] Upsert with onConflict failed for ${id}, trying update:`, error.message);
+      await supabase.from('tc_collections').update({ data: payload, updated_at: item.updated_at }).eq('id', id);
+    }
+  } catch (err: any) {
+    console.warn(`[saveDbCollection] Exception saving ${id}:`, err?.message);
+  }
 }
 
 interface CacheEntry {
@@ -729,12 +736,16 @@ export default async function handler(req: any, res: any) {
       const staffReplyKeyboard = isPrivateChat ? {
         keyboard: [
           [
-            { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
-            { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+            { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
+            { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
           ],
           [
-            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
             { text: '📝 សុំច្បាប់' }
+          ],
+          [
+            { text: '👤 ព័ត៌មានគណនី' },
+            { text: '❓ របៀបប្រើប្រាស់' }
           ]
         ],
         resize_keyboard: true,
@@ -748,6 +759,10 @@ export default async function handler(req: any, res: any) {
           [
             { text: '📊 មើលប្រវត្តិវត្តមាន' },
             { text: '📝 សុំច្បាប់' }
+          ],
+          [
+            { text: '👤 ព័ត៌មានគណនី' },
+            { text: '❓ របៀបប្រើប្រាស់' }
           ]
         ],
         resize_keyboard: true,
@@ -757,15 +772,18 @@ export default async function handler(req: any, res: any) {
       const ownerReplyKeyboard = isPrivateChat ? {
         keyboard: [
           [
-            { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
-            { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+            { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
+            { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
           ],
           [
             { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
             { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
           ],
           [
-            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
+            { text: '📝 សុំច្បាប់' }
+          ],
+          [
             { text: '👤 ព័ត៌មានគណនី' },
             { text: '❓ របៀបប្រើប្រាស់' }
           ]
@@ -784,6 +802,9 @@ export default async function handler(req: any, res: any) {
           ],
           [
             { text: '📊 មើលប្រវត្តិវត្តមាន' },
+            { text: '📝 សុំច្បាប់' }
+          ],
+          [
             { text: '👤 ព័ត៌មានគណនី' },
             { text: '❓ របៀបប្រើប្រាស់' }
           ]
@@ -1024,8 +1045,8 @@ export default async function handler(req: any, res: any) {
           const startedButtons = {
             inline_keyboard: [
               [
-                { text: '🚪 ចុះឈ្មោះចេញ (Check Out)', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } },
-                { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } }
+                { text: '🚪 ចុះឈ្មោះចេញ (Check Out)', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
+                { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
               ]
             ]
           };
@@ -1047,7 +1068,7 @@ export default async function handler(req: any, res: any) {
         const checkinInlineButtons = {
           inline_keyboard: [
             [
-              { text: '📸 ចុះឈ្មោះចូលឥឡូវនេះ', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } }
+              { text: '📸 ចុះឈ្មោះចូលឥឡូវនេះ', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
             ]
           ]
         };
@@ -1087,7 +1108,7 @@ export default async function handler(req: any, res: any) {
           const completedButtons = {
             inline_keyboard: [
               [
-                { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } }
+                { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
               ]
             ]
           };
@@ -1109,7 +1130,7 @@ export default async function handler(req: any, res: any) {
         const checkoutInlineButtons = {
           inline_keyboard: [
             [
-              { text: '🚪 ចុះឈ្មោះចេញឥឡូវនេះ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+              { text: '🚪 ចុះឈ្មោះចេញឥឡូវនេះ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
             ]
           ]
         };
@@ -1216,7 +1237,68 @@ export default async function handler(req: any, res: any) {
           } catch (e) {}
         }
 
-        const leaveIndex = leaveList.findIndex((l: any) => l.id === leaveId);
+        let leaveIndex = leaveList.findIndex((l: any) => l.id === leaveId);
+
+        // 1. Try MEM_CACHE fallback
+        if (leaveIndex === -1 && MEM_CACHE['leaveRequests']?.data) {
+          const memList = MEM_CACHE['leaveRequests'].data;
+          if (Array.isArray(memList)) {
+            const memIdx = memList.findIndex((l: any) => l.id === leaveId);
+            if (memIdx >= 0) {
+              leaveList = memList;
+              leaveIndex = memIdx;
+            }
+          }
+        }
+
+        // 2. Try fresh fetch directly from Supabase
+        if (leaveIndex === -1 && supabase) {
+          try {
+            const { data: freshRow } = await supabase.from('tc_collections').select('data').eq('id', 'leaveRequests').maybeSingle();
+            if (Array.isArray(freshRow?.data)) {
+              leaveList = freshRow.data;
+              updateMemCache('leaveRequests', leaveList);
+              leaveIndex = leaveList.findIndex((l: any) => l.id === leaveId);
+            }
+          } catch (_) {}
+        }
+
+        // 3. Resilient Fallback: Parse leave details directly from the Telegram message to guarantee approval succeeds!
+        if (leaveIndex === -1) {
+          const msgText = callbackQuery.message?.text || callbackQuery.message?.caption || '';
+          const staffNameMatch = msgText.match(/បុគ្គលិក:\s*([^\n]+)/);
+          const staffNameParsed = staffNameMatch ? staffNameMatch[1].trim() : '';
+          const foundStaff = (allStaff || []).find((s: any) => s.fullName?.trim() === staffNameParsed || (s.fullName && staffNameParsed && s.fullName.toLowerCase().includes(staffNameParsed.toLowerCase()))) || matchedStaff;
+
+          if (foundStaff || staffNameParsed) {
+            const dateMatch = msgText.match(/កាលបរិច្ឆេទ:\s*([^\n]+)/);
+            let dateParsed = dateMatch ? dateMatch[1].trim() : phnomPenhDateStr;
+            if (dateParsed.includes('/')) {
+              const parts = dateParsed.split('/');
+              if (parts.length === 3) dateParsed = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            }
+            const detailsMatch = msgText.match(/មូលហេតុ:\s*\n([\s\S]+?)(?=\n\n|\n⏳|\n👇|$)/);
+            const detailsParsed = detailsMatch ? detailsMatch[1].trim() : 'ច្បាប់ឈប់សម្រាក';
+
+            const syntheticLeave = {
+              id: leaveId,
+              staffId: foundStaff?.id || 'staff_' + Date.now(),
+              staffName: foundStaff?.fullName || staffNameParsed || 'បុគ្គលិក',
+              staffTelegramId: String(foundStaff?.telegramId || ''),
+              staffChatId: String(foundStaff?.telegramChatId || foundStaff?.telegramId || ''),
+              branchId: foundStaff?.branchId || staffSpecificBranchId || 'b1',
+              branchName: staffSpecificBranchName || 'Toto By Chi Chi MC Park',
+              details: detailsParsed,
+              status: 'Pending',
+              createdAt: new Date().toISOString(),
+              date: dateParsed
+            };
+            leaveList.unshift(syntheticLeave);
+            leaveIndex = 0;
+            updateMemCache('leaveRequests', leaveList);
+          }
+        }
+
         if (leaveIndex === -1) {
           if (callbackQuery.id) {
             fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
@@ -1608,7 +1690,7 @@ export default async function handler(req: any, res: any) {
         const reportButtons = {
           inline_keyboard: [
             [
-              { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } }
+              { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
             ]
           ]
         };

@@ -89,20 +89,73 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  // Helper to extract Telegram credentials from all possible sources (SDK, hash, query params)
+  const extractTelegramCredentials = () => {
+    const tg = (window as any).Telegram?.WebApp;
+    let rawInitData = tg?.initData || '';
+    let user = tg?.initDataUnsafe?.user || null;
+
+    // 1. Check window.location.hash for tgWebAppData
+    const hash = window.location.hash.startsWith('#') ? window.location.hash.substring(1) : window.location.hash;
+    const hashParams = new URLSearchParams(hash);
+    const searchParams = new URLSearchParams(window.location.search);
+
+    const hashInitData = hashParams.get('tgWebAppData');
+    if (!rawInitData && hashInitData) {
+      rawInitData = hashInitData;
+    }
+
+    if (!user && rawInitData) {
+      try {
+        const p = new URLSearchParams(rawInitData);
+        const userStr = p.get('user');
+        if (userStr) user = JSON.parse(userStr);
+      } catch {}
+    }
+
+    // 2. Query/Hash parameters fallback (e.g. ?tg_id=...&tg_user=...)
+    const fallbackId = searchParams.get('tg_id') || searchParams.get('telegram_id') || searchParams.get('chat_id') || searchParams.get('id') || hashParams.get('tg_id') || '';
+    const fallbackUser = searchParams.get('tg_user') || searchParams.get('username') || hashParams.get('tg_user') || '';
+
+    if (!user && (fallbackId || fallbackUser)) {
+      user = { id: fallbackId, username: fallbackUser };
+    } else if (user && !user.id && fallbackId) {
+      user.id = fallbackId;
+    }
+
+    return { tg, rawInitData, user, fallbackId, fallbackUser };
+  };
+
   // 1. Initialize Telegram WebApp SDK & Validate Session
   useEffect(() => {
-    const tg = (window as any).Telegram?.WebApp;
-    let rawInitData = '';
-    if (tg) {
-      tg.ready();
-      tg.expand();
+    const creds = extractTelegramCredentials();
+    if (creds.tg) {
+      creds.tg.ready?.();
+      creds.tg.expand?.();
       setIsTelegramWebview(true);
-      rawInitData = tg.initData || '';
-      setInitData(rawInitData);
+    }
+    setInitData(creds.rawInitData);
+    if (creds.user && (creds.user.id || creds.user.username)) {
+      setDetectedTgUser(creds.user);
     }
 
     // Validate in background if cached, or with spinner if cold start
-    validateSession(rawInitData, Boolean(cachedData));
+    validateSession(creds.rawInitData, Boolean(cachedData), creds.user);
+
+    // Poll up to 10 times (1.2 sec) in case Telegram WebApp SDK loads asynchronously
+    let pollCount = 0;
+    const pollTimer = setInterval(() => {
+      pollCount++;
+      const nextCreds = extractTelegramCredentials();
+      if (nextCreds.tg?.initData || (nextCreds.user?.id && !creds.user?.id)) {
+        clearInterval(pollTimer);
+        setInitData(nextCreds.rawInitData);
+        if (nextCreds.user) setDetectedTgUser(nextCreds.user);
+        validateSession(nextCreds.rawInitData, false, nextCreds.user);
+      } else if (pollCount >= 10) {
+        clearInterval(pollTimer);
+      }
+    }, 120);
 
     // Read cached GPS coordinates instantly for 0ms waiting
     try {
@@ -147,6 +200,8 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
         { enableHighAccuracy: true, timeout: 2500, maximumAge: 120000 }
       );
     }
+
+    return () => clearInterval(pollTimer);
   }, []);
 
   // Auto-start camera as soon as UI mounts in parallel with auth check
@@ -159,31 +214,34 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     }
   }, [authError, activeView, resultData, capturedImage, isCameraActive]);
 
-  const validateSession = async (dataStr: string, isSilent: boolean = false) => {
+  const validateSession = async (dataStr: string, isSilent: boolean = false, overrideUser: any = null) => {
     if (!isSilent) {
       setIsLoadingUser(true);
     }
     setAuthError(null);
     try {
-      const tg = (window as any).Telegram?.WebApp;
-      const unsafeUser = tg?.initDataUnsafe?.user || null;
-      if (unsafeUser) {
-        setDetectedTgUser(unsafeUser);
+      const creds = extractTelegramCredentials();
+      const tgUser = overrideUser || creds.user;
+      if (tgUser && (tgUser.id || tgUser.username)) {
+        setDetectedTgUser(tgUser);
       }
+
+      const effectiveId = tgUser?.id ? String(tgUser.id) : (creds.fallbackId || undefined);
+      const effectiveName = tgUser?.username ? String(tgUser.username) : (creds.fallbackUser || undefined);
 
       const res = await fetch('/api/telegram/validate-init-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          initData: dataStr,
-          unsafeUser: unsafeUser,
-          telegramId: unsafeUser?.id ? String(unsafeUser.id) : undefined,
-          telegramUsername: unsafeUser?.username || undefined
+          initData: dataStr || creds.rawInitData,
+          unsafeUser: tgUser,
+          telegramId: effectiveId,
+          telegramUsername: effectiveName
         })
       });
 
       const data = await res.json();
-      if (data.user) {
+      if (data.user && (data.user.id || data.user.username)) {
         setDetectedTgUser(data.user);
       }
 
@@ -534,18 +592,45 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
           <div className="p-3 bg-amber-50/70 border border-amber-200/60 rounded-2xl text-xs text-amber-950 font-medium leading-relaxed text-left">
             {authError}
           </div>
-          {detectedTgUser && (
+          {detectedTgUser && (detectedTgUser.id || detectedTgUser.username) ? (
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 space-y-1.5 text-left font-mono">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-sans">Telegram ID:</span>
-                <span className="font-bold text-blue-600 select-all">{detectedTgUser.id}</span>
-              </div>
-              {detectedTgUser.username && (
+              {detectedTgUser.id ? (
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-sans">Telegram ID:</span>
+                  <span className="font-bold text-blue-600 select-all">{detectedTgUser.id}</span>
+                </div>
+              ) : null}
+              {detectedTgUser.username ? (
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 font-sans">Username:</span>
                   <span className="font-bold text-blue-600 select-all">@{detectedTgUser.username.replace(/^@/, '')}</span>
                 </div>
-              )}
+              ) : null}
+            </div>
+          ) : (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-600 space-y-2 text-left">
+              <label className="text-[11px] font-bold text-slate-500">បញ្ចូល Telegram ID ឬ លេខទូរស័ព្ទដើម្បីភ្ជាប់៖</label>
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  placeholder="ឧ. 7818150707 ឬ 012888999"
+                  id="manual_link_input"
+                  className="flex-1 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 font-mono focus:outline-none focus:border-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById('manual_link_input') as HTMLInputElement;
+                    const val = el?.value?.trim();
+                    if (val) {
+                      validateSession('', false, { id: val, username: val });
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  ភ្ជាប់
+                </button>
+              </div>
             </div>
           )}
           <p className="text-[11px] text-slate-500 leading-relaxed">
