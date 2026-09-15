@@ -268,8 +268,12 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
           }));
         } catch {}
         
-        // Auto-switch action if already checked in today
-        if (data.todayAttendance?.checkIn && !data.todayAttendance?.checkOut && actionParam !== 'history') {
+        // Auto-switch action if already checked in today with a real time
+        const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
+        const hasRealIn = isRealTime(data.todayAttendance?.checkIn);
+        const hasRealOut = isRealTime(data.todayAttendance?.checkOut);
+
+        if (hasRealIn && !hasRealOut && actionParam !== 'history') {
           setCurrentAction('checkout');
         }
       } else {
@@ -763,6 +767,29 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                   </div>
                 </div>
               </div>
+
+              {/* Permission Banner if Staff has approved leave today */}
+              {todayAttendance?.status === 'Permission' && (
+                <div className="mt-3 bg-amber-50/90 border border-amber-200/90 rounded-2xl p-3 text-left">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                      <span>🏖️</span>
+                      <span>ច្បាប់ឈប់សម្រាកត្រូវបានអនុម័ត</span>
+                    </div>
+                    <span className="text-[10px] font-bold bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full">
+                      Permission
+                    </span>
+                  </div>
+                  {todayAttendance.notes && (
+                    <div className="text-[11.5px] text-amber-800 mt-1 font-medium">
+                      {todayAttendance.notes}
+                    </div>
+                  )}
+                  <div className="text-[10px] text-amber-700/80 mt-1.5 border-t border-amber-200/60 pt-1.5">
+                    * ប្រសិនបើអ្នកមកបំពេញការងារជាក់ស្តែង អ្នកនៅតែអាចចុច <strong>ចុះឈ្មោះចូល</strong> បានធម្មតា
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Action Mode Toggle (Check In vs Check Out) */}
@@ -1089,9 +1116,11 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                           ? 'bg-emerald-50 text-emerald-700'
                           : rec.status === 'Working'
                           ? 'bg-blue-50 text-blue-700'
+                          : rec.status === 'Permission'
+                          ? 'bg-purple-50 text-purple-700 border border-purple-200'
                           : 'bg-amber-50 text-amber-700'
                       }`}>
-                        {rec.status === 'Completed' ? '✓ បញ្ចប់' : rec.status === 'Working' ? 'កំពុងធ្វើការ' : rec.status}
+                        {rec.status === 'Completed' ? '✓ បញ្ចប់' : rec.status === 'Working' ? 'កំពុងធ្វើការ' : rec.status === 'Permission' ? '🏖️ ច្បាប់សម្រាក' : rec.status}
                       </div>
                     </div>
                   </div>

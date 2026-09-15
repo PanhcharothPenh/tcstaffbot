@@ -4785,9 +4785,11 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
       const allStaff = (localDb.staff || []).filter((s: any) => s.status !== 'Inactive' && s.status !== 'Terminated');
       const todayAtt = (localDb.attendance || []).filter((a: any) => a.date === todayStr);
 
-      const presentList = todayAtt.filter((a: any) => a.checkIn);
-      const presentStaffIds = new Set(presentList.map((a: any) => a.staffId));
-      const absentStaff = allStaff.filter((s: any) => !presentStaffIds.has(s.id));
+      const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
+      const presentList = todayAtt.filter((a: any) => isRealTime(a.checkIn) && a.status !== 'Absent' && a.status !== 'Permission');
+      const permissionList = todayAtt.filter((a: any) => a.status === 'Permission');
+      const presentOrPermStaffIds = new Set([...presentList, ...permissionList].map((a: any) => a.staffId));
+      const absentStaff = allStaff.filter((s: any) => !presentOrPermStaffIds.has(s.id));
 
       let summaryText = `👥 <b>[វត្តមានបុគ្គលិកប្រចាំថ្ងៃ]</b>\n📅 <code>${todayStr}</code>\n\n`;
       summaryText += `🟢 <b>បានចុះឈ្មោះចូល (${presentList.length} នាក់)៖</b>\n`;
@@ -4797,7 +4799,16 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
         presentList.forEach((r: any, idx: number) => {
           const st = allStaff.find((s: any) => s.id === r.staffId);
           const name = st?.fullName || r.staffName || 'Staff';
-          summaryText += `${idx + 1}. <b>${name}</b>: ចូល <code>${r.checkIn}</code> ${r.checkOut ? `→ ចេញ <code>${r.checkOut}</code>` : ''}\n`;
+          summaryText += `${idx + 1}. <b>${name}</b>: ចូល <code>${r.checkIn}</code> ${r.checkOut && isRealTime(r.checkOut) ? `→ ចេញ <code>${r.checkOut}</code>` : ''}\n`;
+        });
+      }
+
+      if (permissionList.length > 0) {
+        summaryText += `\n🏖️ <b>ច្បាប់សម្រាក (${permissionList.length} នាក់)៖</b>\n`;
+        permissionList.forEach((r: any, idx: number) => {
+          const st = allStaff.find((s: any) => s.id === r.staffId);
+          const name = st?.fullName || r.staffName || 'Staff';
+          summaryText += `${idx + 1}. <b>${name}</b> (${st?.position || 'Staff'}): ${r.notes || 'Permission'}\n`;
         });
       }
 
@@ -5855,25 +5866,24 @@ app.post('/api/attendance/check-in', async (req, res) => {
 
     if (!localDb.attendance) localDb.attendance = [];
 
+    const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
     const existingIndex = localDb.attendance.findIndex(a => a.staffId === staff.id && a.date === todayStr);
-    if (existingIndex !== -1) {
-      const existing = localDb.attendance[existingIndex];
-      if (existing.checkIn && existing.status !== 'Absent') {
-        return res.status(400).json({
-          success: false,
-          error: `អ្នកបានចុះឈ្មោះចូលរួចហើយនៅម៉ោង ${existing.checkIn}!`
-        });
-      }
+    const existing = existingIndex !== -1 ? localDb.attendance[existingIndex] : null;
+    if (existing && isRealTime(existing.checkIn) && existing.status !== 'Absent') {
+      return res.status(400).json({
+        success: false,
+        error: `អ្នកបានចុះឈ្មោះចូលរួចហើយនៅម៉ោង ${existing.checkIn}!`
+      });
     }
 
     const newAttendance: any = {
-      id: 'att_' + Date.now(),
+      id: existing?.id || ('att_' + Date.now()),
       branchId: branch?.id || staff.branchId,
       staffId: staff.id,
       staffName: staff.fullName,
       date: todayStr,
       checkIn: timeStr,
-      checkOut: '',
+      checkOut: isRealTime(existing?.checkOut) ? existing.checkOut : '',
       shiftType: staff.shift || 'Full Time',
       workHours: 0,
       overtimeHours: 0,
@@ -5887,7 +5897,10 @@ app.post('/api/attendance/check-in', async (req, res) => {
       checkInDevice: resolvedDevice,
       checkInPlatform: resolvedPlatform,
       checkInIp: clientIp,
-      createdAt: now.toISOString(),
+      notes: existing?.status === 'Permission'
+        ? (existing.notes ? `${existing.notes} (បានចូលធ្វើការជាក់ស្តែង)` : 'បានចូលធ្វើការជាក់ស្តែង (ពីមុនមានច្បាប់)')
+        : existing?.notes,
+      createdAt: existing?.createdAt || now.toISOString(),
       updatedAt: now.toISOString()
     };
 
@@ -6046,16 +6059,21 @@ app.post('/api/attendance/check-out', async (req, res) => {
 
     if (!localDb.attendance) localDb.attendance = [];
 
+    const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
     const attRecord = localDb.attendance.find(a => a.staffId === staff.id && a.date === todayStr);
+    const hasRealIn = attRecord && isRealTime(attRecord.checkIn);
+    const hasRealOut = attRecord && isRealTime(attRecord.checkOut);
 
-    if (!attRecord || !attRecord.checkIn) {
+    if (!attRecord || !hasRealIn) {
       return res.status(400).json({
         success: false,
-        error: 'មិនអាចចុះឈ្មោះចេញបានទេ ដោយសារមិនទាន់មានការចុះឈ្មោះចូលសម្រាប់ថ្ងៃនេះ!'
+        error: attRecord?.status === 'Permission'
+          ? 'អ្នកមានច្បាប់ឈប់សម្រាកសម្រាប់ថ្ងៃនេះ មិនទាន់មានការចុះឈ្មោះចូលធ្វើការឡើយ!'
+          : 'មិនអាចចុះឈ្មោះចេញបានទេ ដោយសារមិនទាន់មានការចុះឈ្មោះចូលសម្រាប់ថ្ងៃនេះ!'
       });
     }
 
-    if (attRecord.checkOut) {
+    if (hasRealOut) {
       return res.status(400).json({
         success: false,
         error: `អ្នកបានចុះឈ្មោះចេញរួចរាល់ហើយនៅម៉ោង ${attRecord.checkOut}!`

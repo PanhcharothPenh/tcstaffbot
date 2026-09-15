@@ -1160,8 +1160,41 @@ export default async function handler(req: any, res: any) {
           return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML' });
         }
 
-        // If staff already checked in today, show started confirmation (Item 2 ក)
-        if (todayAttendance?.checkIn) {
+        // If staff has approved permission for today and hasn't checked in with real time
+        const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
+        const hasRealIn = isRealTime(todayAttendance?.checkIn);
+        const hasRealOut = isRealTime(todayAttendance?.checkOut);
+
+        if (todayAttendance?.status === 'Permission' && !hasRealIn) {
+          const permMsg = `🏖️ <b>[TC Staff - ច្បាប់ឈប់សម្រាកត្រូវបានអនុញ្ញាត]</b>\n\n` +
+            `👤 <b>បុគ្គលិក:</b> ${matchedStaff.fullName}\n` +
+            `💼 <b>តួនាទី:</b> ${matchedStaff.position || 'Staff'}\n` +
+            `🏢 <b>សាខា:</b> ${branchDisplay}\n` +
+            `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n` +
+            `📝 <b>ព័ត៌មានច្បាប់:</b> ${todayAttendance.notes || 'ច្បាប់ឈប់សម្រាក (Approved)'}\n\n` +
+            `ℹ️ <i>ប្រសិនបើអ្នកមកបំពេញការងារជាក់ស្តែង អ្នកនៅតែអាចស្កេនចុះឈ្មោះចូល (Check-In) បានធម្មតា៖</i>`;
+
+          const permButtons = {
+            inline_keyboard: [
+              [
+                { text: '📸 ចុះឈ្មោះចូលបំពេញការងារ (Check In)', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+              ],
+              [
+                { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+              ]
+            ]
+          };
+
+          return sendOrReply(res, botToken, {
+            chat_id: chatId,
+            text: permMsg,
+            parse_mode: 'HTML',
+            reply_markup: permButtons
+          });
+        }
+
+        // If staff already checked in today with a real time, show started confirmation
+        if (hasRealIn) {
           const startedMsg = `✅ <b>បានចាប់ផ្តើមការងារសម្រាប់ថ្ងៃនេះ</b>\n\n` +
             `👤 <b>បុគ្គលិក:</b> ${matchedStaff.fullName}\n` +
             `💼 <b>តួនាទី:</b> ${matchedStaff.position || 'Staff'}\n` +
@@ -1223,8 +1256,12 @@ export default async function handler(req: any, res: any) {
           return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML' });
         }
 
-        // If staff already checked out today, show completion confirmation
-        if (todayAttendance?.checkOut) {
+        const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
+        const hasRealIn = isRealTime(todayAttendance?.checkIn);
+        const hasRealOut = isRealTime(todayAttendance?.checkOut);
+
+        // If staff already checked out today with a real time
+        if (hasRealOut) {
           const completedMsg = `✅ <b>បានបញ្ចប់ការងារសម្រាប់ថ្ងៃនេះ</b>\n\n` +
             `👤 <b>បុគ្គលិក:</b> ${matchedStaff.fullName}\n` +
             `💼 <b>តួនាទី:</b> ${matchedStaff.position || 'Staff'}\n` +
@@ -1246,6 +1283,18 @@ export default async function handler(req: any, res: any) {
             text: completedMsg,
             parse_mode: 'HTML',
             reply_markup: completedButtons
+          });
+        }
+
+        if (!hasRealIn) {
+          const notInMsg = todayAttendance?.status === 'Permission'
+            ? `🏖️ <b>[TC Staff - ដំណឹង]</b>\n\nអ្នកមានច្បាប់ឈប់សម្រាកសម្រាប់ថ្ងៃនេះ មិនទាន់មានការចុះឈ្មោះចូលធ្វើការឡើយ!`
+            : `⚠️ <b>[TC Staff - ដំណឹង]</b>\n\nមិនអាចចុះឈ្មោះចេញបានទេ ដោយសារមិនទាន់មានការចុះឈ្មោះចូលសម្រាប់ថ្ងៃនេះ!`;
+
+          return sendOrReply(res, botToken, {
+            chat_id: chatId,
+            text: notInMsg,
+            parse_mode: 'HTML'
           });
         }
 

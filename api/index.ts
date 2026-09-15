@@ -860,9 +860,13 @@ export default async function handler(req: any, res: any) {
       const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
       const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Phnom_Penh' });
 
+      const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
       const existingIndex = allAtt.findIndex((a: any) => a.staffId === staff.id && a.date === todayStr);
-      if (existingIndex !== -1 && allAtt[existingIndex].checkIn && allAtt[existingIndex].status !== 'Absent') {
-        return res.status(400).json({ success: false, error: `អ្នកបានចុះឈ្មោះចូលរួចហើយនៅម៉ោង ${allAtt[existingIndex].checkIn}!` });
+      if (existingIndex !== -1) {
+        const exist = allAtt[existingIndex];
+        if (isRealTime(exist.checkIn) && exist.status !== 'Absent') {
+          return res.status(400).json({ success: false, error: `អ្នកបានចុះឈ្មោះចូលរួចហើយនៅម៉ោង ${exist.checkIn}!` });
+        }
       }
 
       const isOwnerStaff = Boolean(
@@ -875,14 +879,15 @@ export default async function handler(req: any, res: any) {
         (val?.user?.username || '').toLowerCase() === 'millerppc'
       );
 
+      const existingAtt = existingIndex !== -1 ? allAtt[existingIndex] : null;
       const newRecord: any = {
-        id: 'att_' + Date.now(),
+        id: existingAtt?.id || ('att_' + Date.now()),
         branchId: branch?.id || staff.branchId,
         staffId: staff.id,
         staffName: staff.fullName,
         date: todayStr,
         checkIn: timeStr,
-        checkOut: '',
+        checkOut: isRealTime(existingAtt?.checkOut) ? existingAtt.checkOut : '',
         shiftType: staff.shift || 'Full Time',
         workHours: 0,
         overtimeHours: 0,
@@ -894,8 +899,12 @@ export default async function handler(req: any, res: any) {
         checkInLongitude: longitude,
         checkInDistance: distance,
         isOwner: isOwnerStaff,
-        notes: isOwnerStaff ? 'ម្ចាស់ហាងតេស្តស្កេន (Owner Test Scan)' : undefined,
-        createdAt: now.toISOString(),
+        notes: isOwnerStaff 
+          ? 'ម្ចាស់ហាងតេស្តស្កេន (Owner Test Scan)' 
+          : (existingAtt?.status === 'Permission' 
+              ? (existingAtt.notes ? `${existingAtt.notes} (បានចូលធ្វើការជាក់ស្តែង)` : 'បានចូលធ្វើការជាក់ស្តែង (ពីមុនមានច្បាប់)') 
+              : undefined),
+        createdAt: existingAtt?.createdAt || now.toISOString(),
         updatedAt: now.toISOString()
       };
 
@@ -1064,12 +1073,21 @@ export default async function handler(req: any, res: any) {
       const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
       const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Phnom_Penh' });
 
+      const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
       const attRecord = allAtt.find((a: any) => a.staffId === staff.id && a.date === todayStr);
-      if (!attRecord || !attRecord.checkIn) {
-        return res.status(400).json({ success: false, error: 'មិនអាចចុះឈ្មោះចេញបានទេ ដោយសារមិនទាន់មានការចុះឈ្មោះចូលសម្រាប់ថ្ងៃនេះ!' });
+      const hasRealIn = attRecord && isRealTime(attRecord.checkIn);
+      const hasRealOut = attRecord && isRealTime(attRecord.checkOut);
+
+      if (!attRecord || !hasRealIn) {
+        return res.status(400).json({ 
+          success: false, 
+          error: attRecord?.status === 'Permission'
+            ? 'អ្នកមានច្បាប់ឈប់សម្រាកសម្រាប់ថ្ងៃនេះ មិនទាន់មានការចុះឈ្មោះចូលធ្វើការឡើយ!'
+            : 'មិនអាចចុះឈ្មោះចេញបានទេ ដោយសារមិនទាន់មានការចុះឈ្មោះចូលសម្រាប់ថ្ងៃនេះ!' 
+        });
       }
 
-      if (attRecord.checkOut) {
+      if (hasRealOut) {
         return res.status(400).json({ success: false, error: `អ្នកបានចុះឈ្មោះចេញរួចរាល់ហើយនៅម៉ោង ${attRecord.checkOut}!` });
       }
 
