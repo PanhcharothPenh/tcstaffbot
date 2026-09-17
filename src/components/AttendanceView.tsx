@@ -35,7 +35,8 @@ import {
   RefreshCw,
   Check,
   Trash2,
-  Globe
+  Globe,
+  History
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Attendance, Staff, Role, Branch } from '../types';
@@ -45,6 +46,7 @@ import { generateAttendancePdf } from '../utils/AttendancePdfService';
 
 interface AttendanceViewProps {
   currentRole: Role;
+  currentUser?: any;
   activeBranchId: string;
   branches: Branch[];
   staffList: Staff[];
@@ -56,6 +58,7 @@ interface AttendanceViewProps {
 
 export default function AttendanceView({
   currentRole,
+  currentUser,
   activeBranchId,
   branches,
   staffList,
@@ -160,11 +163,34 @@ export default function AttendanceView({
     }
   };
 
-  const handleApproveLeave = async (leave: any) => {
-    if (!window.confirm(lang === 'kh' ? `តើអ្នកពិតជាចង់អនុម័តពាក្យសុំច្បាប់របស់ ${leave.staffName} មែនទេ?` : `Approve leave request for ${leave.staffName}?`)) {
+  const handleApproveLeave = async (leave: any, forcedDeductionType?: 'no_deduct' | 'with_deduct', forcedAmount?: number) => {
+    const isLate = 
+      leave.requestType === 'late_excused' || 
+      leave.requestType === 'late_deduct' || 
+      (leave.leaveType && leave.leaveType.includes('យឺត')) || 
+      (leave.details && leave.details.includes('យឺត')) || 
+      (leave.reason && leave.reason.includes('យឺត')) ||
+      forcedDeductionType !== undefined;
+
+    let deductionType = forcedDeductionType;
+    let deductionAmount = forcedAmount;
+
+    if (isLate && !deductionType) {
+      deductionType = (leave.requestType === 'late_excused' || leave.isLateExcused || leave.leaveType?.includes('មិនកាត់') || leave.details?.includes('មិនកាត់')) ? 'no_deduct' : 'with_deduct';
+      deductionAmount = deductionType === 'no_deduct' ? 0 : (Number(leave.deductionAmount) > 0 ? Number(leave.deductionAmount) : 1);
+    }
+
+    const confirmPrompt = isLate
+      ? (deductionType === 'no_deduct'
+          ? (lang === 'kh' ? `អនុម័តសំណើសុំយឺត (មិនកាត់ប្រាក់ / Excused) សម្រាប់ ${leave.staffName}?` : `Approve late arrival (No deduction / Excused) for ${leave.staffName}?`)
+          : (lang === 'kh' ? `អនុម័តសំណើសុំយឺត (កាត់ប្រាក់ $${deductionAmount || 1}) សម្រាប់ ${leave.staffName}?` : `Approve late arrival (Deduct $${deductionAmount || 1}) for ${leave.staffName}?`))
+      : (lang === 'kh' ? `តើអ្នកពិតជាចង់អនុម័តពាក្យសុំច្បាប់របស់ ${leave.staffName} មែនទេ?` : `Approve leave request for ${leave.staffName}?`);
+
+    if (!window.confirm(confirmPrompt)) {
       return;
     }
     setLeaveActionLoading(leave.id);
+    const approverName = currentUser?.fullName || currentUser?.username || (currentRole ? String(currentRole) : 'Admin');
     try {
       const res = await fetch('/api/leave-requests', {
         method: 'POST',
@@ -172,14 +198,26 @@ export default function AttendanceView({
         body: JSON.stringify({
           action: 'approve',
           leaveId: leave.id,
-          approvedBy: currentRole || 'Admin / Owner',
-          note: 'អនុម័តដោយ Admin'
+          approvedBy: approverName,
+          note: `អនុម័តដោយ ${approverName}`,
+          deductionType,
+          deductionAmount
         })
       });
       const data = await res.json();
       if (data.success) {
+        const isExcused = deductionType === 'no_deduct' || (!deductionType && (leave.requestType === 'late_excused' || leave.isLateExcused));
+        const deductAmt = isExcused ? 0 : (Number(deductionAmount) > 0 ? Number(deductionAmount) : 1);
+
         setLeaveRequests(prev => {
-          const next = prev.map(l => l.id === leave.id ? { ...l, status: 'Approved', approvedBy: currentRole || 'Admin', approvedAt: new Date().toISOString() } : l);
+          const next = prev.map(l => l.id === leave.id ? { 
+            ...l, 
+            status: 'Approved', 
+            approvedBy: approverName, 
+            approvedAt: new Date().toISOString(),
+            isLateExcused: isExcused,
+            deductionAmount: isLate ? deductAmt : 0
+          } : l);
           try { db.saveLeaveRequests(next); } catch {}
           return next;
         });
@@ -187,33 +225,49 @@ export default function AttendanceView({
           setAttendance(data.attendance);
         } else {
           const leaveDate = leave.date || getPhnomPenhDateStr();
+          const attStatus = isLate ? 'Late' : 'Permission';
+          const attNotes = isLate 
+            ? (isExcused ? `មកយឺតអនុគ្រោះ (មិនកាត់ប្រាក់) - ${leave.details || leave.reason || 'សុំយឺត'}` : `មកយឺត (កាត់ប្រាក់ $${deductAmt}) - ${leave.details || leave.reason || 'សុំយឺត'}`)
+            : `ច្បាប់ឈប់សម្រាក (${leave.details || `Approved by ${approverName}`})`;
+
           setAttendance(prev => {
             const copy = [...prev];
             const idx = copy.findIndex(a => a.staffId === leave.staffId && a.date === leaveDate);
             if (idx >= 0) {
-              copy[idx] = { ...copy[idx], status: 'Permission', notes: `ច្បាប់ឈប់សម្រាក (${leave.details || 'Approved by Admin'})` };
+              copy[idx] = { 
+                ...copy[idx], 
+                status: attStatus, 
+                notes: attNotes,
+                isLateExcused: isExcused,
+                lateDeduction: isExcused ? 0 : deductAmt
+              };
             } else {
               copy.unshift({
-                id: 'att_' + Date.now(),
+                id: 'att_' + (isLate ? 'late_' : 'perm_') + Date.now(),
                 staffId: leave.staffId,
                 staffName: leave.staffName,
                 branchId: leave.branchId || 'b1',
                 branchName: leave.branchName || 'toto by Chichi',
                 date: leaveDate,
-                checkIn: '--',
+                checkIn: isLate ? 'Late' : '--',
                 checkOut: '--',
                 workHours: 0,
                 overtimeHours: 0,
-                status: 'Permission',
+                status: attStatus,
                 source: 'manual',
-                notes: `ច្បាប់ឈប់សម្រាក (${leave.details || 'Approved by Admin'})`,
+                notes: attNotes,
+                isLateExcused: isExcused,
+                lateDeduction: isExcused ? 0 : deductAmt,
                 createdAt: new Date().toISOString()
               });
             }
             return copy;
           });
         }
-        onAddLog(lang === 'kh' ? `បានអនុម័តពាក្យសុំច្បាប់របស់ ${leave.staffName}` : `Approved leave for ${leave.staffName}`);
+        const logAction = isLate 
+          ? (isExcused ? `បានអនុម័តយឺត (មិនកាត់ប្រាក់) របស់ ${leave.staffName}` : `បានអនុម័តយឺត (កាត់ប្រាក់ $${deductAmt}) របស់ ${leave.staffName}`)
+          : `បានអនុម័តពាក្យសុំច្បាប់របស់ ${leave.staffName}`;
+        onAddLog(`${logAction} ដោយ ${approverName}`);
       } else {
         alert(data.error || 'Failed to approve');
       }
@@ -232,6 +286,7 @@ export default function AttendanceView({
     if (reason === null) return;
 
     setLeaveActionLoading(leave.id);
+    const approverName = currentUser?.fullName || currentUser?.username || (currentRole ? String(currentRole) : 'Admin');
     try {
       const res = await fetch('/api/leave-requests', {
         method: 'POST',
@@ -239,18 +294,18 @@ export default function AttendanceView({
         body: JSON.stringify({
           action: 'reject',
           leaveId: leave.id,
-          rejectedBy: currentRole || 'Admin / Owner',
+          rejectedBy: approverName,
           note: reason
         })
       });
       const data = await res.json();
       if (data.success) {
         setLeaveRequests(prev => {
-          const next = prev.map(l => l.id === leave.id ? { ...l, status: 'Rejected', rejectedBy: currentRole || 'Admin', rejectedAt: new Date().toISOString(), reviewNote: reason } : l);
+          const next = prev.map(l => l.id === leave.id ? { ...l, status: 'Rejected', rejectedBy: approverName, rejectedAt: new Date().toISOString(), reviewNote: reason } : l);
           try { db.saveLeaveRequests(next); } catch {}
           return next;
         });
-        onAddLog(lang === 'kh' ? `បានបដិសេធពាក្យសុំច្បាប់របស់ ${leave.staffName}` : `Rejected leave for ${leave.staffName}`);
+        onAddLog(lang === 'kh' ? `បានបដិសេធពាក្យសុំច្បាប់របស់ ${leave.staffName} ដោយ ${approverName}` : `Rejected leave for ${leave.staffName} by ${approverName}`);
       } else {
         alert(data.error || 'Failed to reject');
       }
@@ -277,6 +332,8 @@ export default function AttendanceView({
   const [addCheckIn, setAddCheckIn] = useState('07:00 AM');
   const [addCheckOut, setAddCheckOut] = useState('04:00 PM');
   const [addStatus, setAddStatus] = useState<'Present' | 'Late' | 'Absent' | 'Working' | 'Completed' | 'Manual'>('Present');
+  const [addLateType, setAddLateType] = useState<'excused' | 'deduct'>('excused');
+  const [addLateDeductAmt, setAddLateDeductAmt] = useState<number>(1);
   const [addReason, setAddReason] = useState('កត់ត្រាវត្តមានដោយដៃ (Manual Entry)');
 
   // Main Sub-Tabs State (រួមទាំង Tab ទី៤៖ ពាក្យសុំច្បាប់ Leave Requests)
@@ -476,6 +533,13 @@ export default function AttendanceView({
     if (!staff) return;
 
     const nowIso = new Date().toISOString();
+    const isLateAdd = addStatus === 'Late';
+    const isExcusedAdd = isLateAdd ? (addLateType === 'excused') : undefined;
+    const lateDeductAmt = isLateAdd ? (addLateType === 'deduct' ? (addLateDeductAmt > 0 ? addLateDeductAmt : 1) : 0) : undefined;
+    const attNotes = isLateAdd 
+      ? (isExcusedAdd ? `មកយឺតអនុគ្រោះ (មិនកាត់ប្រាក់) - ${addReason.trim()}` : `មកយឺត (កាត់ប្រាក់ $${lateDeductAmt}) - ${addReason.trim()}`)
+      : (addReason.trim() || undefined);
+
     const newAtt: Attendance = {
       id: 'att_' + Date.now(),
       branchId: staff.branchId,
@@ -489,6 +553,9 @@ export default function AttendanceView({
       overtimeHours: 0,
       status: addStatus,
       source: 'manual',
+      isLateExcused: isExcusedAdd,
+      lateDeduction: lateDeductAmt,
+      notes: attNotes,
       auditHistory: [
         {
           field: 'Created',
@@ -1467,15 +1534,29 @@ export default function AttendanceView({
                                 <span>ច្បាប់សម្រាក</span>
                               </span>
                             )}
-                            {rec.date === todayPhnomPenh && rec.status !== 'Permission' && (
+                            {rec.status === 'Late' && (
+                              <span className={`px-1.5 py-0.5 rounded-md text-[9.5px] font-black inline-flex items-center gap-1 shadow-2xs ${
+                                rec.isLateExcused 
+                                  ? 'bg-cyan-100 text-cyan-800 border border-cyan-300' 
+                                  : 'bg-amber-100 text-amber-800 border border-amber-300'
+                              }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full inline-block ${rec.isLateExcused ? 'bg-cyan-600' : 'bg-amber-600'}`}></span>
+                                <span>{rec.isLateExcused ? 'យឺតមិនកាត់ប្រាក់' : (rec.lateDeduction && rec.lateDeduction > 0 ? `យឺតកាត់ $${rec.lateDeduction}` : 'មកយឺត')}</span>
+                              </span>
+                            )}
+                            {rec.date === todayPhnomPenh && rec.status !== 'Permission' && rec.status !== 'Late' && (
                               <span className="px-1.5 py-0.2 rounded-md text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
                                 ថ្ងៃនេះ
                               </span>
                             )}
                           </div>
                           <div className="text-[10px] text-slate-400 font-mono mt-0.5">{rec.date} • {rec.shiftType || 'Shift'}</div>
-                          {rec.status === 'Permission' && rec.notes && (
-                            <div className="text-[10px] text-rose-700 font-medium italic mt-1 bg-white/80 px-2 py-0.5 rounded-md border border-rose-200 inline-block max-w-xs truncate" title={rec.notes}>
+                          {rec.notes && (
+                            <div className={`text-[10px] font-medium italic mt-1 bg-white/80 px-2 py-0.5 rounded-md border inline-block max-w-xs truncate ${
+                              rec.status === 'Permission' ? 'text-rose-700 border-rose-200' :
+                              rec.status === 'Late' ? (rec.isLateExcused ? 'text-cyan-700 border-cyan-200' : 'text-amber-700 border-amber-200') :
+                              'text-slate-600 border-slate-200'
+                            }`} title={rec.notes}>
                               {rec.notes}
                             </div>
                           )}
@@ -1512,9 +1593,9 @@ export default function AttendanceView({
                           )}
                         </td>
 
-                        {/* Work Hours Duration */}
-                        <td className="py-3 px-3 text-center text-xs">
-                          <span className="font-bold text-slate-800 bg-slate-100/90 px-2.5 py-1 rounded-xl inline-block font-sans">
+                        {/* Work Hours */}
+                        <td className="py-3 px-3 text-center font-mono font-bold text-slate-700">
+                          <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md text-xs">
                             {formatWorkDuration(rec.workHours)}
                           </span>
                         </td>
@@ -1529,7 +1610,7 @@ export default function AttendanceView({
                               : rec.status === 'Completed' || rec.status === 'Present'
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : rec.status === 'Late'
-                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              ? (rec.isLateExcused ? 'bg-cyan-50 text-cyan-800 border border-cyan-200' : 'bg-amber-50 text-amber-800 border border-amber-200')
                               : rec.status === 'Absent'
                               ? 'bg-slate-100 text-slate-700 border border-slate-300'
                               : 'bg-slate-100 text-slate-700 border border-slate-200'
@@ -1538,7 +1619,7 @@ export default function AttendanceView({
                              rec.status === 'Working' ? 'កំពុងធ្វើការ' :
                              rec.status === 'Completed' ? 'បានចេញ' :
                              rec.status === 'Present' ? 'វត្តមាន' :
-                             rec.status === 'Late' ? 'មកយឺត' :
+                             rec.status === 'Late' ? (rec.isLateExcused ? '⏰ យឺតមិនកាត់' : (rec.lateDeduction && rec.lateDeduction > 0 ? `⚠️ យឺតកាត់ ($${rec.lateDeduction})` : 'មកយឺត')) :
                              rec.status === 'Absent' ? 'អវត្តមាន' : rec.status}
                           </span>
                         </td>
@@ -2149,71 +2230,162 @@ export default function AttendanceView({
                             </span>
                           </td>
                           <td className="py-3.5 px-4 max-w-xs">
-                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-200/60 text-slate-700 italic text-[11px] leading-relaxed break-words">
-                              {leave.details || leave.reason || 'សុំច្បាប់'}
-                            </div>
-                            {leave.reviewNote && (
-                              <div className="mt-1 text-[10px] text-rose-600">
-                                ចំណាំ៖ {leave.reviewNote}
-                              </div>
-                            )}
+                            {(() => {
+                              const isLate = 
+                                leave.requestType === 'late_excused' || 
+                                leave.requestType === 'late_deduct' || 
+                                (leave.leaveType && leave.leaveType.includes('យឺត')) || 
+                                (leave.details && leave.details.includes('យឺត')) || 
+                                (leave.reason && leave.reason.includes('យឺត'));
+                              const isExcused = leave.isLateExcused ?? (leave.requestType === 'late_excused' || leave.leaveType?.includes('មិនកាត់') || leave.details?.includes('មិនកាត់'));
+
+                              return (
+                                <>
+                                  <div className="mb-1">
+                                    {isLate ? (
+                                      isExcused ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-cyan-50 text-cyan-800 border border-cyan-200">
+                                          ⏰ សុំយឺត (មិនកាត់ប្រាក់ / អនុគ្រោះ)
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                          ⚠️ សុំយឺត (កាត់ប្រាក់ {leave.deductionAmount ? `$${leave.deductionAmount}` : '$1'})
+                                        </span>
+                                      )
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                        🏖️ {leave.leaveType || 'សុំច្បាប់ឈប់សម្រាក'}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="bg-slate-50 p-2 rounded-xl border border-slate-200/60 text-slate-700 italic text-[11px] leading-relaxed break-words">
+                                    {leave.details || leave.reason || 'សុំច្បាប់'}
+                                  </div>
+                                  {leave.reviewNote && (
+                                    <div className="mt-1 text-[10px] text-rose-600">
+                                      ចំណាំ៖ {leave.reviewNote}
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </td>
                           <td className="py-3.5 px-4 text-center">
-                            {isPending && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">
-                                <AlertCircle size={12} /> {lang === 'kh' ? 'រង់ចាំអនុម័ត' : 'Pending'}
-                              </span>
-                            )}
-                            {isApproved && (
-                              <div className="space-y-0.5">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                  <CheckCircle2 size={12} /> {lang === 'kh' ? 'បានអនុម័ត' : 'Approved'}
-                                </span>
-                                {leave.approvedBy && (
-                                  <span className="block text-[9.5px] text-slate-400">
-                                    ដោយ {leave.approvedBy}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                            {isRejected && (
-                              <div className="space-y-0.5">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                                  <XCircle size={12} /> {lang === 'kh' ? 'បានបដិសេធ' : 'Rejected'}
-                                </span>
-                                {leave.rejectedBy && (
-                                  <span className="block text-[9.5px] text-slate-400">
-                                    ដោយ {leave.rejectedBy}
-                                  </span>
-                                )}
-                              </div>
-                            )}
+                            {(() => {
+                              const isLate = 
+                                leave.requestType === 'late_excused' || 
+                                leave.requestType === 'late_deduct' || 
+                                (leave.leaveType && leave.leaveType.includes('យឺត')) || 
+                                (leave.details && leave.details.includes('យឺត')) || 
+                                (leave.reason && leave.reason.includes('យឺត'));
+                              const isExcused = leave.isLateExcused ?? (leave.requestType === 'late_excused' || leave.leaveType?.includes('មិនកាត់') || leave.details?.includes('មិនកាត់'));
+
+                              return (
+                                <>
+                                  {isPending && (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-amber-100 text-amber-800 border border-amber-200 animate-pulse">
+                                      <AlertCircle size={12} /> {lang === 'kh' ? 'រង់ចាំអនុម័ត' : 'Pending'}
+                                    </span>
+                                  )}
+                                  {isApproved && (
+                                    <div className="space-y-0.5">
+                                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold border ${
+                                        isLate
+                                          ? (isExcused ? 'bg-cyan-100 text-cyan-800 border-cyan-200' : 'bg-amber-100 text-amber-800 border-amber-200')
+                                          : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                      }`}>
+                                        <CheckCircle2 size={12} /> {
+                                          isLate
+                                            ? (isExcused ? (lang === 'kh' ? 'យឺតមិនកាត់ប្រាក់' : 'Excused Late') : (lang === 'kh' ? `យឺតកាត់ ($${leave.deductionAmount || 1})` : `Deducted ($${leave.deductionAmount || 1})`))
+                                            : (lang === 'kh' ? 'បានអនុម័ត' : 'Approved')
+                                        }
+                                      </span>
+                                      {leave.approvedBy && (
+                                        <span className="block text-[9.5px] text-slate-400">
+                                          {lang === 'kh' ? 'ដោយ ' : 'By '}{leave.approvedBy}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                  {isRejected && (
+                                    <div className="space-y-0.5">
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                        <XCircle size={12} /> {lang === 'kh' ? 'បានបដិសេធ' : 'Rejected'}
+                                      </span>
+                                      {leave.rejectedBy && (
+                                        <span className="block text-[9.5px] text-slate-400">
+                                          {lang === 'kh' ? 'ដោយ ' : 'By '}{leave.rejectedBy}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </td>
                           <td className="py-3.5 px-4 text-center">
-                            {isPending ? (
-                              <div className="flex items-center justify-center gap-2">
-                                <button
-                                  onClick={() => handleApproveLeave(leave)}
-                                  disabled={isLoadingThis}
-                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center gap-1 disabled:opacity-50"
-                                >
-                                  {isLoadingThis ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
-                                  <span>{lang === 'kh' ? 'អនុម័ត' : 'Approve'}</span>
-                                </button>
-                                <button
-                                  onClick={() => handleRejectLeave(leave)}
-                                  disabled={isLoadingThis}
-                                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border border-rose-200 rounded-xl text-xs transition cursor-pointer flex items-center gap-1 disabled:opacity-50"
-                                >
-                                  <X size={12} />
-                                  <span>{lang === 'kh' ? 'បដិសេធ' : 'Reject'}</span>
-                                </button>
-                              </div>
-                            ) : (
-                              <span className="text-[11px] text-slate-400 italic">
-                                {lang === 'kh' ? 'រួចរាល់' : 'Processed'}
-                              </span>
-                            )}
+                            {(() => {
+                              const isLate = 
+                                leave.requestType === 'late_excused' || 
+                                leave.requestType === 'late_deduct' || 
+                                (leave.leaveType && leave.leaveType.includes('យឺត')) || 
+                                (leave.details && leave.details.includes('យឺត')) || 
+                                (leave.reason && leave.reason.includes('យឺត'));
+
+                              return isPending ? (
+                                <div className="flex flex-wrap items-center justify-center gap-1.5">
+                                  {isLate ? (
+                                    <>
+                                      <button
+                                        onClick={() => handleApproveLeave(leave, 'no_deduct', 0)}
+                                        disabled={isLoadingThis}
+                                        className="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-lg text-[10.5px] shadow-2xs transition cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                                        title={lang === 'kh' ? 'អនុម័តដោយមិនកាត់ប្រាក់ (Excused)' : 'Approve without deduction'}
+                                      >
+                                        {isLoadingThis ? <RefreshCw size={11} className="animate-spin" /> : <Check size={11} />}
+                                        <span>{lang === 'kh' ? 'មិនកាត់ប្រាក់' : 'Free'}</span>
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          const amtStr = window.prompt(lang === 'kh' ? 'បញ្ចូលចំនួនទឹកប្រាក់ត្រូវកាត់ ($)៖' : 'Enter deduction amount ($):', String(leave.deductionAmount || 1));
+                                          if (amtStr !== null) {
+                                            const amt = parseFloat(amtStr);
+                                            handleApproveLeave(leave, 'with_deduct', isNaN(amt) ? 1 : amt);
+                                          }
+                                        }}
+                                        disabled={isLoadingThis}
+                                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-[10.5px] shadow-2xs transition cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                                        title={lang === 'kh' ? 'អនុម័តដោយកាត់ប្រាក់' : 'Approve with deduction'}
+                                      >
+                                        <AlertCircle size={11} />
+                                        <span>{lang === 'kh' ? 'កាត់ប្រាក់' : 'Deduct'}</span>
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleApproveLeave(leave)}
+                                      disabled={isLoadingThis}
+                                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-xs transition cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                      {isLoadingThis ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+                                      <span>{lang === 'kh' ? 'អនុម័ត' : 'Approve'}</span>
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleRejectLeave(leave)}
+                                    disabled={isLoadingThis}
+                                    className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border border-rose-200 rounded-lg text-[10.5px] transition cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                                  >
+                                    <X size={11} />
+                                    <span>{lang === 'kh' ? 'បដិសេធ' : 'Reject'}</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-slate-400 italic">
+                                  {lang === 'kh' ? 'រួចរាល់' : 'Processed'}
+                                </span>
+                              );
+                            })()}
                           </td>
                         </tr>
                       );
@@ -2546,6 +2718,50 @@ export default function AttendanceView({
                 </select>
               </div>
             </div>
+
+            {addStatus === 'Late' && (
+              <div className="bg-amber-50/70 p-3 rounded-2xl border border-amber-200/70 space-y-2 text-xs">
+                <label className="text-[11px] font-bold text-amber-900 block">ប្រភេទនៃការមកយឺត (Late Type) *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAddLateType('excused')}
+                    className={`p-2 rounded-xl border text-center font-bold text-xs transition cursor-pointer ${
+                      addLateType === 'excused'
+                        ? 'bg-cyan-600 text-white border-cyan-600 shadow-2xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    ⏰ មិនកាត់ប្រាក់ (Excused)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAddLateType('deduct')}
+                    className={`p-2 rounded-xl border text-center font-bold text-xs transition cursor-pointer ${
+                      addLateType === 'deduct'
+                        ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    ⚠️ កាត់ប្រាក់ (Deduct)
+                  </button>
+                </div>
+                {addLateType === 'deduct' && (
+                  <div className="pt-1 flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-amber-900">ចំនួនទឹកប្រាក់ត្រូវកាត់ ($):</span>
+                    <input
+                      type="number"
+                      min="0.25"
+                      step="0.25"
+                      value={addLateDeductAmt}
+                      onChange={e => setAddLateDeductAmt(Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="w-20 bg-white border border-amber-300 rounded-lg px-2 py-1 text-xs font-mono font-bold text-amber-900 text-right focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                    <span className="text-slate-500 text-xs">USD</span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {addStatus !== 'Absent' && (
               <div className="grid grid-cols-2 gap-3 text-xs">

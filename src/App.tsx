@@ -859,6 +859,7 @@ export default function App() {
         return (
           <AttendanceView
             currentRole={currentRole}
+            currentUser={currentUser}
             activeBranchId={activeBranchId}
             branches={effectiveBranches}
             staffList={staff}

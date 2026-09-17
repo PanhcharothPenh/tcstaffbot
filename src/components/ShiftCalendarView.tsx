@@ -26,7 +26,8 @@ import {
   CalendarDays,
   User,
   DollarSign,
-  FileText
+  FileText,
+  Coffee
 } from 'lucide-react';
 import { Branch, Staff, Attendance, Role } from '../types';
 
@@ -70,7 +71,8 @@ export default function ShiftCalendarView({
   const [swapDate, setSwapDate] = useState(() => new Date().toISOString().substring(0, 10));
   const [swapStaffId, setSwapStaffId] = useState('');
   const [swapCoveredForId, setSwapCoveredForId] = useState('');
-  const [swapShift, setSwapShift] = useState<'Morning' | 'Afternoon' | 'Night' | 'Full Time'>('Morning');
+  const [swapShift, setSwapShift] = useState<'Morning' | 'Afternoon' | 'Night' | 'Full Time' | 'Day Off'>('Morning');
+  const [swapRate, setSwapRate] = useState<number>(6);
   const [swapNote, setSwapNote] = useState('');
   const [isSavingSwap, setIsSavingSwap] = useState(false);
 
@@ -162,6 +164,9 @@ export default function ShiftCalendarView({
       const workingStaff = staffList.find(s => s.id === swapStaffId);
       const coveredStaff = staffList.find(s => s.id === swapCoveredForId);
 
+      const finalRate = Number(swapRate) >= 0 ? Number(swapRate) : (swapShift === 'Day Off' ? 0 : 6);
+      const finalTotal = finalRate * 1;
+
       const newShift = {
         id: `es_${Date.now()}`,
         branchId: selectedBranchId,
@@ -170,8 +175,8 @@ export default function ShiftCalendarView({
         date: swapDate,
         shift: swapShift,
         shiftCount: 1,
-        ratePerShift: 6,
-        totalAmount: 6,
+        ratePerShift: finalRate,
+        totalAmount: finalTotal,
         coveredForStaffId: swapCoveredForId || undefined,
         coveredForStaffName: coveredStaff?.fullName || undefined,
         note: swapNote.trim() || undefined,
@@ -226,8 +231,10 @@ export default function ShiftCalendarView({
         scheduleLines += `  • (គ្មានបុគ្គលិក)\n`;
       } else {
         shifts.forEach(s => {
-          const shiftIcon = s.shift === 'Morning' ? '🌅' : s.shift === 'Afternoon' ? '☀️' : s.shift === 'Night' ? '🌙' : '🔄';
-          scheduleLines += `  ${shiftIcon} <b>${s.staff.fullName}</b> (${s.shift})${s.isCover ? ` [ជំនួស ${s.coveredFor || ''}]` : ''}\n`;
+          const isDayOff = s.shift === 'Day Off' || s.shift === 'Off';
+          const shiftIcon = isDayOff ? '🏖️' : s.shift === 'Morning' ? '🌅' : s.shift === 'Afternoon' ? '☀️' : s.shift === 'Night' ? '🌙' : '🔄';
+          const shiftLabel = isDayOff ? (lang === 'kh' ? 'ថ្ងៃសម្រាក' : 'Day Off') : s.shift;
+          scheduleLines += `  ${shiftIcon} <b>${s.staff.fullName}</b> (${shiftLabel})${s.isCover ? ` [ជំនួស ${s.coveredFor || ''}]` : ''}\n`;
         });
       }
     }
@@ -330,6 +337,7 @@ export default function ShiftCalendarView({
           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-sky-500"></span> <Sun size={13} className="text-sky-500" /> {lang === 'en' ? 'Afternoon' : 'រសៀល'}</span>
           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-indigo-500"></span> <Moon size={13} className="text-indigo-500" /> {lang === 'en' ? 'Night' : 'យប់'}</span>
           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> <ArrowRightLeft size={13} className="text-emerald-600" /> {lang === 'en' ? 'Cover' : 'ជំនួសវេន'}</span>
+          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-slate-400"></span> <Coffee size={13} className="text-slate-500" /> {lang === 'en' ? 'Day Off' : 'ថ្ងៃសម្រាក'}</span>
         </div>
 
         {/* Actions */}
@@ -423,12 +431,15 @@ export default function ShiftCalendarView({
                     {shifts.slice(0, 3).map((s, idx) => {
                       const isPresent = s.attendance?.checkIn && s.attendance.status !== 'Absent';
                       const isAbsent = s.attendance?.status === 'Absent';
+                      const isDayOff = s.shift === 'Day Off' || s.shift === 'Off' || s.attendance?.status === 'Day Off';
 
                       return (
                         <div
                           key={idx}
                           className={`text-[10px] px-1.5 py-0.5 rounded-lg font-semibold flex items-center justify-between border ${
-                            s.isCover
+                            isDayOff
+                              ? 'bg-slate-100 border-slate-200 text-slate-600'
+                              : s.isCover
                               ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                               : s.shift === 'Morning'
                               ? 'bg-amber-50 border-amber-200 text-amber-900'
@@ -442,7 +453,11 @@ export default function ShiftCalendarView({
                           </span>
                           
                           <span className="text-[9px] opacity-75 shrink-0">
-                            {s.isCover ? (lang === 'kh' ? 'ជំនួស' : 'Cover') : (isPresent ? '✓' : isAbsent ? '✗' : '')}
+                            {isDayOff 
+                              ? (lang === 'kh' ? 'សម្រាក' : 'Off')
+                              : s.isCover 
+                              ? (lang === 'kh' ? 'ជំនួស' : 'Cover') 
+                              : (isPresent ? '✓' : isAbsent ? '✗' : '')}
                           </span>
                         </div>
                       );
@@ -547,23 +562,41 @@ export default function ShiftCalendarView({
                   </label>
                   <select
                     value={swapShift}
-                    onChange={e => setSwapShift(e.target.value as any)}
+                    onChange={e => {
+                      const val = e.target.value as any;
+                      setSwapShift(val);
+                      if (val === 'Day Off') {
+                        setSwapRate(0);
+                        if (!swapNote) setSwapNote(lang === 'kh' ? 'ថ្ងៃសម្រាក' : 'Day Off');
+                      } else if (swapRate === 0) {
+                        setSwapRate(6);
+                      }
+                    }}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none cursor-pointer"
                   >
                     <option value="Morning">{lang === 'en' ? 'Morning (ព្រឹក)' : 'វេនព្រឹក'}</option>
                     <option value="Afternoon">{lang === 'en' ? 'Afternoon (រសៀល)' : 'វេនរសៀល'}</option>
                     <option value="Night">{lang === 'en' ? 'Night (យប់)' : 'វេនយប់'}</option>
                     <option value="Full Time">{lang === 'en' ? 'Full Time (ពេញម៉ោង)' : 'ពេញម៉ោង'}</option>
+                    <option value="Day Off">{lang === 'en' ? 'Day Off (ថ្ងៃសម្រាក)' : 'ថ្ងៃសម្រាក (Day Off)'}</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="flex items-center gap-1.5 font-bold text-slate-750 mb-1">
                     <DollarSign size={13} className="text-slate-400" />
-                    <span>{lang === 'en' ? 'Shift Rate' : 'កម្រៃវេន'}</span>
+                    <span>{lang === 'en' ? 'Shift Rate ($)' : 'កម្រៃវេន ($)'}</span>
                   </label>
-                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl font-black text-emerald-700 text-center">
-                    ប្រាក់ជំនួសវេន / Cover Rate
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-slate-400 font-bold">$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={swapRate}
+                      onChange={e => setSwapRate(parseFloat(e.target.value) || 0)}
+                      className="w-full pl-7 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold font-mono text-slate-800 outline-none focus:bg-white focus:border-emerald-500"
+                    />
                   </div>
                 </div>
               </div>
@@ -577,9 +610,44 @@ export default function ShiftCalendarView({
                   type="text"
                   value={swapNote}
                   onChange={e => setSwapNote(e.target.value)}
-                  placeholder={lang === 'en' ? 'e.g. Sopheak sick leave coverage' : 'ឧ. ជំនួស សុភ័ក្ត្រ សុំច្បាប់ឈឺ'}
+                  placeholder={lang === 'en' ? 'e.g. Sopheak sick leave coverage or Day Off' : 'ឧ. ជំនួស សុភ័ក្ត្រ សុំច្បាប់ឈឺ ឬ ថ្ងៃសម្រាក'}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 outline-none"
                 />
+                {/* Quick note presets */}
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSwapShift('Day Off');
+                      setSwapRate(0);
+                      setSwapNote(lang === 'kh' ? 'ថ្ងៃសម្រាកប្រចាំសប្តាហ៍' : 'Weekly Day Off');
+                    }}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                  >
+                    🏖️ <span>{lang === 'kh' ? 'ថ្ងៃសម្រាក (Day Off)' : 'Day Off'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSwapNote(lang === 'kh' ? 'សុំច្បាប់ឈឺ' : 'Sick Leave')}
+                    className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                  >
+                    🩺 <span>{lang === 'kh' ? 'សុំច្បាប់ឈឺ' : 'Sick Leave'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSwapNote(lang === 'kh' ? 'ច្បាប់ផ្ទាល់ខ្លួន' : 'Personal Leave')}
+                    className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                  >
+                    📋 <span>{lang === 'kh' ? 'ច្បាប់ផ្ទាល់ខ្លួន' : 'Personal Leave'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSwapNote(lang === 'kh' ? 'ជំនួសវេន' : 'Shift Cover')}
+                    className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                  >
+                    ⭐ <span>{lang === 'kh' ? 'ជំនួសវេន' : 'Shift Cover'}</span>
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">

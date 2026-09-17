@@ -43,9 +43,11 @@ window.fetch = async function (input, init) {
         }
         init.headers = headers;
       } else if (input instanceof Request) {
-        if (!input.headers.has('Authorization')) {
-          input.headers.set('Authorization', `Bearer ${token}`);
-        }
+        try {
+          if (!input.headers.has('Authorization')) {
+            input.headers.set('Authorization', `Bearer ${token}`);
+          }
+        } catch (_) {}
       }
     }
   }
@@ -58,7 +60,15 @@ window.fetch = async function (input, init) {
       localStorage.removeItem('coffee_access_token');
       localStorage.removeItem('coffee_refresh_token');
       localStorage.removeItem('coffee_user_session');
-      window.dispatchEvent(new Event('unauthorized-session-expired'));
+      try {
+        window.dispatchEvent(new CustomEvent('unauthorized-session-expired'));
+      } catch (_) {
+        try {
+          const evt = document.createEvent('Event');
+          evt.initEvent('unauthorized-session-expired', true, true);
+          window.dispatchEvent(evt);
+        } catch (__) {}
+      }
     }
   }
 

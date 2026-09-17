@@ -77,7 +77,7 @@ export default async function handler(req: any, res: any) {
   // POST: Actions (approve, reject, create)
   if (req.method === 'POST') {
     try {
-      const { action, leaveId, approvedBy, rejectedBy, note, leaveData } = req.body || {};
+      const { action, leaveId, approvedBy, rejectedBy, note, leaveData, deductionType, deductionAmount } = req.body || {};
       let leaveList = await loadCollection('leaveRequests');
 
       if (action === 'approve') {
@@ -87,36 +87,61 @@ export default async function handler(req: any, res: any) {
         }
 
         const leave = leaveList[idx];
+        const isLateRequest = 
+          leave.requestType === 'late_excused' || 
+          leave.requestType === 'late_deduct' || 
+          (leave.leaveType && leave.leaveType.includes('យឺត')) || 
+          (leave.details && leave.details.includes('យឺត')) || 
+          (leave.reason && leave.reason.includes('យឺត')) ||
+          deductionType === 'no_deduct' ||
+          deductionType === 'with_deduct';
+
+        const isExcused = deductionType === 'no_deduct' || (!deductionType && (leave.requestType === 'late_excused' || (leave.leaveType && leave.leaveType.includes('មិនកាត់លុយ')) || (leave.details && leave.details.includes('មិនកាត់លុយ'))));
+        const deductAmt = isExcused ? 0 : (Number(deductionAmount) > 0 ? Number(deductionAmount) : (Number(leave.deductionAmount) > 0 ? Number(leave.deductionAmount) : 1));
+
         leave.status = 'Approved';
         leave.approvedBy = approvedBy || 'Admin / Owner';
         leave.approvedAt = new Date().toISOString();
+        leave.isLateExcused = isExcused;
+        leave.deductionAmount = isLateRequest ? (isExcused ? 0 : deductAmt) : 0;
         if (note) leave.reviewNote = note;
 
         await saveCollection('leaveRequests', leaveList);
 
-        // Also add attendance record for that day as Permission
+        // Also add or update attendance record for that day
         const allAtt = await loadCollection('attendance');
         const leaveDate = leave.date || new Date().toISOString().substring(0, 10);
         const existingAttIdx = allAtt.findIndex((a: any) => a.staffId === leave.staffId && a.date === leaveDate);
 
+        const attStatus = isLateRequest ? 'Late' : 'Permission';
+        const attNotes = isLateRequest 
+          ? (isExcused 
+              ? `មកយឺតអនុគ្រោះ (មិនកាត់ប្រាក់) - ${leave.details || leave.reason || 'សុំយឺត'}` 
+              : `មកយឺត (កាត់ប្រាក់ $${deductAmt}) - ${leave.details || leave.reason || 'សុំយឺត'}`)
+          : `ច្បាប់ឈប់សម្រាក (${leave.details || 'Approved by Admin'})`;
+
         if (existingAttIdx >= 0) {
-          allAtt[existingAttIdx].status = 'Permission';
-          allAtt[existingAttIdx].notes = `ច្បាប់ឈប់សម្រាក (${leave.details || 'Approved by Admin'})`;
+          allAtt[existingAttIdx].status = attStatus;
+          allAtt[existingAttIdx].notes = attNotes;
+          allAtt[existingAttIdx].isLateExcused = isExcused;
+          allAtt[existingAttIdx].lateDeduction = isExcused ? 0 : deductAmt;
         } else {
           allAtt.unshift({
-            id: 'att_perm_' + Date.now(),
+            id: 'att_' + (isLateRequest ? 'late_' : 'perm_') + Date.now(),
             staffId: leave.staffId,
             staffName: leave.staffName,
             branchId: leave.branchId || 'b1',
             branchName: leave.branchName || 'Toto By Chi Chi MC Park',
             date: leaveDate,
-            checkIn: '--',
+            checkIn: isLateRequest ? 'Late' : '--',
             checkOut: '--',
             workHours: 0,
             overtimeHours: 0,
-            status: 'Permission',
+            status: attStatus,
             source: 'manual',
-            notes: `ច្បាប់ឈប់សម្រាក (${leave.details || 'Approved by Admin'})`,
+            notes: attNotes,
+            isLateExcused: isExcused,
+            lateDeduction: isExcused ? 0 : deductAmt,
             createdAt: new Date().toISOString()
           });
         }
@@ -136,6 +161,12 @@ export default async function handler(req: any, res: any) {
         const botToken = resolveBotToken();
         const staffChatTarget = String(leave.staffChatId || leave.staffTelegramId || matchedStaff?.telegramId || '');
 
+        const statusLine = isLateRequest
+          ? (isExcused ? `🟢 <b>ស្ថានភាព:</b> <b>អនុម័តយឺត (មិនកាត់ប្រាក់ / Excused)</b>` : `⚠️ <b>ស្ថានភាព:</b> <b>អនុម័តយឺត (កាត់ប្រាក់ $${deductAmt})</b>`)
+          : `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>`;
+
+        const titleHeader = isLateRequest ? 'ពាក្យស្នើសុំយឺតត្រូវបានអនុម័ត' : 'ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត';
+
         if (botToken && staffChatTarget) {
           try {
             await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -143,14 +174,14 @@ export default async function handler(req: any, res: any) {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 chat_id: staffChatTarget,
-                text: `✅ <b>ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត</b>\n\n` +
+                text: `✅ <b>${titleHeader}</b>\n\n` +
                   `👋 សួស្តី <b>${leave.staffName}</b>!\n\n` +
-                  `ពាក្យសុំច្បាប់របស់អ្នកត្រូវបាន <b>អនុម័ត</b>។\n\n` +
+                  `${titleHeader}។\n\n` +
                   `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leave.date || leaveDate)}</code>\n` +
                   `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n\n` +
-                  `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${leave.details || 'សុំច្បាប់'}\n\n` +
+                  `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${leave.details || leave.reason || 'ស្នើសុំ'}\n\n` +
                   `👤 <b>អនុម័តដោយ:</b> ${leave.approvedBy}\n` +
-                  `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>`,
+                  statusLine,
                 parse_mode: 'HTML'
               })
             });
@@ -167,13 +198,13 @@ export default async function handler(req: any, res: any) {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 chat_id: branchGroupChatId,
-                text: `✅ <b>ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត</b>\n\n` +
+                text: `✅ <b>${titleHeader}</b>\n\n` +
                   `👤 <b>បុគ្គលិក:</b> ${leave.staffName}\n` +
                   `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n` +
                   `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leave.date || leaveDate)}</code>\n\n` +
-                  `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${leave.details || 'សុំច្បាប់'}\n\n` +
+                  `📝 <b>ខ្លឹមសារ:</b>\n${leave.details || leave.reason || 'ស្នើសុំ'}\n\n` +
                   `👤 <b>អ្នកអនុម័ត:</b> ${leave.approvedBy}\n` +
-                  `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>\n\n` +
+                  statusLine + `\n\n` +
                   `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`,
                 parse_mode: 'HTML'
               })
@@ -181,7 +212,7 @@ export default async function handler(req: any, res: any) {
           } catch (e) {}
         }
 
-        return res.status(200).json({ success: true, message: 'Leave request approved', leave, attendance: allAtt });
+        return res.status(200).json({ success: true, message: 'Request approved', leave, attendance: allAtt });
       }
 
       if (action === 'reject') {

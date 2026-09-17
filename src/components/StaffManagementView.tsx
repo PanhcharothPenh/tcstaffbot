@@ -70,7 +70,7 @@ export default function StaffManagementView({
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [position, setPosition] = useState<string>('Helper');
-  const [shift, setShift] = useState<'Morning' | 'Afternoon' | 'Night' | 'Full Time'>('Morning');
+  const [shift, setShift] = useState<'Morning' | 'Afternoon' | 'Night' | 'Full Time' | 'Day Off'>('Morning');
   const [startDate, setStartDate] = useState(() => new Date().toISOString().substring(0, 10));
   const [resignationDate, setResignationDate] = useState('');
   const [status, setStatus] = useState<'Active' | 'Resigned' | 'Suspended'>('Active');
@@ -773,6 +773,7 @@ export default function StaffManagementView({
                 <option value="Afternoon">Afternoon</option>
                 <option value="Night">Night</option>
                 <option value="Full Time">Full Time</option>
+                <option value="Day Off">Day Off (ថ្ងៃសម្រាក)</option>
               </select>
             </div>
 

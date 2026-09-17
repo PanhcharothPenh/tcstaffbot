@@ -989,9 +989,17 @@ export default async function handler(req: any, res: any) {
 
         const leaveReason = userText.trim();
         const newLeaveId = 'leave_' + Date.now();
-        const leaveType = pendingLeaveSession.typeName || 'ច្បាប់ទូទៅ';
+        const isLateSession = 
+          pendingLeaveSession.requestType === 'late_excused' || 
+          pendingLeaveSession.requestType === 'late_deduct' || 
+          pendingLeaveSession.typeCode === 'late_excused' || 
+          pendingLeaveSession.typeCode === 'late_deduct';
+        const isExcused = pendingLeaveSession.isLateExcused ?? (pendingLeaveSession.typeCode === 'late_excused');
+        const reqType = isLateSession ? (isExcused ? 'late_excused' : 'late_deduct') : 'leave';
+        const deductAmt = isLateSession ? (isExcused ? 0 : (Number(pendingLeaveSession.deductionAmount) > 0 ? Number(pendingLeaveSession.deductionAmount) : 1)) : 0;
+        const leaveType = pendingLeaveSession.typeName || (isLateSession ? (isExcused ? 'យឺតមិនកាត់លុយ (អនុគ្រោះ)' : 'យឺតកាត់លុយ') : 'ច្បាប់ទូទៅ');
         const leaveDate = pendingLeaveSession.date || phnomPenhDateStr;
-        const leaveFullDetail = `សុំច្បាប់ ${leaveType} (${leaveReason})`;
+        const leaveFullDetail = isLateSession ? `${pendingLeaveSession.typeTitle || leaveType} (${leaveReason})` : `សុំច្បាប់ ${leaveType} (${leaveReason})`;
 
         if (supabase) {
           try {
@@ -1007,6 +1015,9 @@ export default async function handler(req: any, res: any) {
               details: leaveFullDetail,
               reason: leaveReason,
               leaveType: leaveType,
+              requestType: reqType,
+              isLateExcused: isExcused,
+              deductionAmount: deductAmt,
               status: 'Pending',
               createdAt: new Date().toISOString(),
               date: leaveDate
@@ -1019,16 +1030,27 @@ export default async function handler(req: any, res: any) {
           }
         }
 
-        const confirmStaffMsg = `✅ <b>ពាក្យសុំច្បាប់ត្រូវបានទទួលជោគជ័យ</b>\n\n` +
+        const titleText = isLateSession ? 'ពាក្យស្នើសុំយឺតត្រូវបានទទួលជោគជ័យ' : 'ពាក្យសុំច្បាប់ត្រូវបានទទួលជោគជ័យ';
+        const confirmStaffMsg = `✅ <b>${titleText}</b>\n\n` +
           `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff.fullName}</b>\n` +
           `🏢 <b>សាខា:</b> ${staffSpecificBranchName}\n` +
           `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leaveDate, displayDateStr)}</code>\n` +
-          `🏷️ <b>ប្រភេទច្បាប់:</b> ${pendingLeaveSession.typeTitle || leaveType}\n` +
+          `🏷️ <b>ប្រភេទ:</b> ${pendingLeaveSession.typeTitle || leaveType}\n` +
           `📝 <b>មូលហេតុ:</b> ${leaveReason}\n\n` +
           `⏳ <b>ស្ថានភាព:</b> 🟡 <b>រង់ចាំការអនុម័តពី Admin / Manager</b>\n\n` +
-          `🔔 ប្រព័ន្ធបានផ្ញើពាក្យសុំច្បាប់នេះទៅកាន់អ្នកគ្រប់គ្រងរួចរាល់ហើយ។`;
+          `🔔 ប្រព័ន្ធបានផ្ញើសំណើនេះទៅកាន់អ្នកគ្រប់គ្រងរួចរាល់ហើយ។`;
 
-        const leaveActionButtons = {
+        const leaveActionButtons = isLateSession ? {
+          inline_keyboard: [
+            [
+              { text: '🟢 អនុម័ត (មិនកាត់ប្រាក់)', callback_data: `leave_appr_free_${newLeaveId}` },
+              { text: '⚠️ អនុម័ត (កាត់ប្រាក់ $1)', callback_data: `leave_appr_ded1_${newLeaveId}` }
+            ],
+            [
+              { text: '❌ បដិសេធ', callback_data: `leave_rejc_${newLeaveId}` }
+            ]
+          ]
+        } : {
           inline_keyboard: [
             [
               { text: '✅ អនុម័ត', callback_data: `leave_appr_${newLeaveId}` },
@@ -1037,13 +1059,14 @@ export default async function handler(req: any, res: any) {
           ]
         };
 
-        const alertMsg = `🔔 <b>សំណើសុំច្បាប់ថ្មី</b>\n\n` +
+        const alertTitle = isLateSession ? 'សំណើសុំយឺតថ្មី' : 'សំណើសុំច្បាប់ថ្មី';
+        const alertMsg = `🔔 <b>${alertTitle}</b>\n\n` +
           `👤 <b>បុគ្គលិក:</b> ${matchedStaff.fullName}\n` +
           `💼 <b>តួនាទី:</b> ${matchedStaff.position || 'Staff'}\n` +
           `🏢 <b>សាខា:</b> ${staffSpecificBranchName}\n\n` +
           `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leaveDate, displayDateStr)}</code>\n` +
           `🕒 <b>ម៉ោងស្នើសុំ:</b> <code>${displayTimeStr}</code>\n` +
-          `🏷️ <b>ប្រភេទច្បាប់:</b> ${pendingLeaveSession.typeTitle || leaveType}\n` +
+          `🏷️ <b>ប្រភេទ:</b> ${pendingLeaveSession.typeTitle || leaveType}\n` +
           `📝 <b>មូលហេតុ:</b> ${leaveReason}\n\n` +
           `⏳ <b>ស្ថានភាព:</b> 🟡 <b>រង់ចាំការអនុម័ត</b>\n\n` +
           `👇 <b>សូមជ្រើសរើស៖</b>`;
@@ -1399,8 +1422,21 @@ export default async function handler(req: any, res: any) {
       if (isLeaveApprove || isLeaveReject || isLeaveRejectPreset) {
         let leaveId = '';
         let presetReasonText = '';
+        let forcedDeductionType: 'no_deduct' | 'with_deduct' | null = null;
+        let forcedDeductionAmount = 1;
+
         if (isLeaveApprove) {
-          leaveId = (callbackQuery.data || '').replace('leave_appr_', '');
+          const raw = callbackQuery.data || '';
+          if (raw.startsWith('leave_appr_free_')) {
+            leaveId = raw.replace('leave_appr_free_', '');
+            forcedDeductionType = 'no_deduct';
+          } else if (raw.startsWith('leave_appr_ded1_')) {
+            leaveId = raw.replace('leave_appr_ded1_', '');
+            forcedDeductionType = 'with_deduct';
+            forcedDeductionAmount = 1;
+          } else {
+            leaveId = raw.replace('leave_appr_', '');
+          }
         } else if (isLeaveReject) {
           leaveId = (callbackQuery.data || '').replace('leave_rejc_', '');
         } else if (isLeaveRejectPreset) {
@@ -1504,36 +1540,60 @@ export default async function handler(req: any, res: any) {
         const staffNotifyTarget = String(targetLeave.staffChatId || targetLeave.staffTelegramId || staffObj?.telegramId || '');
 
         if (isLeaveApprove) {
+          const isLateRequest = 
+            targetLeave.requestType === 'late_excused' || 
+            targetLeave.requestType === 'late_deduct' || 
+            (targetLeave.leaveType && targetLeave.leaveType.includes('យឺត')) || 
+            (targetLeave.details && targetLeave.details.includes('យឺត')) || 
+            (targetLeave.reason && targetLeave.reason.includes('យឺត')) ||
+            forcedDeductionType !== null;
+
+          const isExcused = forcedDeductionType === 'no_deduct' || 
+            (!forcedDeductionType && (targetLeave.requestType === 'late_excused' || (targetLeave.leaveType && targetLeave.leaveType.includes('មិនកាត់លុយ')) || (targetLeave.details && targetLeave.details.includes('មិនកាត់លុយ'))));
+
+          const deductAmt = isExcused ? 0 : (forcedDeductionType === 'with_deduct' ? forcedDeductionAmount : (Number(targetLeave.deductionAmount) > 0 ? Number(targetLeave.deductionAmount) : 1));
+
           targetLeave.status = 'Approved';
           targetLeave.approvedBy = approverName;
           targetLeave.approvedAt = new Date().toISOString();
+          targetLeave.isLateExcused = isExcused;
+          targetLeave.deductionAmount = isLateRequest ? (isExcused ? 0 : deductAmt) : 0;
 
-          // Auto record into attendance as 'Permission'
+          // Auto record into attendance as 'Late' or 'Permission'
           if (supabase) {
             try {
               let attList: any[] = (await loadDbCollection(supabase, 'attendance')) || [];
               const leaveDate = targetLeave.date || phnomPenhDateStr;
               const existAttIdx = attList.findIndex((a: any) => a.staffId === targetLeave.staffId && a.date === leaveDate);
-              
+              const attStatus = isLateRequest ? 'Late' : 'Permission';
+              const attNotes = isLateRequest 
+                ? (isExcused 
+                    ? `មកយឺតអនុគ្រោះ (មិនកាត់ប្រាក់) - ${targetLeave.details || targetLeave.reason || 'សុំយឺត'}` 
+                    : `មកយឺត (កាត់ប្រាក់ $${deductAmt}) - ${targetLeave.details || targetLeave.reason || 'សុំយឺត'}`)
+                : `ច្បាប់ឈប់សម្រាក (${targetLeave.details || 'Approved by Admin'})`;
+
               if (existAttIdx >= 0) {
-                // Keep existing check-in, check-out, workHours, photos, etc.!
-                attList[existAttIdx].status = 'Permission';
-                attList[existAttIdx].notes = `ច្បាប់ឈប់សម្រាក (${targetLeave.details || 'Approved by Admin'})`;
+                attList[existAttIdx].status = attStatus;
+                attList[existAttIdx].notes = attNotes;
+                attList[existAttIdx].isLateExcused = isExcused;
+                attList[existAttIdx].lateDeduction = isExcused ? 0 : deductAmt;
               } else {
                 attList.unshift({
-                  id: 'att_' + Date.now(),
+                  id: 'att_' + (isLateRequest ? 'late_' : 'perm_') + Date.now(),
                   staffId: targetLeave.staffId,
                   staffName: targetLeave.staffName,
                   branchId: targetLeave.branchId || 'b1',
                   branchName: targetLeave.branchName || 'Toto By Chi Chi MC Park',
                   date: leaveDate,
-                  checkIn: '--',
+                  checkIn: isLateRequest ? 'Late' : '--',
                   checkOut: '--',
                   workHours: 0,
                   overtimeHours: 0,
-                  status: 'Permission',
+                  status: attStatus,
                   source: 'manual',
-                  notes: `ច្បាប់ឈប់សម្រាក (${targetLeave.details || 'Approved by Admin'})`,
+                  notes: attNotes,
+                  isLateExcused: isExcused,
+                  lateDeduction: isExcused ? 0 : deductAmt,
                   createdAt: new Date().toISOString()
                 });
               }
@@ -1551,14 +1611,23 @@ export default async function handler(req: any, res: any) {
             } catch (err) {}
           }
 
+          const approvalToast = isLateRequest 
+            ? (isExcused ? `✅ បានអនុម័តយឺត (មិនកាត់លុយ) របស់ ${targetLeave.staffName}!` : `⚠️ បានអនុម័តយឺត (កាត់លុយ $${deductAmt}) របស់ ${targetLeave.staffName}!`)
+            : `✅ បានអនុម័តច្បាប់របស់ ${targetLeave.staffName} រួចរាល់!`;
+
           // Answer callback query toast
           if (callbackQuery.id) {
             fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ callback_query_id: callbackQuery.id, text: `✅ បានអនុម័តច្បាប់របស់ ${targetLeave.staffName} រួចរាល់!` })
+              body: JSON.stringify({ callback_query_id: callbackQuery.id, text: approvalToast })
             }).catch(() => {});
           }
+
+          const statusLine = isLateRequest
+            ? (isExcused ? `🟢 <b>ស្ថានភាព:</b> <b>អនុម័តយឺត (មិនកាត់ប្រាក់ / Excused)</b>` : `⚠️ <b>ស្ថានភាព:</b> <b>អនុម័តយឺត (កាត់ប្រាក់ $${deductAmt})</b>`)
+            : `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>`;
+          const titleHeader = isLateRequest ? 'ពាក្យស្នើសុំយឺតត្រូវបានអនុម័ត' : 'ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត';
 
           // 1. Notify the staff member who requested leave DIRECTLY back on Telegram
           if (staffNotifyTarget) {
@@ -1568,14 +1637,14 @@ export default async function handler(req: any, res: any) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   chat_id: staffNotifyTarget,
-                  text: `✅ <b>ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត</b>\n\n` +
+                  text: `✅ <b>${titleHeader}</b>\n\n` +
                     `👋 សួស្តី <b>${targetLeave.staffName}</b>!\n\n` +
-                    `ពាក្យសុំច្បាប់របស់អ្នកត្រូវបាន <b>អនុម័ត</b>។\n\n` +
+                    `${titleHeader}។\n\n` +
                     `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(targetLeave.date, displayDateStr)}</code>\n` +
                     `🏢 <b>សាខា:</b> ${targetLeave.branchName || 'Toto By Chi Chi MC Park'}\n\n` +
-                    `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${targetLeave.details || 'សុំច្បាប់'}\n\n` +
+                    `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${targetLeave.details || targetLeave.reason || 'ស្នើសុំ'}\n\n` +
                     `👤 <b>អនុម័តដោយ:</b> ${approverName}\n` +
-                    `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>`,
+                    statusLine,
                   parse_mode: 'HTML'
                 })
               });
@@ -1584,18 +1653,22 @@ export default async function handler(req: any, res: any) {
             }
           }
 
+          const updatedText = `✅ <b>${titleHeader}</b>\n\n` +
+            `👤 <b>បុគ្គលិក:</b> ${targetLeave.staffName}\n` +
+            `🏢 <b>សាខា:</b> ${targetLeave.branchName || 'Toto By Chi Chi MC Park'}\n` +
+            `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(targetLeave.date, displayDateStr)}</code>\n\n` +
+            `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${targetLeave.details || targetLeave.reason || 'ស្នើសុំ'}\n\n` +
+            `👤 <b>អ្នកអនុម័ត:</b> ${approverName}\n` +
+            statusLine + `\n\n` +
+            `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`;
+
+          const btnSummary = isLateRequest 
+            ? (isExcused ? `✅ អនុម័តយឺត (មិនកាត់ប្រាក់)` : `⚠️ អនុម័តយឺត (កាត់ប្រាក់ $${deductAmt})`)
+            : `✅ បានអនុម័តរួចរាល់`;
+
           // 2. Update the original alert message in the group/chat to show approved status & disable buttons
           if (msg?.message_id && chatId) {
             try {
-              const updatedText = `✅ <b>ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត</b>\n\n` +
-                `👤 <b>បុគ្គលិក:</b> ${targetLeave.staffName}\n` +
-                `🏢 <b>សាខា:</b> ${targetLeave.branchName || 'Toto By Chi Chi MC Park'}\n` +
-                `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(targetLeave.date, displayDateStr)}</code>\n\n` +
-                `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${targetLeave.details || 'សុំច្បាប់'}\n\n` +
-                `👤 <b>អ្នកអនុម័ត:</b> ${approverName}\n` +
-                `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>\n\n` +
-                `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`;
-
               await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1607,7 +1680,7 @@ export default async function handler(req: any, res: any) {
                   reply_markup: {
                     inline_keyboard: [
                       [
-                        { text: `✅ បានអនុម័តរួចរាល់`, callback_data: 'noop' }
+                        { text: btnSummary, callback_data: 'noop' }
                       ]
                     ]
                   }
@@ -1616,14 +1689,7 @@ export default async function handler(req: any, res: any) {
             } catch (e) {}
           }
 
-          const responseText = `✅ <b>ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត</b>\n\n` +
-            `👤 <b>បុគ្គលិក:</b> ${targetLeave.staffName}\n` +
-            `🏢 <b>សាខា:</b> ${targetLeave.branchName || 'Toto By Chi Chi MC Park'}\n` +
-            `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(targetLeave.date, displayDateStr)}</code>\n\n` +
-            `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${targetLeave.details || 'សុំច្បាប់'}\n\n` +
-            `👤 <b>អ្នកអនុម័ត:</b> ${approverName}\n` +
-            `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>\n\n` +
-            `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`;
+          const responseText = updatedText;
 
           return sendOrReply(res, botToken, {
             chat_id: chatId,
@@ -1967,6 +2033,8 @@ export default async function handler(req: any, res: any) {
         callbackQuery.data === 'leave_sick' ||
         callbackQuery.data === 'leave_personal' ||
         callbackQuery.data === 'leave_annual' ||
+        callbackQuery.data === 'leave_late_excused' ||
+        callbackQuery.data === 'leave_late_deduct' ||
         (callbackQuery.data?.startsWith('leave_') && !callbackQuery.data?.startsWith('leave_appr_') && !callbackQuery.data?.startsWith('leave_rejc_'))
       );
       const isLeaveCmd = 
@@ -1975,7 +2043,10 @@ export default async function handler(req: any, res: any) {
         userText === '/leave' || 
         userText.toLowerCase().includes('leave') || 
         userText.includes('សុំច្បាប់') ||
-        userText.includes('សុំឈប់');
+        userText.includes('សុំឈប់') ||
+        userText.includes('សុំយឺត') ||
+        userText.includes('មកយឺត') ||
+        userText.includes('ស្នើសុំយឺត');
 
       if (isLeaveCallback || isLeaveCmd) {
         if (!matchedStaff) {
@@ -1990,15 +2061,23 @@ export default async function handler(req: any, res: any) {
         // 1. Handle specific leave type button clicks
         if (isLeaveCallback) {
           const typeCode = callbackQuery.data.replace('leave_', '');
+          const isLateExcusedType = typeCode === 'late_excused';
+          const isLateDeductType = typeCode === 'late_deduct';
+          const isLateType = isLateExcusedType || isLateDeductType;
+
           const typeName = 
             typeCode === 'sick' ? 'ឈឺ' :
             typeCode === 'personal' ? 'ធុរៈផ្ទាល់ខ្លួន' :
-            typeCode === 'annual' ? 'សម្រាកប្រចាំឆ្នាំ' : 'ច្បាប់ទូទៅ';
+            typeCode === 'annual' ? 'សម្រាកប្រចាំឆ្នាំ' :
+            isLateExcusedType ? 'យឺតមិនកាត់លុយ (អនុគ្រោះ)' :
+            isLateDeductType ? 'យឺតកាត់លុយ' : 'ច្បាប់ទូទៅ';
 
           const typeTitle = 
             typeCode === 'sick' ? 'ឈឺ (Sick Leave)' :
             typeCode === 'personal' ? 'ធុរៈផ្ទាល់ខ្លួន (Personal Leave)' :
-            typeCode === 'annual' ? 'សម្រាកប្រចាំឆ្នាំ (Annual Leave)' : 'ច្បាប់ទូទៅ';
+            typeCode === 'annual' ? 'សម្រាកប្រចាំឆ្នាំ (Annual Leave)' :
+            isLateExcusedType ? '⏰ មកយឺតមិនកាត់លុយ (Excused Late)' :
+            isLateDeductType ? '⚠️ មកយឺតកាត់លុយ (Late with Deduction)' : 'ច្បាប់ទូទៅ';
 
           // Save pending session (valid for 15 mins)
           const sessionPayload = {
@@ -2006,6 +2085,9 @@ export default async function handler(req: any, res: any) {
             typeCode,
             typeName,
             typeTitle,
+            requestType: isLateExcusedType ? 'late_excused' : (isLateDeductType ? 'late_deduct' : 'leave'),
+            isLateExcused: isLateExcusedType,
+            deductionAmount: isLateDeductType ? 1 : 0,
             date: phnomPenhDateStr,
             createdAt: Date.now()
           };
@@ -2014,13 +2096,21 @@ export default async function handler(req: any, res: any) {
             await saveDbCollectionAsync(supabase, 'pending_leave_' + telegramId, sessionPayload);
           }
 
-          const leavePrompt = `📝 <b>[ពាក្យសុំច្បាប់៖ ${typeTitle}]</b>\n\n` +
-            `👤 <b>បុគ្គលិក៖</b> <b>${matchedStaff.fullName}</b>\n` +
-            `🏢 <b>សាខា៖</b> <b>${staffSpecificBranchName}</b>\n` +
-            `📅 <b>កាលបរិច្ឆេទ៖</b> <code>${displayDateStr}</code>\n\n` +
-            `👉 <b>សូមវាយផ្ញើសារ «មូលហេតុ» របស់អ្នកមកកាន់ Bot ឥឡូវនេះ៖</b>\n` +
-            `<i>(ឧទាហរណ៍៖ «ឈឺក្បាលក្តៅខ្លួនមិនអាចមកធ្វើការបាន» ឬ «ទៅខេត្តជួបជុំគ្រួសារ»)</i>\n\n` +
-            `ℹ️ <i>អ្នកគ្រាន់តែវាយមូលហេតុធម្មតា Bot នឹងកត់ត្រា និងជូនដំណឹងទៅ Admin ដោយស្វ័យប្រវត្តិ។</i>`;
+          const leavePrompt = isLateType
+            ? `⏰ <b>[ពាក្យស្នើសុំ៖ ${typeTitle}]</b>\n\n` +
+              `👤 <b>បុគ្គលិក៖</b> <b>${matchedStaff.fullName}</b>\n` +
+              `🏢 <b>សាខា៖</b> <b>${staffSpecificBranchName}</b>\n` +
+              `📅 <b>កាលបរិច្ឆេទ៖</b> <code>${displayDateStr}</code>\n\n` +
+              `👉 <b>សូមវាយផ្ញើសារ «មូលហេតុ ឬម៉ោងដែលត្រូវមកដល់» របស់អ្នកមកកាន់ Bot ឥឡូវនេះ៖</b>\n` +
+              `<i>(ឧទាហរណ៍៖ «យឺត ៣០នាទី ដោយសារជាប់ភ្លៀង» ឬ «យឺត ១ម៉ោង មានធុរៈផ្ទាល់ខ្លួន»)</i>\n\n` +
+              `ℹ️ <i>អ្នកគ្រាន់តែវាយមូលហេតុធម្មតា Bot នឹងកត់ត្រា និងជូនដំណឹងទៅ Admin ដោយស្វ័យប្រវត្តិ។</i>`
+            : `📝 <b>[ពាក្យសុំច្បាប់៖ ${typeTitle}]</b>\n\n` +
+              `👤 <b>បុគ្គលិក៖</b> <b>${matchedStaff.fullName}</b>\n` +
+              `🏢 <b>សាខា៖</b> <b>${staffSpecificBranchName}</b>\n` +
+              `📅 <b>កាលបរិច្ឆេទ៖</b> <code>${displayDateStr}</code>\n\n` +
+              `👉 <b>សូមវាយផ្ញើសារ «មូលហេតុ» របស់អ្នកមកកាន់ Bot ឥឡូវនេះ៖</b>\n` +
+              `<i>(ឧទាហរណ៍៖ «ឈឺក្បាលក្តៅខ្លួនមិនអាចមកធ្វើការបាន» ឬ «ទៅខេត្តជួបជុំគ្រួសារ»)</i>\n\n` +
+              `ℹ️ <i>អ្នកគ្រាន់តែវាយមូលហេតុធម្មតា Bot នឹងកត់ត្រា និងជូនដំណឹងទៅ Admin ដោយស្វ័យប្រវត្តិ។</i>`;
 
           return sendOrReply(res, botToken, {
             chat_id: chatId,
@@ -2030,18 +2120,25 @@ export default async function handler(req: any, res: any) {
           });
         }
 
-        // 2. Handle detailed leave submission text (e.g. "សុំច្បាប់ឈឺ...", "សុំច្បាប់ ទៅហៅយាយរាល់...", etc.)
-        const cleanTextWithoutCmd = userText.replace(/^(📝\s*)?សុំច្បាប់\s*/i, '').replace(/^(📝\s*)?សុំឈប់\s*/i, '').replace(/^\/leave\s*/i, '').trim();
+        // 2. Handle detailed leave submission text (e.g. "សុំច្បាប់ឈឺ...", "សុំយឺត ៣០នាទី...", etc.)
+        const cleanTextWithoutCmd = userText.replace(/^(📝\s*)?សុំច្បាប់\s*/i, '').replace(/^(📝\s*)?សុំឈប់\s*/i, '').replace(/^(📝\s*)?សុំយឺត\s*/i, '').replace(/^\/leave\s*/i, '').trim();
         const isDetailedLeaveSubmission = cleanTextWithoutCmd.length >= 2 || (userText.length > 10 && (
           userText.includes('ថ្ងៃ') || 
           userText.includes('មូលហេតុ') || 
           userText.includes('ឈឺ') || 
           userText.includes('ធុរៈ') || 
-          userText.includes('ខែ')
+          userText.includes('ខែ') ||
+          userText.includes('យឺត')
         ));
 
         if (isDetailedLeaveSubmission) {
           const newLeaveId = 'leave_' + Date.now();
+          const isLateDetailed = userText.includes('យឺត');
+          const isExcusedDetailed = userText.includes('មិនកាត់') || userText.includes('អនុគ្រោះ') || !userText.includes('កាត់');
+          const reqType = isLateDetailed ? (isExcusedDetailed ? 'late_excused' : 'late_deduct') : 'leave';
+          const deductAmt = isLateDetailed ? (isExcusedDetailed ? 0 : 1) : 0;
+          const leaveTypeName = isLateDetailed ? (isExcusedDetailed ? 'យឺតមិនកាត់លុយ (អនុគ្រោះ)' : 'យឺតកាត់លុយ') : 'ច្បាប់ទូទៅ';
+
           // Record leave request into database
           if (supabase) {
             try {
@@ -2055,27 +2152,44 @@ export default async function handler(req: any, res: any) {
                 branchId: staffSpecificBranchId,
                 branchName: staffSpecificBranchName,
                 details: userText,
+                reason: userText,
+                leaveType: leaveTypeName,
+                requestType: reqType,
+                isLateExcused: isExcusedDetailed,
+                deductionAmount: deductAmt,
                 status: 'Pending',
                 createdAt: new Date().toISOString(),
                 date: phnomPenhDateStr
               };
               leaveList.unshift(newLeave);
               await saveDbCollection(supabase, 'leaveRequests', leaveList);
+              updateMemCache('leaveRequests', leaveList);
             } catch (err) {
               console.error('Failed to save leave request:', err);
             }
           }
 
-          const confirmStaffMsg = `✅ <b>ពាក្យសុំច្បាប់ត្រូវបានទទួល</b>\n\n` +
+          const confirmHeader = isLateDetailed ? 'ពាក្យស្នើសុំយឺតត្រូវបានទទួល' : 'ពាក្យសុំច្បាប់ត្រូវបានទទួល';
+          const confirmStaffMsg = `✅ <b>${confirmHeader}</b>\n\n` +
             `👤 <b>បុគ្គលិក:</b> ${matchedStaff.fullName}\n` +
             `🏢 <b>សាខា:</b> ${staffSpecificBranchName}\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${displayDateStr}</code>\n\n` +
-            `📝 <b>មូលហេតុ:</b>\n${userText}\n\n` +
+            `📝 <b>ខ្លឹមសារ:</b>\n${userText}\n\n` +
             `⏳ <b>ស្ថានភាព:</b> 🟡 <b>រង់ចាំការអនុម័ត</b>\n\n` +
             `🔔 ពាក្យសុំត្រូវបានផ្ញើទៅកាន់អ្នកគ្រប់គ្រងរួចរាល់។`;
 
           // Forward notification with Approve & Reject buttons to Branch Group & Owner
-          const leaveActionButtons = {
+          const leaveActionButtons = isLateDetailed ? {
+            inline_keyboard: [
+              [
+                { text: '🟢 អនុម័ត (មិនកាត់ប្រាក់)', callback_data: `leave_appr_free_${newLeaveId}` },
+                { text: '⚠️ អនុម័ត (កាត់ប្រាក់ $1)', callback_data: `leave_appr_ded1_${newLeaveId}` }
+              ],
+              [
+                { text: '❌ បដិសេធ', callback_data: `leave_rejc_${newLeaveId}` }
+              ]
+            ]
+          } : {
             inline_keyboard: [
               [
                 { text: '✅ អនុម័ត', callback_data: `leave_appr_${newLeaveId}` },
@@ -2084,7 +2198,8 @@ export default async function handler(req: any, res: any) {
             ]
           };
 
-          const alertMsg = `🔔 <b>សំណើសុំច្បាប់ថ្មី</b>\n\n` +
+          const alertHeader = isLateDetailed ? 'សំណើសុំយឺតថ្មី' : 'សំណើសុំច្បាប់ថ្មី';
+          const alertMsg = `🔔 <b>${alertHeader}</b>\n\n` +
             `👤 <b>បុគ្គលិក:</b> ${matchedStaff.fullName}\n` +
             `💼 <b>តួនាទី:</b> ${matchedStaff.position || 'Staff'}\n` +
             `🏢 <b>សាខា:</b> ${staffSpecificBranchName}\n\n` +
@@ -2124,11 +2239,11 @@ export default async function handler(req: any, res: any) {
         }
 
         // 3. If staff clicked "📝 សុំច្បាប់", provide interactive leave type options
-        const leaveMenuMsg = `📝 <b>ស្នើសុំច្បាប់ឈប់សម្រាក</b>\n\n` +
+        const leaveMenuMsg = `📝 <b>ស្នើសុំច្បាប់ ឬស្នើសុំយឺត</b>\n\n` +
           `👤 <b>បុគ្គលិក:</b> ${matchedStaff.fullName}\n` +
           `🏢 <b>សាខា:</b> ${staffSpecificBranchName}\n` +
           `📅 <b>កាលបរិច្ឆេទ:</b> <code>${displayDateStr}</code>\n\n` +
-          `👇 <b>សូមជ្រើសរើសប្រភេទច្បាប់៖</b>`;
+          `👇 <b>សូមជ្រើសរើសប្រភេទពាក្យស្នើសុំ៖</b>`;
 
         const leaveButtons = {
           inline_keyboard: [
@@ -2140,6 +2255,12 @@ export default async function handler(req: any, res: any) {
             ],
             [
               { text: '🏖️ ឈប់សម្រាកប្រចាំឆ្នាំ (Annual Leave)', callback_data: 'leave_annual' }
+            ],
+            [
+              { text: '⏰ ស្នើសុំយឺត (មិនកាត់ប្រាក់ - អនុគ្រោះ)', callback_data: 'leave_late_excused' }
+            ],
+            [
+              { text: '⚠️ ស្នើសុំយឺត (កាត់ប្រាក់)', callback_data: 'leave_late_deduct' }
             ]
           ]
         };

@@ -98,7 +98,7 @@ export interface Staff {
   phone: string;
   address: string;
   position: string;
-  shift: 'Morning' | 'Afternoon' | 'Night' | 'Full Time';
+  shift: 'Morning' | 'Afternoon' | 'Night' | 'Full Time' | 'Day Off';
   startDate: string;
   resignationDate?: string;
   baseSalary: number;
@@ -170,7 +170,7 @@ export interface ExtraShift {
   staffId: string;
   staffName: string;
   date: string;
-  shift: 'Morning' | 'Afternoon' | 'Night' | 'Full Time';
+  shift: 'Morning' | 'Afternoon' | 'Night' | 'Full Time' | 'Day Off';
   shiftCount: number;
   ratePerShift: number; // default 6
   totalAmount: number; // shiftCount * ratePerShift
@@ -187,7 +187,7 @@ export interface TempShiftCover {
   name: string;
   phone?: string;
   date: string;
-  shift: 'Morning' | 'Afternoon' | 'Night' | 'Full Time';
+  shift: 'Morning' | 'Afternoon' | 'Night' | 'Full Time' | 'Day Off';
   shiftCount: number;
   ratePerShift: number; // default 6
   totalAmount: number; // shiftCount * ratePerShift
@@ -252,10 +252,36 @@ export interface Attendance {
   checkInPlatform?: string; // e.g., "Telegram iOS", "Telegram Android", "Web Browser"
   checkOutPlatform?: string;
   checkInIp?: string;
-  checkOutIp?: string;
+  notes?: string;
+  lateDeduction?: number;
+  isLateExcused?: boolean;
   auditHistory?: AttendanceAuditLog[];
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface LeaveRequest {
+  id: string;
+  staffId: string;
+  staffName: string;
+  staffTelegramId?: string;
+  staffChatId?: string;
+  branchId?: string;
+  branchName?: string;
+  date: string;
+  leaveType?: string;
+  requestType?: 'leave' | 'late_excused' | 'late_deduct';
+  deductionAmount?: number;
+  isLateExcused?: boolean;
+  reason?: string;
+  details?: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectedBy?: string;
+  rejectedAt?: string;
+  reviewNote?: string;
+  createdAt: string;
 }
 
 export type LaundryServiceType = 'Washing' | 'Drying' | 'Washing + Drying' | 'Other';

@@ -76,8 +76,8 @@ interface SalaryManagementViewProps {
   setTempShiftCovers?: React.Dispatch<React.SetStateAction<TempShiftCover[]>>;
   staffExpenses?: StaffExpense[];
   setStaffExpenses?: React.Dispatch<React.SetStateAction<StaffExpense[]>>;
-  adjustments?: Record<string, { leaveDays?: number; leaveDates?: string[]; deduction?: number; shiftOverride?: number }>;
-  setAdjustments?: React.Dispatch<React.SetStateAction<Record<string, { leaveDays?: number; leaveDates?: string[]; deduction?: number; shiftOverride?: number }>>>;
+  adjustments?: Record<string, { leaveDays?: number; leaveDates?: string[]; deduction?: number; shiftOverride?: number; shiftRate?: number }>;
+  setAdjustments?: React.Dispatch<React.SetStateAction<Record<string, { leaveDays?: number; leaveDates?: string[]; deduction?: number; shiftOverride?: number; shiftRate?: number }>>>;
   lang: 'en' | 'kh';
   onAddLog: (msg: string) => void;
   exchangeRate: number;
@@ -187,11 +187,11 @@ export default function SalaryManagementView({
   const setStaffExpenses = propSetStaffExpenses || setInternalStaffExpenses;
 
   // Manual Adjustments (Inline overrides for Leaves, Dates and Deductions)
-  const [internalAdjustments, setInternalAdjustments] = useState<Record<string, { leaveDays?: number; leaveDates?: string[]; deduction?: number; shiftOverride?: number }>>({});
+  const [internalAdjustments, setInternalAdjustments] = useState<Record<string, { leaveDays?: number; leaveDates?: string[]; deduction?: number; shiftOverride?: number; shiftRate?: number }>>({});
   const adjustments = propAdjustments || internalAdjustments;
   const setAdjustments = propSetAdjustments || setInternalAdjustments;
 
-  const saveAdjustment = (staffId: string, adj: { leaveDays?: number; leaveDates?: string[]; deduction?: number; shiftOverride?: number }) => {
+  const saveAdjustment = (staffId: string, adj: { leaveDays?: number; leaveDates?: string[]; deduction?: number; shiftOverride?: number; shiftRate?: number }) => {
     const key = `${staffId}_${selectedYear}_${selectedMonth}`;
     setAdjustments(prev => {
       const updated = { ...prev, [key]: { ...prev[key], ...adj } };
@@ -382,6 +382,7 @@ export default function SalaryManagementView({
   const [leaveModalStaff, setLeaveModalStaff] = useState<any | null>(null);
   const [leaveDaysInput, setLeaveDaysInput] = useState<number>(0);
   const [leaveDatesInput, setLeaveDatesInput] = useState<string>('');
+  const [leaveRateInput, setLeaveRateInput] = useState<number>(6);
 
   const [selectedPayslipRecord, setSelectedPayslipRecord] = useState<any | null>(null);
   const [bannerNotice, setBannerNotice] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
@@ -398,10 +399,10 @@ export default function SalaryManagementView({
     return availableStaff.map(staff => {
       const adj = getAdjustment(staff.id);
       const baseSalary = Number(staff.baseSalary || 0);
-      const shiftRate = 6; // Standard rate per shift/day
-      const dailyRate = 6;
+      const shiftRate = adj.shiftRate !== undefined ? Number(adj.shiftRate) : 6;
+      const dailyRate = shiftRate;
 
-      // 1. Extra Shifts for this employee in selected month & year (Rate = $6 per shift)
+      // 1. Extra Shifts for this employee in selected month & year (Rate = $shiftRate per shift)
       const empShifts = extraShifts.filter(s => 
         s.staffId === staff.id && 
         isRecordInPeriod(s.date, selectedMonth, selectedYear) &&
@@ -411,7 +412,7 @@ export default function SalaryManagementView({
       const autoShiftAmount = empShifts.reduce((sum, s) => sum + Number(s.totalAmount || (s.shiftCount * s.ratePerShift) || 0), 0);
       
       const finalShiftCount = adj.shiftOverride !== undefined ? adj.shiftOverride : autoShiftCount;
-      const finalShiftAmount = adj.shiftOverride !== undefined ? (finalShiftCount * 6) : autoShiftAmount;
+      const finalShiftAmount = adj.shiftOverride !== undefined ? (finalShiftCount * shiftRate) : autoShiftAmount;
 
       // 2. Staff Expenses to Reimburse (repaymentMethod === 'Payroll' and status !== 'Paid')
       const empExpenses = staffExpenses.filter(e => 
@@ -441,9 +442,16 @@ export default function SalaryManagementView({
         return parts.length === 3 ? `${parts[2]}/${parts[1]}` : a.date;
       });
 
+      // Late arrivals: compute deduction for unexcused late records
+      const lateRecords = staffAttendance.filter(a => a.status === 'Late');
+      const deductLateRecords = lateRecords.filter(a => !a.isLateExcused && Number(a.lateDeduction || 0) > 0);
+      const autoLateDeduct = deductLateRecords.reduce((sum, a) => sum + Number(a.lateDeduction || 0), 0);
+      const excusedLateCount = lateRecords.filter(a => a.isLateExcused).length;
+      const deductLateCount = deductLateRecords.length;
+
       const finalLeaveDays = adj.leaveDays !== undefined ? adj.leaveDays : autoAbsentDays;
       const finalLeaveDates = adj.leaveDates !== undefined ? adj.leaveDates : autoAbsentDates;
-      const autoLeaveDeduct = Number((finalLeaveDays * dailyRate).toFixed(2));
+      const autoLeaveDeduct = Number((finalLeaveDays * dailyRate + autoLateDeduct).toFixed(2));
       const finalDeduction = adj.deduction !== undefined ? adj.deduction : autoLeaveDeduct;
 
       // FINAL PAYMENT CALCULATION:
@@ -461,6 +469,7 @@ export default function SalaryManagementView({
       return {
         staff,
         baseSalary,
+        shiftRate,
         dailyRate,
         extraShiftCount: finalShiftCount,
         extraShiftAmount: finalShiftAmount,
@@ -469,6 +478,9 @@ export default function SalaryManagementView({
         leaveDays: finalLeaveDays,
         leaveDates: finalLeaveDates,
         deduction: finalDeduction,
+        autoLateDeduct,
+        excusedLateCount,
+        deductLateCount,
         finalPayment: isPaid && existingPaid ? existingPaid.netSalary : finalPayment,
         isPaid,
         paidRecord: existingPaid,
@@ -1314,7 +1326,14 @@ export default function SalaryManagementView({
                               step="0.5"
                               value={row.leaveDays === 0 ? '' : row.leaveDays}
                               placeholder="0"
-                              onChange={e => saveAdjustment(st.id, { leaveDays: Math.max(0, Number(e.target.value)) })}
+                              onChange={e => {
+                                const days = Math.max(0, Number(e.target.value));
+                                const rate = row.shiftRate ?? 6;
+                                saveAdjustment(st.id, { 
+                                  leaveDays: days,
+                                  deduction: Number((days * rate).toFixed(2))
+                                });
+                              }}
                               className="w-14 text-right px-2 py-1 bg-white border border-purple-200 rounded-lg text-xs font-mono font-bold text-purple-900 focus:outline-none focus:ring-1 focus:ring-purple-500 shadow-2xs"
                             />
                             <span className="text-[10px] text-purple-600 font-medium">{lang === 'kh' ? 'ថ្ងៃ' : 'd'}</span>
@@ -1322,6 +1341,11 @@ export default function SalaryManagementView({
                           <div className="text-[10px] text-right font-mono font-bold text-rose-600 mt-0.5">
                             -${row.deduction}
                           </div>
+                          {row.autoLateDeduct > 0 && (
+                            <div className="text-[9px] text-right text-amber-600 font-bold">
+                              (+យឺត: ${row.autoLateDeduct})
+                            </div>
+                          )}
                         </td>
 
                         {/* FINAL PAYMENT */}
@@ -1942,7 +1966,7 @@ export default function SalaryManagementView({
                 {lang === 'kh' ? 'វត្តមាន និងការឈប់សម្រាកបុគ្គលិក (Attendance & Leaves)' : 'Attendance & Leave Deductions'}
               </h3>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                {lang === 'kh' ? 'កត់ត្រាការកាត់ប្រាក់ឈប់សម្រាក • ចុច «បញ្ជាក់ថ្ងៃឈប់» ដើម្បីកត់ត្រាកាលបរិច្ឆេទឈប់ជាក់ស្តែង' : 'Standard leave deduction per shift (Days absent × $6)'}
+                {lang === 'kh' ? 'កត់ត្រាការកាត់ប្រាក់ឈប់សម្រាក • បញ្ចូលអត្រាវេនដោយផ្ទាល់ ឬចុច «បញ្ជាក់ថ្ងៃឈប់»' : 'Staff leave & absences • Set shift rate manually or click "Set Leave"'}
               </p>
             </div>
           </div>
@@ -1965,8 +1989,41 @@ export default function SalaryManagementView({
                   <tr key={row.staff.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="py-3 px-3.5 font-bold text-slate-900">{row.staff.fullName}</td>
                     <td className="py-3 px-3 text-right font-mono text-slate-600">${row.baseSalary}</td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-slate-700">${row.shiftRate || 6} / វេន</td>
-                    <td className="py-3 px-3 text-right font-mono font-bold text-amber-700">{row.leaveDays} ថ្ងៃ</td>
+                    <td className="py-2.5 px-3 text-right">
+                      <div className="inline-flex items-center justify-end gap-1">
+                        <span className="text-slate-400 font-mono text-xs font-bold">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={row.shiftRate ?? 6}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            const newRate = isNaN(val) ? 0 : val;
+                            saveAdjustment(row.staff.id, { 
+                              shiftRate: newRate,
+                              deduction: Number((row.leaveDays * newRate).toFixed(2))
+                            });
+                          }}
+                          className="w-16 px-1.5 py-1 text-right font-mono font-bold text-xs text-slate-800 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 shadow-2xs hover:border-slate-300 transition-all"
+                          title={lang === 'kh' ? 'កែប្រែអត្រាក្នុង ១វេនដោយផ្ទាល់' : 'Edit rate per shift manually'}
+                        />
+                        <span className="text-slate-400 text-[11px] font-medium">{lang === 'kh' ? '/ វេន' : '/ sh'}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 text-right">
+                      <span className="font-mono font-bold text-amber-700 block">{row.leaveDays} ថ្ងៃ</span>
+                      {row.deductLateCount > 0 && (
+                        <span className="block text-[9.5px] text-amber-700 font-semibold mt-0.5">
+                          យឺតកាត់ ${row.autoLateDeduct} ({row.deductLateCount}ដង)
+                        </span>
+                      )}
+                      {row.excusedLateCount > 0 && (
+                        <span className="block text-[9.5px] text-emerald-700 font-semibold mt-0.5">
+                          យឺតអនុគ្រោះ ({row.excusedLateCount}ដង)
+                        </span>
+                      )}
+                    </td>
                     <td className="py-3 px-3">
                       {row.leaveDates && row.leaveDates.length > 0 ? (
                         <div className="flex flex-wrap gap-1">
@@ -1980,7 +2037,14 @@ export default function SalaryManagementView({
                         <span className="text-slate-400 text-[11px]">-</span>
                       )}
                     </td>
-                    <td className="py-3 px-3 text-right font-mono font-black text-rose-700">-${row.deduction}</td>
+                    <td className="py-3 px-3 text-right">
+                      <span className="font-mono font-black text-rose-700 block">-${row.deduction}</span>
+                      {row.autoLateDeduct > 0 && (
+                        <span className="block text-[9.5px] text-slate-500 font-mono">
+                          (យឺត: -${row.autoLateDeduct})
+                        </span>
+                      )}
+                    </td>
                     <td className="py-3 px-3.5 text-right">
                       <button
                         type="button"
@@ -1988,6 +2052,7 @@ export default function SalaryManagementView({
                           setLeaveModalStaff(row.staff);
                           setLeaveDaysInput(row.leaveDays);
                           setLeaveDatesInput(Array.isArray(row.leaveDates) ? row.leaveDates.join(', ') : '');
+                          setLeaveRateInput(row.shiftRate ?? 6);
                         }}
                         className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold transition-all cursor-pointer inline-flex items-center gap-1"
                       >
@@ -2980,24 +3045,44 @@ export default function SalaryManagementView({
               saveAdjustment(leaveModalStaff.id, {
                 leaveDays: leaveDaysInput,
                 leaveDates: datesArr,
-                deduction: leaveDaysInput * 6
+                shiftRate: leaveRateInput,
+                deduction: Number((leaveDaysInput * leaveRateInput).toFixed(2))
               });
               showBanner('success', lang === 'kh' ? `បានកត់ត្រាថ្ងៃឈប់សម្រាកជូន ${leaveModalStaff.fullName} រួចរាល់!` : `Saved leave dates for ${leaveModalStaff.fullName}!`);
               setLeaveModalStaff(null);
             }} className="space-y-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                  {lang === 'kh' ? 'ចំនួនថ្ងៃ/វេនឈប់សម្រាក' : 'Days Absent'}
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="31"
-                  required
-                  value={leaveDaysInput}
-                  onChange={e => setLeaveDaysInput(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-amber-500"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    {lang === 'kh' ? 'ចំនួនថ្ងៃ/វេនឈប់សម្រាក' : 'Days Absent'}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="31"
+                    required
+                    value={leaveDaysInput}
+                    onChange={e => setLeaveDaysInput(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    {lang === 'kh' ? 'អត្រាក្នុង ១វេន ($)' : 'Rate / Shift ($)'}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs font-bold">$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      required
+                      value={leaveRateInput}
+                      onChange={e => setLeaveRateInput(parseFloat(e.target.value) || 0)}
+                      className="w-full pl-6 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-amber-500"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -3018,7 +3103,7 @@ export default function SalaryManagementView({
 
               <div className="p-3 bg-rose-50 rounded-xl border border-rose-200/80 flex items-center justify-between text-xs font-bold text-rose-900">
                 <span>{lang === 'kh' ? 'ប្រាក់ត្រូវកាត់ (Deduction):' : 'Total Deduction:'}</span>
-                <span className="text-sm font-black font-mono text-rose-700">-${leaveDaysInput * 6} ({leaveDaysInput} វេន × $6)</span>
+                <span className="text-sm font-black font-mono text-rose-700">-${(leaveDaysInput * leaveRateInput).toFixed(2)} ({leaveDaysInput} វេន × ${leaveRateInput})</span>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
