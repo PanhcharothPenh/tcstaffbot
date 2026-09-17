@@ -120,6 +120,71 @@ function formatWorkDuration(hours: number): string {
   return `${m} នាទី`;
 }
 
+function getApproverRecipientChatIds(
+  storedConfig: any,
+  allUsers: any[],
+  branchId?: string,
+  excludeChatId?: string,
+  excludeStaffTgId?: string
+): Set<string> {
+  const recipients = new Set<string>();
+
+  // 1. Branch Group Telegram ID
+  const branchGroupChatId = 
+    (branchId && storedConfig?.chatIds?.branches?.[branchId]) || 
+    storedConfig?.chatIds?.branches?.b1;
+  if (branchGroupChatId) {
+    const s = String(branchGroupChatId).trim();
+    if (s && s !== excludeChatId) recipients.add(s);
+  }
+
+  // 2. All Owners & Admins in User Management (users collection)
+  if (Array.isArray(allUsers)) {
+    for (const u of allUsers) {
+      const r = String(u.role || u.roleId || '').toLowerCase();
+      const isOwnerOrAdmin = r === 'owner' || r === 'admin' || u.id === 'usr_owner';
+      const tgId = String(u.telegramChatId || u.telegramId || '').trim();
+      if (isOwnerOrAdmin && tgId && /^-?\d+$/.test(tgId)) {
+        if (tgId !== excludeChatId && tgId !== excludeStaffTgId) {
+          recipients.add(tgId);
+        }
+      }
+    }
+  }
+
+  // 3. Stored Config owner & admin
+  if (storedConfig?.chatIds?.owner) {
+    const oId = String(storedConfig.chatIds.owner).trim();
+    if (oId && /^-?\d+$/.test(oId) && oId !== excludeChatId && oId !== excludeStaffTgId) {
+      recipients.add(oId);
+    }
+  }
+  if (storedConfig?.chatIds?.admin) {
+    const aId = String(storedConfig.chatIds.admin).trim();
+    if (aId && /^-?\d+$/.test(aId) && aId !== excludeChatId && aId !== excludeStaffTgId) {
+      recipients.add(aId);
+    }
+  }
+
+  // 4. Branch Managers assigned to this specific branch
+  if (Array.isArray(allUsers) && branchId) {
+    for (const u of allUsers) {
+      const r = String(u.role || u.roleId || '').toLowerCase();
+      if (r === 'manager') {
+        const assigned = Array.isArray(u.assignedBranchIds) ? u.assignedBranchIds : [];
+        if (assigned.includes(branchId) || assigned.includes('all')) {
+          const tgId = String(u.telegramChatId || u.telegramId || '').trim();
+          if (tgId && /^-?\d+$/.test(tgId) && tgId !== excludeChatId && tgId !== excludeStaffTgId) {
+            recipients.add(tgId);
+          }
+        }
+      }
+    }
+  }
+
+  return recipients;
+}
+
 async function getTargetBots(supabase?: any): Promise<Array<{ token: string; branchId: string; name: string }>> {
   const bots: Array<{ token: string; branchId: string; name: string }> = [];
   let unifiedToken = (
@@ -1071,10 +1136,13 @@ export default async function handler(req: any, res: any) {
           `⏳ <b>ស្ថានភាព:</b> 🟡 <b>រង់ចាំការអនុម័ត</b>\n\n` +
           `👇 <b>សូមជ្រើសរើស៖</b>`;
 
-        const branchTargetChatId = storedConfig?.chatIds?.branches?.[staffSpecificBranchId] || storedConfig?.chatIds?.branches?.[effectiveBranchId] || storedConfig?.chatIds?.branches?.b1;
-        const targetRecipients = new Set<string>();
-        if (branchTargetChatId && branchTargetChatId !== chatId) targetRecipients.add(branchTargetChatId);
-        if (chatId !== '8412569939' && matchedStaff.telegramId !== '8412569939') targetRecipients.add('8412569939');
+        const targetRecipients = getApproverRecipientChatIds(
+          storedConfig, 
+          allUsers, 
+          staffSpecificBranchId, 
+          chatId, 
+          matchedStaff.telegramId
+        );
 
         for (const targetId of targetRecipients) {
           try {
@@ -1449,7 +1517,43 @@ export default async function handler(req: any, res: any) {
           else if (code === 'denied') presetReasonText = 'មិនអនុញ្ញាតសម្រាកនៅថ្ងៃនេះ';
           else presetReasonText = 'មិនមានការបញ្ជាក់មូលហេតុបន្ថែម';
         }
-        const approverName = matchedStaff?.fullName || firstName || (cleanTgHandle ? `@${cleanTgHandle}` : 'Admin / Owner');
+
+        const clickerTgId = String(telegramId || '').trim();
+        const isAuthorizedApprover = Boolean(
+          (matchedUser && (
+            matchedUser.role === 'Owner' || matchedUser.roleId === 'owner' ||
+            matchedUser.role === 'Admin' || matchedUser.roleId === 'admin' ||
+            matchedUser.role === 'Manager' || matchedUser.roleId === 'manager'
+          )) ||
+          (matchedStaff && (
+            matchedStaff.role === 'Owner' || matchedStaff.roleId === 'owner' ||
+            matchedStaff.role === 'Admin' || matchedStaff.roleId === 'admin' ||
+            matchedStaff.role === 'Manager' || matchedStaff.roleId === 'manager' ||
+            String(matchedStaff.position || '').toLowerCase().includes('owner') ||
+            String(matchedStaff.position || '').toLowerCase().includes('admin') ||
+            String(matchedStaff.position || '').toLowerCase().includes('manager')
+          )) ||
+          (storedConfig?.chatIds?.owner && String(storedConfig.chatIds.owner) === clickerTgId) ||
+          (storedConfig?.chatIds?.admin && String(storedConfig.chatIds.admin) === clickerTgId) ||
+          String(chatId).startsWith('-')
+        );
+
+        if (!isAuthorizedApprover) {
+          if (callbackQuery.id) {
+            fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                callback_query_id: callbackQuery.id,
+                text: '⛔ អ្នកមិនមានសិទ្ធិអនុម័ត ឬបដិសេធពាក្យស្នើសុំនេះទេ!',
+                show_alert: true
+              })
+            }).catch(() => {});
+          }
+          return res.status(200).json({ ok: true });
+        }
+
+        const approverName = matchedUser?.fullName || matchedStaff?.fullName || firstName || (cleanTgHandle ? `@${cleanTgHandle}` : 'Admin / Owner');
 
         let leaveList: any[] = [];
         if (supabase) {
@@ -1664,8 +1768,8 @@ export default async function handler(req: any, res: any) {
             `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`;
 
           const btnSummary = isLateRequest 
-            ? (isExcused ? `✅ អនុម័តយឺត (មិនកាត់ប្រាក់)` : `⚠️ អនុម័តយឺត (កាត់ប្រាក់ $${deductAmt})`)
-            : `✅ បានអនុម័តរួចរាល់`;
+            ? (isExcused ? `✅ អនុម័តយឺត (មិនកាត់ប្រាក់) ដោយ ${approverName}` : `⚠️ អនុម័តយឺត (កាត់ប្រាក់ $${deductAmt}) ដោយ ${approverName}`)
+            : `✅ បានអនុម័តដោយ ${approverName}`;
 
           // 2. Update the original alert message in the group/chat to show approved status & disable buttons
           if (msg?.message_id && chatId) {
@@ -1688,6 +1792,39 @@ export default async function handler(req: any, res: any) {
                 })
               });
             } catch (e) {}
+          }
+
+          // 3. Broadcast to all OTHER store owners, admins, and branch group that this request was approved by approverName
+          const otherBroadcastMsg = `📢 <b>[ដំណឹងអនុម័ត / Approval Notice]</b>\n\n` +
+            `✅ ពាក្យស្នើសុំរបស់ <b>${targetLeave.staffName}</b> ត្រូវបានអនុម័តរួចរាល់ហើយ!\n\n` +
+            `👤 <b>បុគ្គលិក:</b> ${targetLeave.staffName}\n` +
+            `🏢 <b>សាខា:</b> ${targetLeave.branchName || 'Toto By Chi Chi MC Park'}\n` +
+            `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(targetLeave.date, displayDateStr)}</code>\n\n` +
+            `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${targetLeave.details || targetLeave.reason || 'ស្នើសុំយឺត'}\n\n` +
+            `👤 <b>អនុម័តដោយ:</b> <b>${approverName}</b>\n` +
+            adminStatusLine + `\n\n` +
+            `🔔 ប្រព័ន្ធបានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`;
+
+          const allTargetApprovers = getApproverRecipientChatIds(
+            storedConfig, 
+            allUsers, 
+            targetLeave.branchId || staffSpecificBranchId
+          );
+
+          for (const targetRecipientId of allTargetApprovers) {
+            if (String(targetRecipientId) !== String(chatId) && String(targetRecipientId) !== String(staffNotifyTarget)) {
+              try {
+                fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    chat_id: targetRecipientId,
+                    text: otherBroadcastMsg,
+                    parse_mode: 'HTML'
+                  })
+                }).catch(() => {});
+              } catch (_) {}
+            }
           }
 
           const responseText = updatedText;
@@ -1856,6 +1993,29 @@ export default async function handler(req: any, res: any) {
                 })
               });
             } catch (e) {}
+          }
+
+          // 4. Broadcast rejection to all other store owners, admins, and branch group
+          const allTargetApprovers = getApproverRecipientChatIds(
+            storedConfig, 
+            allUsers, 
+            targetLeave.branchId || staffSpecificBranchId
+          );
+
+          for (const targetRecipientId of allTargetApprovers) {
+            if (String(targetRecipientId) !== String(chatId) && String(targetRecipientId) !== String(staffNotifyTarget)) {
+              try {
+                fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    chat_id: targetRecipientId,
+                    text: finalResultText,
+                    parse_mode: 'HTML'
+                  })
+                }).catch(() => {});
+              } catch (_) {}
+            }
           }
 
           return sendOrReply(res, botToken, {
@@ -2200,11 +2360,13 @@ export default async function handler(req: any, res: any) {
             `⏳ <b>ស្ថានភាព:</b> 🟡 <b>រង់ចាំការអនុម័ត</b>\n\n` +
             `👇 <b>សូមជ្រើសរើសការអនុម័ត៖</b>`;
 
-          const branchTargetChatId = storedConfig?.chatIds?.branches?.[staffSpecificBranchId] || storedConfig?.chatIds?.branches?.[effectiveBranchId] || storedConfig?.chatIds?.branches?.b1;
-          const targetRecipients = new Set<string>();
-          if (branchTargetChatId && branchTargetChatId !== chatId) targetRecipients.add(branchTargetChatId);
-          // Also send to owner chat (8412569939) if different from current sender
-          if (chatId !== '8412569939' && matchedStaff.telegramId !== '8412569939') targetRecipients.add('8412569939');
+          const targetRecipients = getApproverRecipientChatIds(
+            storedConfig, 
+            allUsers, 
+            staffSpecificBranchId, 
+            chatId, 
+            matchedStaff.telegramId
+          );
 
           for (const targetId of targetRecipients) {
             try {

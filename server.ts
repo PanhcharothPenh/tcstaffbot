@@ -4796,9 +4796,7 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
       telegramId === '7818150707' || 
       cleanTgHandle === 'millerppc' || 
       telegramId === '366357620' || 
-      cleanTgHandle === 'p6c5r' || 
-      telegramId === '8412569939' || 
-      cleanTgHandle === 'clean24vengsreng'
+      cleanTgHandle === 'p6c5r'
     );
     let matchedStaff = (localDb.staff || []).find((s: any) => 
       (s.telegramId && String(s.telegramId) === telegramId) ||
@@ -5169,9 +5167,7 @@ async function pollTelegramAttendanceBot() {
           telegramId === '7818150707' || 
           cleanTgHandle === 'millerppc' || 
           telegramId === '366357620' || 
-          cleanTgHandle === 'p6c5r' || 
-          telegramId === '8412569939' || 
-          cleanTgHandle === 'clean24vengsreng'
+          cleanTgHandle === 'p6c5r'
         );
         const matchedUser = (localDb.users || []).find((u: any) =>
           (u.telegramId && String(u.telegramId) === telegramId) ||
@@ -5403,8 +5399,6 @@ app.post('/api/telegram/validate-init-data', (req, res) => {
       cleanTgName === 'millerppc' ||
       cleanTgId === '366357620' ||
       cleanTgName === 'p6c5r' ||
-      cleanTgId === '8412569939' || 
-      cleanTgName === 'clean24vengsreng' || 
       staff.role === 'Owner' || 
       staff.roleId === 'owner' ||
       (staff.position && staff.position.toLowerCase().includes('owner'))
@@ -5648,24 +5642,47 @@ app.post(['/api/leave-requests', '/api/leave-requests/'], async (req, res) => {
       }
 
       // Also broadcast notification to Branch Telegram Group
+      // Also broadcast notification to Branch Telegram Group and all Owners/Admins
+      const broadcastTargets = new Set<string>();
       const branchGroupChatId = localDb?.telegramConfig?.chatIds?.branches?.[leave.branchId] || localDb?.telegramConfig?.chatIds?.branches?.b1;
-      if (token && branchGroupChatId && branchGroupChatId !== staffChatTarget) {
-        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: branchGroupChatId,
-            text: `✅ <b>${titleHeader}</b>\n\n` +
-              `👤 <b>បុគ្គលិក:</b> ${leave.staffName || matchedStaff?.fullName || 'បុគ្គលិក'}\n` +
-              `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n` +
-              `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leave.date || leaveDate)}</code>\n\n` +
-              `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${leave.details || leave.reason || 'សុំច្បាប់'}\n\n` +
-              `👤 <b>អ្នកអនុម័ត:</b> ${leave.approvedBy}\n` +
-              groupStatusLine + `\n\n` +
-              `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`,
-            parse_mode: 'HTML'
-          })
-        }).catch(() => {});
+      if (branchGroupChatId) broadcastTargets.add(String(branchGroupChatId).trim());
+      if (localDb?.telegramConfig?.chatIds?.owner) broadcastTargets.add(String(localDb.telegramConfig.chatIds.owner).trim());
+      if (localDb?.telegramConfig?.chatIds?.admin) broadcastTargets.add(String(localDb.telegramConfig.chatIds.admin).trim());
+
+      if (Array.isArray(localDb.users)) {
+        for (const u of localDb.users) {
+          const r = String(u.role || u.roleId || '').toLowerCase();
+          if (r === 'owner' || r === 'admin' || u.id === 'usr_owner') {
+            const tgId = String(u.telegramChatId || u.telegramId || '').trim();
+            if (tgId && /^-?\d+$/.test(tgId)) broadcastTargets.add(tgId);
+          }
+        }
+      }
+
+      const broadcastMsg = `📢 <b>[ដំណឹងអនុម័ត / Approval Notice]</b>\n\n` +
+        `✅ ពាក្យស្នើសុំរបស់ <b>${leave.staffName || matchedStaff?.fullName || 'បុគ្គលិក'}</b> ត្រូវបានអនុម័តរួចរាល់ហើយ!\n\n` +
+        `👤 <b>បុគ្គលិក:</b> ${leave.staffName || matchedStaff?.fullName || 'បុគ្គលិក'}\n` +
+        `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n` +
+        `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leave.date || leaveDate)}</code>\n\n` +
+        `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${leave.details || leave.reason || 'ស្នើសុំ'}\n\n` +
+        `👤 <b>អ្នកអនុម័ត:</b> <b>${leave.approvedBy}</b>\n` +
+        groupStatusLine + `\n\n` +
+        `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`;
+
+      if (token) {
+        for (const cid of broadcastTargets) {
+          if (cid !== staffChatTarget) {
+            fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: cid,
+                text: broadcastMsg,
+                parse_mode: 'HTML'
+              })
+            }).catch(() => {});
+          }
+        }
       }
 
       return res.json({ success: true, message: 'Leave request approved', leave, attendance: localDb.attendance });
@@ -5714,26 +5731,48 @@ app.post(['/api/leave-requests', '/api/leave-requests/'], async (req, res) => {
         }).catch(() => {});
       }
 
-      // Also broadcast rejection to Branch Telegram Group
+      // Also broadcast rejection to Branch Telegram Group and all Owners/Admins
+      const rejectTargets = new Set<string>();
       const branchGroupChatId = localDb?.telegramConfig?.chatIds?.branches?.[leave.branchId] || localDb?.telegramConfig?.chatIds?.branches?.b1;
-      if (token && branchGroupChatId && branchGroupChatId !== staffChatTarget) {
-        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: branchGroupChatId,
-            text: `❌ <b>ពាក្យសុំច្បាប់ត្រូវបានបដិសេធ</b>\n\n` +
-              `👤 <b>បុគ្គលិក:</b> ${leave.staffName || matchedStaff?.fullName || 'បុគ្គលិក'}\n` +
-              `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n` +
-              `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leave.date)}</code>\n\n` +
-              `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${leave.details || ''}\n\n` +
-              `💬 <b>មូលហេតុបដិសេធ:</b>\n${note || 'មិនមានការបញ្ជាក់មូលហេតុបន្ថែម'}\n\n` +
-              `👤 <b>អ្នកពិនិត្យ:</b> ${leave.rejectedBy}\n` +
-              `🔴 <b>ស្ថានភាព:</b> <b>បដិសេធ</b>\n\n` +
-              `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`,
-            parse_mode: 'HTML'
-          })
-        }).catch(() => {});
+      if (branchGroupChatId) rejectTargets.add(String(branchGroupChatId).trim());
+      if (localDb?.telegramConfig?.chatIds?.owner) rejectTargets.add(String(localDb.telegramConfig.chatIds.owner).trim());
+      if (localDb?.telegramConfig?.chatIds?.admin) rejectTargets.add(String(localDb.telegramConfig.chatIds.admin).trim());
+
+      if (Array.isArray(localDb.users)) {
+        for (const u of localDb.users) {
+          const r = String(u.role || u.roleId || '').toLowerCase();
+          if (r === 'owner' || r === 'admin' || u.id === 'usr_owner') {
+            const tgId = String(u.telegramChatId || u.telegramId || '').trim();
+            if (tgId && /^-?\d+$/.test(tgId)) rejectTargets.add(tgId);
+          }
+        }
+      }
+
+      const rejectNotice = `📢 <b>[ដំណឹងបដិសេធ / Rejection Notice]</b>\n\n` +
+        `❌ ពាក្យសុំច្បាប់របស់ <b>${leave.staffName || matchedStaff?.fullName || 'បុគ្គលិក'}</b> ត្រូវបានបដិសេធ!\n\n` +
+        `👤 <b>បុគ្គលិក:</b> ${leave.staffName || matchedStaff?.fullName || 'បុគ្គលិក'}\n` +
+        `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n` +
+        `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leave.date)}</code>\n\n` +
+        `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${leave.details || ''}\n\n` +
+        `💬 <b>មូលហេតុបដិសេធ:</b>\n${note || 'មិនមានការបញ្ជាក់មូលហេតុបន្ថែម'}\n\n` +
+        `👤 <b>អ្នកពិនិត្យ:</b> <b>${leave.rejectedBy}</b>\n` +
+        `🔴 <b>ស្ថានភាព:</b> <b>បដិសេធ</b>\n\n` +
+        `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`;
+
+      if (token) {
+        for (const cid of rejectTargets) {
+          if (cid !== staffChatTarget) {
+            fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: cid,
+                text: rejectNotice,
+                parse_mode: 'HTML'
+              })
+            }).catch(() => {});
+          }
+        }
       }
 
       return res.json({ success: true, message: 'Leave request rejected', leave });

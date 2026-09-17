@@ -652,8 +652,6 @@ export default async function handler(req: any, res: any) {
         cleanTgName === 'millerppc' ||
         cleanTgId === '366357620' ||
         cleanTgName === 'p6c5r' ||
-        cleanTgId === '8412569939' || 
-        cleanTgName === 'clean24vengsreng' || 
         matchedStaff.role === 'Owner' || 
         matchedStaff.roleId === 'owner' ||
         (matchedStaff.position && matchedStaff.position.toLowerCase().includes('owner'))
