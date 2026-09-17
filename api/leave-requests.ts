@@ -161,11 +161,12 @@ export default async function handler(req: any, res: any) {
         const botToken = resolveBotToken();
         const staffChatTarget = String(leave.staffChatId || leave.staffTelegramId || matchedStaff?.telegramId || '');
 
-        const statusLine = isLateRequest
+        const staffStatusLine = `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>`;
+        const groupStatusLine = isLateRequest
           ? (isExcused ? `🟢 <b>ស្ថានភាព:</b> <b>អនុម័តយឺត (មិនកាត់ប្រាក់ / Excused)</b>` : `⚠️ <b>ស្ថានភាព:</b> <b>អនុម័តយឺត (កាត់ប្រាក់ $${deductAmt})</b>`)
           : `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>`;
 
-        const titleHeader = isLateRequest ? 'ពាក្យស្នើសុំយឺតត្រូវបានអនុម័ត' : 'ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត';
+        const titleHeader = isLateRequest ? 'ពាក្យស្នើសុំមកយឺតត្រូវបានអនុម័ត' : 'ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត';
 
         if (botToken && staffChatTarget) {
           try {
@@ -181,7 +182,7 @@ export default async function handler(req: any, res: any) {
                   `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n\n` +
                   `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${leave.details || leave.reason || 'ស្នើសុំ'}\n\n` +
                   `👤 <b>អនុម័តដោយ:</b> ${leave.approvedBy}\n` +
-                  statusLine,
+                  staffStatusLine,
                 parse_mode: 'HTML'
               })
             });
@@ -202,9 +203,9 @@ export default async function handler(req: any, res: any) {
                   `👤 <b>បុគ្គលិក:</b> ${leave.staffName}\n` +
                   `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n` +
                   `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leave.date || leaveDate)}</code>\n\n` +
-                  `📝 <b>ខ្លឹមសារ:</b>\n${leave.details || leave.reason || 'ស្នើសុំ'}\n\n` +
+                  `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${leave.details || leave.reason || 'ស្នើសុំ'}\n\n` +
                   `👤 <b>អ្នកអនុម័ត:</b> ${leave.approvedBy}\n` +
-                  statusLine + `\n\n` +
+                  groupStatusLine + `\n\n` +
                   `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`,
                 parse_mode: 'HTML'
               })

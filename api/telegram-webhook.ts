@@ -1624,12 +1624,13 @@ export default async function handler(req: any, res: any) {
             }).catch(() => {});
           }
 
-          const statusLine = isLateRequest
+          const staffStatusLine = `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>`;
+          const adminStatusLine = isLateRequest
             ? (isExcused ? `🟢 <b>ស្ថានភាព:</b> <b>អនុម័តយឺត (មិនកាត់ប្រាក់ / Excused)</b>` : `⚠️ <b>ស្ថានភាព:</b> <b>អនុម័តយឺត (កាត់ប្រាក់ $${deductAmt})</b>`)
             : `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>`;
-          const titleHeader = isLateRequest ? 'ពាក្យស្នើសុំយឺតត្រូវបានអនុម័ត' : 'ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត';
+          const titleHeader = isLateRequest ? 'ពាក្យស្នើសុំមកយឺតត្រូវបានអនុម័ត' : 'ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត';
 
-          // 1. Notify the staff member who requested leave DIRECTLY back on Telegram
+          // 1. Notify the staff member who requested leave DIRECTLY back on Telegram (neutral, no deduction mentioned)
           if (staffNotifyTarget) {
             try {
               await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -1642,9 +1643,9 @@ export default async function handler(req: any, res: any) {
                     `${titleHeader}។\n\n` +
                     `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(targetLeave.date, displayDateStr)}</code>\n` +
                     `🏢 <b>សាខា:</b> ${targetLeave.branchName || 'Toto By Chi Chi MC Park'}\n\n` +
-                    `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${targetLeave.details || targetLeave.reason || 'ស្នើសុំ'}\n\n` +
+                    `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${targetLeave.details || targetLeave.reason || 'ស្នើសុំយឺត'}\n\n` +
                     `👤 <b>អនុម័តដោយ:</b> ${approverName}\n` +
-                    statusLine,
+                    staffStatusLine,
                   parse_mode: 'HTML'
                 })
               });
@@ -1657,9 +1658,9 @@ export default async function handler(req: any, res: any) {
             `👤 <b>បុគ្គលិក:</b> ${targetLeave.staffName}\n` +
             `🏢 <b>សាខា:</b> ${targetLeave.branchName || 'Toto By Chi Chi MC Park'}\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(targetLeave.date, displayDateStr)}</code>\n\n` +
-            `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${targetLeave.details || targetLeave.reason || 'ស្នើសុំ'}\n\n` +
+            `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${targetLeave.details || targetLeave.reason || 'ស្នើសុំយឺត'}\n\n` +
             `👤 <b>អ្នកអនុម័ត:</b> ${approverName}\n` +
-            statusLine + `\n\n` +
+            adminStatusLine + `\n\n` +
             `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`;
 
           const btnSummary = isLateRequest 
@@ -2033,6 +2034,7 @@ export default async function handler(req: any, res: any) {
         callbackQuery.data === 'leave_sick' ||
         callbackQuery.data === 'leave_personal' ||
         callbackQuery.data === 'leave_annual' ||
+        callbackQuery.data === 'leave_late' ||
         callbackQuery.data === 'leave_late_excused' ||
         callbackQuery.data === 'leave_late_deduct' ||
         (callbackQuery.data?.startsWith('leave_') && !callbackQuery.data?.startsWith('leave_appr_') && !callbackQuery.data?.startsWith('leave_rejc_'))
@@ -2061,23 +2063,19 @@ export default async function handler(req: any, res: any) {
         // 1. Handle specific leave type button clicks
         if (isLeaveCallback) {
           const typeCode = callbackQuery.data.replace('leave_', '');
-          const isLateExcusedType = typeCode === 'late_excused';
-          const isLateDeductType = typeCode === 'late_deduct';
-          const isLateType = isLateExcusedType || isLateDeductType;
+          const isLateType = typeCode === 'late' || typeCode === 'late_excused' || typeCode === 'late_deduct';
 
           const typeName = 
             typeCode === 'sick' ? 'ឈឺ' :
             typeCode === 'personal' ? 'ធុរៈផ្ទាល់ខ្លួន' :
             typeCode === 'annual' ? 'សម្រាកប្រចាំឆ្នាំ' :
-            isLateExcusedType ? 'យឺតមិនកាត់លុយ (អនុគ្រោះ)' :
-            isLateDeductType ? 'យឺតកាត់លុយ' : 'ច្បាប់ទូទៅ';
+            isLateType ? 'សុំយឺត' : 'ច្បាប់ទូទៅ';
 
           const typeTitle = 
             typeCode === 'sick' ? 'ឈឺ (Sick Leave)' :
             typeCode === 'personal' ? 'ធុរៈផ្ទាល់ខ្លួន (Personal Leave)' :
             typeCode === 'annual' ? 'សម្រាកប្រចាំឆ្នាំ (Annual Leave)' :
-            isLateExcusedType ? '⏰ មកយឺតមិនកាត់លុយ (Excused Late)' :
-            isLateDeductType ? '⚠️ មកយឺតកាត់លុយ (Late with Deduction)' : 'ច្បាប់ទូទៅ';
+            isLateType ? '⏰ ស្នើសុំមកយឺត (Late Arrival)' : 'ច្បាប់ទូទៅ';
 
           // Save pending session (valid for 15 mins)
           const sessionPayload = {
@@ -2085,9 +2083,7 @@ export default async function handler(req: any, res: any) {
             typeCode,
             typeName,
             typeTitle,
-            requestType: isLateExcusedType ? 'late_excused' : (isLateDeductType ? 'late_deduct' : 'leave'),
-            isLateExcused: isLateExcusedType,
-            deductionAmount: isLateDeductType ? 1 : 0,
+            requestType: isLateType ? 'late' : 'leave',
             date: phnomPenhDateStr,
             createdAt: Date.now()
           };
@@ -2097,12 +2093,12 @@ export default async function handler(req: any, res: any) {
           }
 
           const leavePrompt = isLateType
-            ? `⏰ <b>[ពាក្យស្នើសុំ៖ ${typeTitle}]</b>\n\n` +
+            ? `⏰ <b>[ពាក្យស្នើសុំមកយឺត (Late Arrival)]</b>\n\n` +
               `👤 <b>បុគ្គលិក៖</b> <b>${matchedStaff.fullName}</b>\n` +
               `🏢 <b>សាខា៖</b> <b>${staffSpecificBranchName}</b>\n` +
               `📅 <b>កាលបរិច្ឆេទ៖</b> <code>${displayDateStr}</code>\n\n` +
-              `👉 <b>សូមវាយផ្ញើសារ «មូលហេតុ ឬម៉ោងដែលត្រូវមកដល់» របស់អ្នកមកកាន់ Bot ឥឡូវនេះ៖</b>\n` +
-              `<i>(ឧទាហរណ៍៖ «យឺត ៣០នាទី ដោយសារជាប់ភ្លៀង» ឬ «យឺត ១ម៉ោង មានធុរៈផ្ទាល់ខ្លួន»)</i>\n\n` +
+              `👉 <b>សូមវាយផ្ញើសារ «មូលហេតុ និងម៉ោងដែលត្រូវមកដល់» របស់អ្នកមកកាន់ Bot ឥឡូវនេះ៖</b>\n` +
+              `<i>(ឧទាហរណ៍៖ «យឺត ៣០នាទី ដោយសារជាប់ភ្លៀង» ឬ «យឺតដល់ម៉ោង ៨:៣០ មានធុរៈផ្ទាល់ខ្លួន»)</i>\n\n` +
               `ℹ️ <i>អ្នកគ្រាន់តែវាយមូលហេតុធម្មតា Bot នឹងកត់ត្រា និងជូនដំណឹងទៅ Admin ដោយស្វ័យប្រវត្តិ។</i>`
             : `📝 <b>[ពាក្យសុំច្បាប់៖ ${typeTitle}]</b>\n\n` +
               `👤 <b>បុគ្គលិក៖</b> <b>${matchedStaff.fullName}</b>\n` +
@@ -2134,10 +2130,7 @@ export default async function handler(req: any, res: any) {
         if (isDetailedLeaveSubmission) {
           const newLeaveId = 'leave_' + Date.now();
           const isLateDetailed = userText.includes('យឺត');
-          const isExcusedDetailed = userText.includes('មិនកាត់') || userText.includes('អនុគ្រោះ') || !userText.includes('កាត់');
-          const reqType = isLateDetailed ? (isExcusedDetailed ? 'late_excused' : 'late_deduct') : 'leave';
-          const deductAmt = isLateDetailed ? (isExcusedDetailed ? 0 : 1) : 0;
-          const leaveTypeName = isLateDetailed ? (isExcusedDetailed ? 'យឺតមិនកាត់លុយ (អនុគ្រោះ)' : 'យឺតកាត់លុយ') : 'ច្បាប់ទូទៅ';
+          const leaveTypeName = isLateDetailed ? 'សុំយឺត' : 'ច្បាប់ទូទៅ';
 
           // Record leave request into database
           if (supabase) {
@@ -2154,9 +2147,7 @@ export default async function handler(req: any, res: any) {
                 details: userText,
                 reason: userText,
                 leaveType: leaveTypeName,
-                requestType: reqType,
-                isLateExcused: isExcusedDetailed,
-                deductionAmount: deductAmt,
+                requestType: isLateDetailed ? 'late' : 'leave',
                 status: 'Pending',
                 createdAt: new Date().toISOString(),
                 date: phnomPenhDateStr
@@ -2169,12 +2160,12 @@ export default async function handler(req: any, res: any) {
             }
           }
 
-          const confirmHeader = isLateDetailed ? 'ពាក្យស្នើសុំយឺតត្រូវបានទទួល' : 'ពាក្យសុំច្បាប់ត្រូវបានទទួល';
+          const confirmHeader = isLateDetailed ? 'ពាក្យស្នើសុំមកយឺតត្រូវបានទទួល' : 'ពាក្យសុំច្បាប់ត្រូវបានទទួល';
           const confirmStaffMsg = `✅ <b>${confirmHeader}</b>\n\n` +
             `👤 <b>បុគ្គលិក:</b> ${matchedStaff.fullName}\n` +
             `🏢 <b>សាខា:</b> ${staffSpecificBranchName}\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${displayDateStr}</code>\n\n` +
-            `📝 <b>ខ្លឹមសារ:</b>\n${userText}\n\n` +
+            `📝 <b>មូលហេតុ:</b>\n${userText}\n\n` +
             `⏳ <b>ស្ថានភាព:</b> 🟡 <b>រង់ចាំការអនុម័ត</b>\n\n` +
             `🔔 ពាក្យសុំត្រូវបានផ្ញើទៅកាន់អ្នកគ្រប់គ្រងរួចរាល់។`;
 
@@ -2198,7 +2189,7 @@ export default async function handler(req: any, res: any) {
             ]
           };
 
-          const alertHeader = isLateDetailed ? 'សំណើសុំយឺតថ្មី' : 'សំណើសុំច្បាប់ថ្មី';
+          const alertHeader = isLateDetailed ? 'សំណើសុំមកយឺតថ្មី' : 'សំណើសុំច្បាប់ថ្មី';
           const alertMsg = `🔔 <b>${alertHeader}</b>\n\n` +
             `👤 <b>បុគ្គលិក:</b> ${matchedStaff.fullName}\n` +
             `💼 <b>តួនាទី:</b> ${matchedStaff.position || 'Staff'}\n` +
@@ -2207,7 +2198,7 @@ export default async function handler(req: any, res: any) {
             `🕒 <b>ម៉ោងស្នើសុំ:</b> <code>${displayTimeStr}</code>\n\n` +
             `📝 <b>មូលហេតុ:</b>\n${userText}\n\n` +
             `⏳ <b>ស្ថានភាព:</b> 🟡 <b>រង់ចាំការអនុម័ត</b>\n\n` +
-            `👇 <b>សូមជ្រើសរើស៖</b>`;
+            `👇 <b>សូមជ្រើសរើសការអនុម័ត៖</b>`;
 
           const branchTargetChatId = storedConfig?.chatIds?.branches?.[staffSpecificBranchId] || storedConfig?.chatIds?.branches?.[effectiveBranchId] || storedConfig?.chatIds?.branches?.b1;
           const targetRecipients = new Set<string>();
@@ -2239,7 +2230,7 @@ export default async function handler(req: any, res: any) {
         }
 
         // 3. If staff clicked "📝 សុំច្បាប់", provide interactive leave type options
-        const leaveMenuMsg = `📝 <b>ស្នើសុំច្បាប់ ឬស្នើសុំយឺត</b>\n\n` +
+        const leaveMenuMsg = `📝 <b>ស្នើសុំច្បាប់ ឬស្នើសុំមកយឺត</b>\n\n` +
           `👤 <b>បុគ្គលិក:</b> ${matchedStaff.fullName}\n` +
           `🏢 <b>សាខា:</b> ${staffSpecificBranchName}\n` +
           `📅 <b>កាលបរិច្ឆេទ:</b> <code>${displayDateStr}</code>\n\n` +
@@ -2257,10 +2248,7 @@ export default async function handler(req: any, res: any) {
               { text: '🏖️ ឈប់សម្រាកប្រចាំឆ្នាំ (Annual Leave)', callback_data: 'leave_annual' }
             ],
             [
-              { text: '⏰ ស្នើសុំយឺត (មិនកាត់ប្រាក់ - អនុគ្រោះ)', callback_data: 'leave_late_excused' }
-            ],
-            [
-              { text: '⚠️ ស្នើសុំយឺត (កាត់ប្រាក់)', callback_data: 'leave_late_deduct' }
+              { text: '⏰ ស្នើសុំមកយឺត (Late Request)', callback_data: 'leave_late' }
             ]
           ]
         };

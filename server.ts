@@ -5622,10 +5622,11 @@ app.post(['/api/leave-requests', '/api/leave-requests/'], async (req, res) => {
       const token = resolveTelegramBotToken();
       const matchedStaff = (localDb.staff || []).find((s: any) => s.id === leave.staffId);
       const staffChatTarget = String(leave.staffChatId || leave.staffTelegramId || matchedStaff?.telegramId || '');
-      const statusLine = isLateRequest
+      const staffStatusLine = `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>`;
+      const groupStatusLine = isLateRequest
         ? (isExcused ? `🟢 <b>ស្ថានភាព:</b> <b>អនុម័តយឺត (មិនកាត់ប្រាក់ / Excused)</b>` : `⚠️ <b>ស្ថានភាព:</b> <b>អនុម័តយឺត (កាត់ប្រាក់ $${deductAmt})</b>`)
         : `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>`;
-      const titleHeader = isLateRequest ? 'ពាក្យស្នើសុំយឺតត្រូវបានអនុម័ត' : 'ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត';
+      const titleHeader = isLateRequest ? 'ពាក្យស្នើសុំមកយឺតត្រូវបានអនុម័ត' : 'ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត';
 
       if (token && staffChatTarget) {
         fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -5640,7 +5641,7 @@ app.post(['/api/leave-requests', '/api/leave-requests/'], async (req, res) => {
               `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n\n` +
               `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${leave.details || leave.reason || 'ស្នើសុំ'}\n\n` +
               `👤 <b>អនុម័តដោយ:</b> ${leave.approvedBy}\n` +
-              statusLine,
+              staffStatusLine,
             parse_mode: 'HTML'
           })
         }).catch(() => {});
@@ -5654,13 +5655,13 @@ app.post(['/api/leave-requests', '/api/leave-requests/'], async (req, res) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chat_id: branchGroupChatId,
-            text: `✅ <b>ពាក្យសុំច្បាប់ត្រូវបានអនុម័ត</b>\n\n` +
+            text: `✅ <b>${titleHeader}</b>\n\n` +
               `👤 <b>បុគ្គលិក:</b> ${leave.staffName || matchedStaff?.fullName || 'បុគ្គលិក'}\n` +
               `🏢 <b>សាខា:</b> ${leave.branchName || 'Toto By Chi Chi MC Park'}\n` +
               `📅 <b>កាលបរិច្ឆេទ:</b> <code>${formatDisplayDate(leave.date || leaveDate)}</code>\n\n` +
-              `📝 <b>មូលហេតុសុំច្បាប់:</b>\n${leave.details || 'សុំច្បាប់'}\n\n` +
+              `📝 <b>ខ្លឹមសារស្នើសុំ:</b>\n${leave.details || leave.reason || 'សុំច្បាប់'}\n\n` +
               `👤 <b>អ្នកអនុម័ត:</b> ${leave.approvedBy}\n` +
-              `🟢 <b>ស្ថានភាព:</b> <b>អនុម័ត</b>\n\n` +
+              groupStatusLine + `\n\n` +
               `🔔 បានជូនដំណឹងទៅកាន់បុគ្គលិករួចរាល់។`,
             parse_mode: 'HTML'
           })
