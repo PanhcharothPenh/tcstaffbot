@@ -1876,25 +1876,18 @@ export default function AttendanceView({
               id="attendance-printable-a4-ledger"
               className="w-full max-w-[840px] bg-white text-slate-900 p-8 sm:p-10 shadow-xl rounded-2xl space-y-6 font-sans antialiased border border-slate-100"
             >
-              {/* Official Kingdom Header & Company Details */}
+              {/* Official Kingdom Header & Enterprise Info */}
               <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-4 border-b-2 border-slate-900">
-                  {/* Left Side: Organization / Enterprise Info */}
+                  {/* Left Side: Enterprise / Branch Info */}
                   <div className="space-y-1 text-left">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-11 h-11 rounded-2xl bg-[#003D9B] text-white flex items-center justify-center font-black text-lg shadow-xs shrink-0">
-                        TC
-                      </div>
-                      <div>
-                        <h1 className="text-base font-black text-slate-900 tracking-tight leading-tight">
-                          TC STAFF MANAGEMENT SYSTEM
-                        </h1>
-                        <div className="text-xs font-bold text-slate-700 mt-0.5">
-                          {printableBranchObj ? printableBranchObj.branchName : 'គ្រប់សាខា (All Branches)'}
-                        </div>
-                      </div>
+                    <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight uppercase font-serif">
+                      TC COFFEE &amp; MANAGEMENT SYSTEM
+                    </h1>
+                    <div className="text-xs font-bold text-slate-800">
+                      សាខាប្រតិបត្តិការ៖ {printableBranchObj ? printableBranchObj.branchName : 'គ្រប់សាខា (All Branches)'}
                     </div>
-                    <div className="text-[10.5px] text-slate-500 pt-1 space-y-0.5 leading-relaxed">
+                    <div className="text-[11px] text-slate-600 pt-0.5 space-y-0.5">
                       <div><b>អាសយដ្ឋាន៖</b> {printableBranchObj?.address || 'រាជធានីភ្នំពេញ, ព្រះរាជាណាចក្រកម្ពុជា'}</div>
                       <div><b>ទូរស័ព្ទ៖</b> {printableBranchObj?.phone || '012 345 678'}</div>
                     </div>
@@ -1902,107 +1895,68 @@ export default function AttendanceView({
 
                   {/* Right Side: Official Kingdom of Cambodia Motto */}
                   <div className="text-center sm:text-right self-center sm:self-start">
-                    <div className="text-sm sm:text-base font-black text-slate-900 tracking-wider">
+                    <div className="text-base sm:text-lg font-black text-slate-900 tracking-wider font-serif">
                       ព្រះរាជាណាចក្រកម្ពុជា
                     </div>
-                    <div className="text-xs sm:text-sm font-black text-slate-800 tracking-widest mt-0.5">
+                    <div className="text-xs sm:text-sm font-black text-slate-900 tracking-widest mt-1">
                       ជាតិ  សាសនា  ព្រះមហាក្សត្រ
                     </div>
                     {/* Traditional ornamental flourish symbol */}
-                    <div className="flex items-center justify-center sm:justify-end gap-1.5 mt-1 text-slate-600">
-                      <span className="h-[1.5px] w-7 bg-slate-500 rounded-full inline-block"></span>
-                      <span className="text-[11px] leading-none select-none">𖣔</span>
-                      <span className="h-[1.5px] w-7 bg-slate-500 rounded-full inline-block"></span>
+                    <div className="flex items-center justify-center sm:justify-end gap-1.5 mt-1.5 text-slate-700">
+                      <span className="text-xs tracking-widest select-none font-serif">៚ ໒ ໒ ໒ ៚</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Document Title Banner */}
-                <div className="text-center py-2 space-y-1">
-                  <h2 className="text-lg sm:text-xl font-black text-[#003D9B] tracking-wide">
-                    សៀវភៅបញ្ជីវត្តមានបុគ្គលិក និងម៉ោងធ្វើការ
+                {/* Document Title */}
+                <div className="text-center pt-2 pb-1 space-y-1">
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-wide uppercase font-serif">
+                    សៀវភៅបញ្ជីវត្តមាន និងម៉ោងធ្វើការបុគ្គលិក
                   </h2>
-                  <h3 className="text-xs font-black text-slate-600 tracking-widest uppercase">
+                  <h3 className="text-xs font-bold text-slate-600 tracking-widest uppercase">
                     STAFF ATTENDANCE &amp; WORKING HOURS LEDGER
                   </h3>
-                  <div className="inline-flex items-center gap-2 mt-1 px-3 py-1 bg-slate-100 border border-slate-200 rounded-full text-xs font-bold text-slate-800 shadow-2xs">
-                    <span>ប្រចាំខែ៖ <b>{monthNamesKh[selectedMonth - 1]} ឆ្នាំ {selectedYear}</b> ({monthNamesEn[selectedMonth - 1]} {selectedYear})</span>
+                  <div className="text-xs font-bold text-slate-800 mt-1">
+                    ប្រចាំខែ៖ <b>{monthNamesKh[selectedMonth - 1]} ឆ្នាំ {selectedYear}</b> ({monthNamesEn[selectedMonth - 1]} {selectedYear})
                   </div>
                 </div>
               </div>
 
-              {/* Report Info Grid */}
-              <div className="bg-slate-50/90 p-4 rounded-2xl border border-slate-200/90 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div className="border-r border-slate-200/80 pr-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">ឈ្មោះបុគ្គលិក (Staff)</span>
-                  <span className="font-black text-slate-900 text-sm block mt-0.5">
-                    {printableStaffObj ? printableStaffObj.fullName : 'បុគ្គលិកទាំងអស់ (All Staff)'}
-                  </span>
-                </div>
-                <div className="border-r border-slate-200/80 pr-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">តួនាទី / វេនធ្វើការ</span>
-                  <span className="font-bold text-slate-800 block mt-0.5">
-                    {printableStaffObj ? `${printableStaffObj.position || 'Staff'} • ${printableStaffObj.shift || 'Full Time'}` : 'គ្រប់តួនាទី (All Roles)'}
-                  </span>
-                </div>
-                <div className="border-r border-slate-200/80 pr-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">សាខាប្រតិបត្តិការ</span>
-                  <span className="font-bold text-slate-800 block mt-0.5">
-                    {printableBranchObj ? printableBranchObj.branchName : 'គ្រប់សាខា (All Branches)'}
-                  </span>
+              {/* Official Staff & Scope Details (Clean lines, NO BOXES) */}
+              <div className="border-t border-b border-slate-400 py-2.5 my-2 grid grid-cols-2 sm:grid-cols-4 gap-y-1.5 gap-x-4 text-xs text-slate-800">
+                <div>
+                  <span className="text-slate-600 font-medium">ឈ្មោះបុគ្គលិក៖ </span>
+                  <b className="text-slate-900">{printableStaffObj ? printableStaffObj.fullName : 'បុគ្គលិកទាំងអស់ (All Staff)'}</b>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">លេខសម្គាល់ (ID Card)</span>
-                  <span className="font-mono font-bold text-slate-800 block mt-0.5">
-                    {printableStaffObj?.idCardNumber || printableStaffObj?.phone || 'N/A'}
-                  </span>
+                  <span className="text-slate-600 font-medium">តួនាទី / វេន៖ </span>
+                  <b className="text-slate-900">{printableStaffObj ? `${printableStaffObj.position || 'បុគ្គលិក'} • ${printableStaffObj.shift || 'ពេញម៉ោង'}` : 'គ្រប់តួនាទី (All Roles)'}</b>
+                </div>
+                <div>
+                  <span className="text-slate-600 font-medium">សាខាប្រតិបត្តិការ៖ </span>
+                  <b className="text-slate-900">{printableBranchObj ? printableBranchObj.branchName : 'គ្រប់សាខា (All Branches)'}</b>
+                </div>
+                <div>
+                  <span className="text-slate-600 font-medium">អត្តលេខ / ទូរស័ព្ទ៖ </span>
+                  <b className="text-slate-900 font-mono">{printableStaffObj?.idCardNumber || printableStaffObj?.phone || 'N/A'}</b>
                 </div>
               </div>
 
-              {/* 5 Summary Stat Badges */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
-                <div className="bg-white border border-blue-200 rounded-xl p-3 text-center shadow-2xs">
-                  <span className="text-[10.5px] font-bold text-blue-700 block">ចំនួនថ្ងៃសរុប (Days)</span>
-                  <span className="text-xl font-black text-blue-900 mt-1 block">{printableTotals.totalDays}</span>
-                </div>
-                <div className="bg-white border border-emerald-200 rounded-xl p-3 text-center shadow-2xs">
-                  <span className="text-[10.5px] font-bold text-emerald-700 block">ម៉ោងសរុប (Hours)</span>
-                  <span className="text-xl font-black text-emerald-900 mt-1 block">
-                    {formatWorkDuration(printableTotals.totalWorkHours)}
-                  </span>
-                </div>
-                <div className="bg-white border border-amber-200 rounded-xl p-3 text-center shadow-2xs">
-                  <span className="text-[10.5px] font-bold text-amber-700 block">ម៉ោងបន្ថែម (OT)</span>
-                  <span className="text-xl font-black text-amber-900 mt-1 block">{printableTotals.totalOtHours}h</span>
-                </div>
-                <div className="bg-white border border-purple-200 rounded-xl p-3 text-center shadow-2xs">
-                  <span className="text-[10.5px] font-bold text-purple-700 block">វត្តមានទាន់ពេល</span>
-                  <span className="text-xl font-black text-purple-900 mt-1 block">{printableTotals.presentCount} ថ្ងៃ</span>
-                </div>
-                <div className="bg-white border border-amber-300 rounded-xl p-3 text-center shadow-2xs">
-                  <span className="text-[10.5px] font-bold text-amber-700 block">មកយឺត (Late)</span>
-                  <span className="text-lg font-black text-amber-900 mt-1 block">{printableTotals.lateCount} លើក</span>
-                  <span className="text-[10px] text-amber-600 font-bold block mt-0.5 whitespace-nowrap">
-                    {formatLateMinutes(printableTotals.totalLateMinutes, 'kh')}
-                  </span>
-                </div>
-              </div>
-
-              {/* Full Detailed Day-by-Day Table */}
-              <div className="rounded-xl border border-slate-300 overflow-hidden shadow-2xs">
+              {/* Full Detailed Day-by-Day Table (Clean Official Ledger) */}
+              <div className="border border-slate-400 overflow-hidden">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-[#003D9B] text-white text-[10.5px] font-bold">
-                      <th className="py-2.5 px-2.5 text-center w-8 border-r border-blue-800">#</th>
-                      <th className="py-2.5 px-3 border-r border-blue-800">កាលបរិច្ឆេទ</th>
-                      <th className="py-2.5 px-3 border-r border-blue-800">
+                    <tr className="bg-slate-100 text-slate-900 text-[10.5px] font-bold border-b border-slate-400">
+                      <th className="py-2.5 px-2.5 text-center w-8 border-r border-slate-300">#</th>
+                      <th className="py-2.5 px-3 border-r border-slate-300">កាលបរិច្ឆេទ</th>
+                      <th className="py-2.5 px-3 border-r border-slate-300">
                         {printableStaffObj ? 'វេន' : 'ឈ្មោះបុគ្គលិក'}
                       </th>
-                      <th className="py-2.5 px-2.5 text-center border-r border-blue-800">ម៉ោងចូល</th>
-                      <th className="py-2.5 px-2.5 text-center border-r border-blue-800">ម៉ោងចេញ</th>
-                      <th className="py-2.5 px-2.5 text-center border-r border-blue-800">រយៈពេលធ្វើការ</th>
-                      <th className="py-2.5 px-2.5 text-center border-r border-blue-800">OT</th>
-                      <th className="py-2.5 px-2.5 text-center border-r border-blue-800">ស្ថានភាព</th>
+                      <th className="py-2.5 px-2.5 text-center border-r border-slate-300">ម៉ោងចូល</th>
+                      <th className="py-2.5 px-2.5 text-center border-r border-slate-300">ម៉ោងចេញ</th>
+                      <th className="py-2.5 px-2.5 text-center border-r border-slate-300">រយៈពេលធ្វើការ</th>
+                      <th className="py-2.5 px-2.5 text-center border-r border-slate-300">OT</th>
+                      <th className="py-2.5 px-2.5 text-center border-r border-slate-300">ស្ថានភាព</th>
                       <th className="py-2.5 px-2.5 text-center">ប្រភព</th>
                     </tr>
                   </thead>
