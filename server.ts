@@ -4835,8 +4835,8 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
     const staffReplyKeyboard = {
       keyboard: [
         [
-          { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
-          { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+          { text: '📸 ចុះវត្តមានចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
+          { text: '🚪 ចុះវត្តមានចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
         ],
         [
           { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
@@ -4851,8 +4851,8 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
     const ownerReplyKeyboard = {
       keyboard: [
         [
-          { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
-          { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+          { text: '📸 ចុះវត្តមានចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
+          { text: '🚪 ចុះវត្តមានចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
         ],
         [
           { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
@@ -4883,7 +4883,7 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
       const absentStaff = allStaff.filter((s: any) => !presentOrPermStaffIds.has(s.id));
 
       let summaryText = `👥 <b>[វត្តមានបុគ្គលិកប្រចាំថ្ងៃ]</b>\n📅 <code>${todayStr}</code>\n\n`;
-      summaryText += `🟢 <b>បានចុះឈ្មោះចូល (${presentList.length} នាក់)៖</b>\n`;
+      summaryText += `🟢 <b>បានចុះវត្តមានចូល (${presentList.length} នាក់)៖</b>\n`;
       if (presentList.length === 0) {
         summaryText += `(មិនទាន់មានបុគ្គលិកណាចូលធ្វើការនៅឡើយទេ)\n`;
       } else {
@@ -4991,8 +4991,8 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
     // Handle Help (របៀបប្រើប្រាស់)
     if (text === '❓ របៀបប្រើប្រាស់' || text === '/help') {
       const helpMsg = `❓ <b>របៀបប្រើប្រាស់ TC Staff Bot</b>\n\n` +
-        `1. ចុច <b>📸 ចុះឈ្មោះចូល</b> ដើម្បីបើកកាមេរ៉ាស្កេនមុខ Check-in\n` +
-        `2. ចុច <b>🚪 ចុះឈ្មោះចេញ</b> ដើម្បីបើកកាមេរ៉ាស្កេនមុខ Check-out\n` +
+        `1. ចុច <b>📸 ចុះវត្តមានចូល</b> ដើម្បីបើកកាមេរ៉ាស្កេនមុខ Check-in\n` +
+        `2. ចុច <b>🚪 ចុះវត្តមានចេញ</b> ដើម្បីបើកកាមេរ៉ាស្កេនមុខ Check-out\n` +
         `3. ចុច <b>📊 មើលប្រវត្តិវត្តមាន</b> ដើម្បីមើលទិន្នន័យវត្តមានផ្ទាល់ខ្លួន\n` +
         `4. ចុច <b>📝 សុំច្បាប់</b> ដើម្បីដាក់ពាក្យស្នើសុំច្បាប់ឈប់សម្រាក\n` +
         (isOwnerRole ? `5. ចុច <b>👥 វត្តមានបុគ្គលិកទាំងអស់</b> និង <b>📑 ពាក្យសុំច្បាប់ទាំងអស់</b> សម្រាប់អ្នកគ្រប់គ្រង\n` : '');
@@ -5198,8 +5198,8 @@ async function pollTelegramAttendanceBot() {
         const staffReplyKeyboard = {
           keyboard: [
             [
-              { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
-              { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+              { text: '📸 ចុះវត្តមានចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
+              { text: '🚪 ចុះវត្តមានចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
             ],
             [
               { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
@@ -5213,8 +5213,8 @@ async function pollTelegramAttendanceBot() {
         const ownerReplyKeyboard = {
           keyboard: [
             [
-              { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
-              { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+              { text: '📸 ចុះវត្តមានចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
+              { text: '🚪 ចុះវត្តមានចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
             ],
             [
               { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
@@ -6036,7 +6036,7 @@ app.post('/api/attendance/check-in', async (req, res) => {
     if (existing && isRealTime(existing.checkIn) && existing.status !== 'Absent') {
       return res.status(400).json({
         success: false,
-        error: `អ្នកបានចុះឈ្មោះចូលរួចហើយនៅម៉ោង ${existing.checkIn}!`
+        error: `អ្នកបានចុះវត្តមានចូលរួចហើយនៅម៉ោង ${existing.checkIn}!`
       });
     }
 
@@ -6078,7 +6078,7 @@ app.post('/api/attendance/check-in', async (req, res) => {
 
     return res.json({
       success: true,
-      message: '✓ ចុះឈ្មោះចូលបានជោគជ័យ',
+      message: '✓ ចុះវត្តមានចូលបានជោគជ័យ',
       employeeName: staff.fullName,
       time: timeStr,
       date: todayStr,
@@ -6232,15 +6232,15 @@ app.post('/api/attendance/check-out', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: attRecord?.status === 'Permission'
-          ? 'អ្នកមានច្បាប់ឈប់សម្រាកសម្រាប់ថ្ងៃនេះ មិនទាន់មានការចុះឈ្មោះចូលធ្វើការឡើយ!'
-          : 'មិនអាចចុះឈ្មោះចេញបានទេ ដោយសារមិនទាន់មានការចុះឈ្មោះចូលសម្រាប់ថ្ងៃនេះ!'
+          ? 'អ្នកមានច្បាប់ឈប់សម្រាកសម្រាប់ថ្ងៃនេះ មិនទាន់មានការចុះវត្តមានចូលធ្វើការឡើយ!'
+          : 'មិនអាចចុះវត្តមានចេញបានទេ ដោយសារមិនទាន់មានការចុះវត្តមានចូលសម្រាប់ថ្ងៃនេះ!'
       });
     }
 
     if (hasRealOut) {
       return res.status(400).json({
         success: false,
-        error: `អ្នកបានចុះឈ្មោះចេញរួចរាល់ហើយនៅម៉ោង ${attRecord.checkOut}!`
+        error: `អ្នកបានចុះវត្តមានចេញរួចរាល់ហើយនៅម៉ោង ${attRecord.checkOut}!`
       });
     }
 
@@ -6286,7 +6286,7 @@ app.post('/api/attendance/check-out', async (req, res) => {
 
     return res.json({
       success: true,
-      message: '✓ ចុះឈ្មោះចេញបានជោគជ័យ',
+      message: '✓ ចុះវត្តមានចេញបានជោគជ័យ',
       employeeName: staff.fullName,
       checkIn: attRecord.checkIn,
       checkOut: timeStr,

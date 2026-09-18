@@ -292,8 +292,8 @@ export default async function handler(req: any, res: any) {
 
     const commandList = [
       { command: 'start', description: '📱 បើកកម្មវិធី TC Staff Mini App' },
-      { command: 'checkin', description: '📸 ចុះឈ្មោះចូល (Check In)' },
-      { command: 'checkout', description: '🚪 ចុះឈ្មោះចេញ (Check Out)' },
+      { command: 'checkin', description: '📸 ចុះវត្តមានចូល (Check In)' },
+      { command: 'checkout', description: '🚪 ចុះវត្តមានចេញ (Check Out)' },
       { command: 'attendance', description: '📊 មើលប្រវត្តិវត្តមានរបស់ខ្ញុំ' },
       { command: 'profile', description: '👤 ព័ត៌មានគណនីបុគ្គលិក' },
       { command: 'bind', description: '🏢 កំណត់ភ្ជាប់ Group សាខា' },
@@ -813,8 +813,8 @@ export default async function handler(req: any, res: any) {
       const staffReplyKeyboard = isPrivateChat ? {
         keyboard: [
           [
-            { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
-            { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+            { text: '📸 ចុះវត្តមានចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
+            { text: '🚪 ចុះវត្តមានចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
           ],
           [
             { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
@@ -830,8 +830,8 @@ export default async function handler(req: any, res: any) {
       } : {
         keyboard: [
           [
-            { text: '📸 ចុះឈ្មោះចូល' },
-            { text: '🚪 ចុះឈ្មោះចេញ' }
+            { text: '📸 ចុះវត្តមានចូល' },
+            { text: '🚪 ចុះវត្តមានចេញ' }
           ],
           [
             { text: '📊 មើលប្រវត្តិវត្តមាន' },
@@ -849,8 +849,8 @@ export default async function handler(req: any, res: any) {
       const ownerReplyKeyboard = isPrivateChat ? {
         keyboard: [
           [
-            { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
-            { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+            { text: '📸 ចុះវត្តមានចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
+            { text: '🚪 ចុះវត្តមានចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
           ],
           [
             { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
@@ -870,8 +870,8 @@ export default async function handler(req: any, res: any) {
       } : {
         keyboard: [
           [
-            { text: '📸 ចុះឈ្មោះចូល' },
-            { text: '🚪 ចុះឈ្មោះចេញ' }
+            { text: '📸 ចុះវត្តមានចូល' },
+            { text: '🚪 ចុះវត្តមានចេញ' }
           ],
           [
             { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
@@ -1023,6 +1023,8 @@ export default async function handler(req: any, res: any) {
       let pendingLeaveSession: any = null;
       if (!isCallback && userText && !userText.startsWith('/')) {
         const isNavCommand = 
+          userText.includes('ចុះវត្តមានចូល') || 
+          userText.includes('ចុះវត្តមានចេញ') || 
           userText.includes('ចុះឈ្មោះចូល') || 
           userText.includes('ចុះឈ្មោះចេញ') || 
           userText.includes('ព័ត៌មានគណនី') || 
@@ -1246,7 +1248,7 @@ export default async function handler(req: any, res: any) {
         `👤 <b>Username:</b> ${cleanUsername}`;
 
       // =================================================================================
-      // ACTION: 📸 ចុះឈ្មោះចូល (CHECK IN)
+      // ACTION: 📸 ចុះវត្តមានចូល (CHECK IN)
       // =================================================================================
       const isCheckInCmd = 
         userText === '/checkin' || 
@@ -1271,12 +1273,12 @@ export default async function handler(req: any, res: any) {
             `🏢 <b>សាខា:</b> ${branchDisplay}\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n` +
             `📝 <b>ព័ត៌មានច្បាប់:</b> ${todayAttendance.notes || 'ច្បាប់ឈប់សម្រាក (Approved)'}\n\n` +
-            `ℹ️ <i>ប្រសិនបើអ្នកមកបំពេញការងារជាក់ស្តែង អ្នកនៅតែអាចស្កេនចុះឈ្មោះចូល (Check-In) បានធម្មតា៖</i>`;
+            `ℹ️ <i>ប្រសិនបើអ្នកមកបំពេញការងារជាក់ស្តែង អ្នកនៅតែអាចស្កេនចុះវត្តមានចូល (Check-In) បានធម្មតា៖</i>`;
 
           const permButtons = {
             inline_keyboard: [
               [
-                { text: '📸 ចុះឈ្មោះចូលបំពេញការងារ (Check In)', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+                { text: '📸 ចុះវត្តមានចូលបំពេញការងារ (Check In)', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
               ],
               [
                 { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
@@ -1305,7 +1307,7 @@ export default async function handler(req: any, res: any) {
           const startedButtons = {
             inline_keyboard: [
               [
-                { text: '🚪 ចុះឈ្មោះចេញ (Check Out)', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
+                { text: '🚪 ចុះវត្តមានចេញ (Check Out)', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
                 { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
               ]
             ]
@@ -1319,7 +1321,7 @@ export default async function handler(req: any, res: any) {
           });
         }
 
-        const checkinMsg = `📸 <b>[TC Staff - ចុះឈ្មោះចូលបំពេញការងារ]</b>\n\n` +
+        const checkinMsg = `📸 <b>[TC Staff - ចុះវត្តមានចូលបំពេញការងារ]</b>\n\n` +
           `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff.fullName}</b>\n` +
           `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
           `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
@@ -1328,7 +1330,7 @@ export default async function handler(req: any, res: any) {
         const checkinInlineButtons = {
           inline_keyboard: [
             [
-              { text: '📸 ចុះឈ្មោះចូលឥឡូវនេះ', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+              { text: '📸 ចុះវត្តមានចូលឥឡូវនេះ', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
             ]
           ]
         };
@@ -1342,7 +1344,7 @@ export default async function handler(req: any, res: any) {
       }
 
       // =================================================================================
-      // ACTION: 🚪 ចុះឈ្មោះចេញ (CHECK OUT)
+      // ACTION: 🚪 ចុះវត្តមានចេញ (CHECK OUT)
       // =================================================================================
       const isCheckOutCmd = 
         userText === '/checkout' || 
@@ -1387,8 +1389,8 @@ export default async function handler(req: any, res: any) {
 
         if (!hasRealIn) {
           const notInMsg = todayAttendance?.status === 'Permission'
-            ? `🏖️ <b>[TC Staff - ដំណឹង]</b>\n\nអ្នកមានច្បាប់ឈប់សម្រាកសម្រាប់ថ្ងៃនេះ មិនទាន់មានការចុះឈ្មោះចូលធ្វើការឡើយ!`
-            : `⚠️ <b>[TC Staff - ដំណឹង]</b>\n\nមិនអាចចុះឈ្មោះចេញបានទេ ដោយសារមិនទាន់មានការចុះឈ្មោះចូលសម្រាប់ថ្ងៃនេះ!`;
+            ? `🏖️ <b>[TC Staff - ដំណឹង]</b>\n\nអ្នកមានច្បាប់ឈប់សម្រាកសម្រាប់ថ្ងៃនេះ មិនទាន់មានការចុះវត្តមានចូលធ្វើការឡើយ!`
+            : `⚠️ <b>[TC Staff - ដំណឹង]</b>\n\nមិនអាចចុះវត្តមានចេញបានទេ ដោយសារមិនទាន់មានការចុះវត្តមានចូលសម្រាប់ថ្ងៃនេះ!`;
 
           return sendOrReply(res, botToken, {
             chat_id: chatId,
@@ -1397,7 +1399,7 @@ export default async function handler(req: any, res: any) {
           });
         }
 
-        const checkoutMsg = `🚪 <b>[TC Staff - ចុះឈ្មោះចេញពីការងារ]</b>\n\n` +
+        const checkoutMsg = `🚪 <b>[TC Staff - ចុះវត្តមានចេញពីការងារ]</b>\n\n` +
           `👤 <b>បុគ្គលិក:</b> <b>${matchedStaff.fullName}</b>\n` +
           `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +
           `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
@@ -1406,7 +1408,7 @@ export default async function handler(req: any, res: any) {
         const checkoutInlineButtons = {
           inline_keyboard: [
             [
-              { text: '🚪 ចុះឈ្មោះចេញឥឡូវនេះ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+              { text: '🚪 ចុះវត្តមានចេញឥឡូវនេះ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
             ]
           ]
         };
@@ -1443,10 +1445,10 @@ export default async function handler(req: any, res: any) {
 
         let summaryText = `👥 <b>[របាយការណ៍វត្តមានបុគ្គលិកថ្ងៃនេះ]</b>\n` +
           `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
-          `🟢 <b>បានចុះឈ្មោះចូល (${presentStaff.length} នាក់)៖</b>\n`;
+          `🟢 <b>បានចុះវត្តមានចូល (${presentStaff.length} នាក់)៖</b>\n`;
 
         if (presentStaff.length === 0) {
-          summaryText += `(មិនទាន់មានបុគ្គលិកចុះឈ្មោះចូលនៅឡើយទេ)\n`;
+          summaryText += `(មិនទាន់មានបុគ្គលិកចុះវត្តមានចូលនៅឡើយទេ)\n`;
         } else {
           presentStaff.forEach((r: any, idx: number) => {
             const st = allStaff.find((s: any) => s.id === r.staffId);
@@ -2143,8 +2145,8 @@ export default async function handler(req: any, res: any) {
         const profileButtons = {
           inline_keyboard: [
             [
-              { text: '📸 ចុះឈ្មោះចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
-              { text: '🚪 ចុះឈ្មោះចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
+              { text: '📸 ចុះវត្តមានចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin` } },
+              { text: '🚪 ចុះវត្តមានចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
             ]
           ]
         };
@@ -2170,10 +2172,10 @@ export default async function handler(req: any, res: any) {
         userText.toLowerCase().includes('help')
       ) {
         const helpMsg = `❓ <b>[ការណែនាំអំពីការប្រើប្រាស់ TC Staff]</b>\n\n` +
-          `🔹 <b>១. ចុះឈ្មោះចូល៖</b>\n` +
-          `   ចុចប៊ូតុង <code>📸 ចុះឈ្មោះចូល</code> ដើម្បីស្កេន Face ID និងផ្ទៀងផ្ទាត់ទីតាំង GPS នៅសាខា។\n\n` +
-          `🔹 <b>២. ចុះឈ្មោះចេញ៖</b>\n` +
-          `   ចុចប៊ូតុង <code>🚪 ចុះឈ្មោះចេញ</code> នៅពេលបញ្ចប់ម៉ោងការងារ។\n\n` +
+          `🔹 <b>១. ចុះវត្តមានចូល៖</b>\n` +
+          `   ចុចប៊ូតុង <code>📸 ចុះវត្តមានចូល</code> ដើម្បីស្កេន Face ID និងផ្ទៀងផ្ទាត់ទីតាំង GPS នៅសាខា។\n\n` +
+          `🔹 <b>២. ចុះវត្តមានចេញ៖</b>\n` +
+          `   ចុចប៊ូតុង <code>🚪 ចុះវត្តមានចេញ</code> នៅពេលបញ្ចប់ម៉ោងការងារ។\n\n` +
           `🔹 <b>៣. ពិនិត្យវត្តមាន៖</b>\n` +
           `   ចុចប៊ូតុង <code>📊 វត្តមានរបស់ខ្ញុំ</code> ដើម្បីមើលចំនួនថ្ងៃ និងម៉ោងការងារប្រចាំខែ។\n\n` +
           `🏢 <b>សាខា:</b> <b>${branchDisplay}</b>\n` +

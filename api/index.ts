@@ -863,7 +863,7 @@ export default async function handler(req: any, res: any) {
       if (existingIndex !== -1) {
         const exist = allAtt[existingIndex];
         if (isRealTime(exist.checkIn) && exist.status !== 'Absent') {
-          return res.status(400).json({ success: false, error: `អ្នកបានចុះឈ្មោះចូលរួចហើយនៅម៉ោង ${exist.checkIn}!` });
+          return res.status(400).json({ success: false, error: `អ្នកបានចុះវត្តមានចូលរួចហើយនៅម៉ោង ${exist.checkIn}!` });
         }
       }
 
@@ -920,7 +920,7 @@ export default async function handler(req: any, res: any) {
         const assignedAdminChatId = await getAssignedAdminChatId(staff.branchId || branch?.id, branch?.branchName);
         if (assignedAdminChatId) {
           const adminMsg = `🔔 <b>[TC Staff Management - ដំណឹងវត្តមានបុគ្គលិក]</b>\n\n` +
-            `📌 <b>សកម្មភាព:</b> ✅ ចុះឈ្មោះចូល (Check-In)\n` +
+            `📌 <b>សកម្មភាព:</b> ✅ ចុះវត្តមានចូល (Check-In)\n` +
             `👤 <b>បុគ្គលិក:</b> <b>${staff.fullName}</b> (${staff.position || 'Staff'})\n` +
             `☕ <b>សាខា:</b> <b>${branch?.branchName || 'TC Staff'}</b>\n` +
             `⏰ <b>ម៉ោងចូល:</b> <code>${timeStr}</code>\n` +
@@ -947,7 +947,7 @@ export default async function handler(req: any, res: any) {
 
       return res.status(200).json({
         success: true,
-        message: '✓ ចុះឈ្មោះចូលបានជោគជ័យ',
+        message: '✓ ចុះវត្តមានចូលបានជោគជ័យ',
         employeeName: staff.fullName,
         time: timeStr,
         date: todayStr,
@@ -1080,13 +1080,13 @@ export default async function handler(req: any, res: any) {
         return res.status(400).json({ 
           success: false, 
           error: attRecord?.status === 'Permission'
-            ? 'អ្នកមានច្បាប់ឈប់សម្រាកសម្រាប់ថ្ងៃនេះ មិនទាន់មានការចុះឈ្មោះចូលធ្វើការឡើយ!'
-            : 'មិនអាចចុះឈ្មោះចេញបានទេ ដោយសារមិនទាន់មានការចុះឈ្មោះចូលសម្រាប់ថ្ងៃនេះ!' 
+            ? 'អ្នកមានច្បាប់ឈប់សម្រាកសម្រាប់ថ្ងៃនេះ មិនទាន់មានការចុះវត្តមានចូលធ្វើការឡើយ!'
+            : 'មិនអាចចុះវត្តមានចេញបានទេ ដោយសារមិនទាន់មានការចុះវត្តមានចូលសម្រាប់ថ្ងៃនេះ!' 
         });
       }
 
       if (hasRealOut) {
-        return res.status(400).json({ success: false, error: `អ្នកបានចុះឈ្មោះចេញរួចរាល់ហើយនៅម៉ោង ${attRecord.checkOut}!` });
+        return res.status(400).json({ success: false, error: `អ្នកបានចុះវត្តមានចេញរួចរាល់ហើយនៅម៉ោង ${attRecord.checkOut}!` });
       }
 
       let workHours = 8;
@@ -1145,7 +1145,7 @@ export default async function handler(req: any, res: any) {
         const assignedAdminChatId = await getAssignedAdminChatId(staff.branchId || branch?.id, branch?.branchName);
         if (assignedAdminChatId) {
           const adminCheckOutMsg = `🔔 <b>[TC Staff Management - ដំណឹងវត្តមានបុគ្គលិក]</b>\n\n` +
-            `📌 <b>សកម្មភាព:</b> 🚪 ចុះឈ្មោះចេញ (Check-Out)\n` +
+            `📌 <b>សកម្មភាព:</b> 🚪 ចុះវត្តមានចេញ (Check-Out)\n` +
             `👤 <b>បុគ្គលិក:</b> <b>${staff.fullName}</b> (${staff.position || 'Staff'})\n` +
             `☕ <b>សាខា:</b> <b>${branch?.branchName || 'TC Staff'}</b>\n` +
             `⏰ <b>ម៉ោងចូល:</b> <code>${attRecord.checkIn}</code>\n` +
@@ -1174,7 +1174,7 @@ export default async function handler(req: any, res: any) {
 
       return res.status(200).json({
         success: true,
-        message: '✓ ចុះឈ្មោះចេញបានជោគជ័យ',
+        message: '✓ ចុះវត្តមានចេញបានជោគជ័យ',
         employeeName: staff.fullName,
         checkIn: attRecord.checkIn,
         checkOut: timeStr,

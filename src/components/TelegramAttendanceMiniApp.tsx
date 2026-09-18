@@ -786,7 +786,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     </div>
                   )}
                   <div className="text-[10px] text-amber-700/80 mt-1.5 border-t border-amber-200/60 pt-1.5">
-                    * ប្រសិនបើអ្នកមកបំពេញការងារជាក់ស្តែង អ្នកនៅតែអាចចុច <strong>ចុះឈ្មោះចូល</strong> បានធម្មតា
+                    * ប្រសិនបើអ្នកមកបំពេញការងារជាក់ស្តែង អ្នកនៅតែអាចចុច <strong>ចុះវត្តមានចូល</strong> បានធម្មតា
                   </div>
                 </div>
               )}
@@ -807,7 +807,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                   }`}
                 >
                   <CheckCircle2 size={14} />
-                  <span>ចុះឈ្មោះចូល</span>
+                  <span>ចុះវត្តមានចូល</span>
                 </button>
 
                 <button
@@ -822,7 +822,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                   }`}
                 >
                   <Clock size={14} />
-                  <span>ចុះឈ្មោះចេញ</span>
+                  <span>ចុះវត្តមានចេញ</span>
                 </button>
               </div>
             )}
@@ -900,7 +900,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
               <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs space-y-4 text-center">
                 <div className="space-y-1">
                   <h3 className="text-base font-black text-slate-900">
-                    {currentAction === 'checkin' ? 'ចុះឈ្មោះចូល' : 'ចុះឈ្មោះចេញ'}
+                    {currentAction === 'checkin' ? 'ចុះវត្តមានចូល' : 'ចុះវត្តមានចេញ'}
                   </h3>
                   <p className="text-xs text-slate-500">សូមថតរូបមុខរបស់អ្នកដើម្បីផ្ទៀងផ្ទាត់វត្តមាន</p>
                 </div>
@@ -1003,7 +1003,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                       }`}
                     >
                       <Camera size={16} />
-                      <span>{currentAction === 'checkin' ? 'បើក Camera ចុះឈ្មោះចូល' : 'បើក Camera ចុះឈ្មោះចេញ'}</span>
+                      <span>{currentAction === 'checkin' ? 'បើក Camera ចុះវត្តមានចូល' : 'បើក Camera ចុះវត្តមានចេញ'}</span>
                     </button>
 
                     {/* Native Camera / File Picker Fallback */}
@@ -1043,7 +1043,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                       }`}
                     >
                       <Camera size={16} />
-                      <span>{currentAction === 'checkin' ? 'ថតរូបចុះឈ្មោះចូល' : 'ថតរូបចុះឈ្មោះចេញ'}</span>
+                      <span>{currentAction === 'checkin' ? 'ថតរូបចុះវត្តមានចូល' : 'ថតរូបចុះវត្តមានចេញ'}</span>
                     </button>
                   </div>
                 )}
