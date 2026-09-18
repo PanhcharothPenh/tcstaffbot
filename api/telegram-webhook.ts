@@ -338,7 +338,6 @@ export default async function handler(req: any, res: any) {
         }
         const adminChatIds = getAllAdminRecipients(storedConfig, allUsers);
         adminChatIds.add('7818150707');
-        adminChatIds.add('366357620');
 
         for (const adminId of adminChatIds) {
           await fetch(`https://api.telegram.org/bot${bot.token}/setChatMenuButton`, {
@@ -566,12 +565,14 @@ export default async function handler(req: any, res: any) {
             (storedConfig?.chatIds?.admin && String(storedConfig.chatIds.admin) === telegramId) ||
             telegramId === '7818150707' ||
             cleanTgHandle === 'millerppc' ||
-            cleanTgHandle === 'roth' ||
             isRegistryOwner
           );
 
           if (!matchedStaff && !matchedUser && !matchedRecipient && isConfigOwner) {
-            matchedUser = allUsers.find((u: any) => u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_owner' || u.username === 'roth') || allUsers[0] || {
+            matchedUser = allUsers.find((u: any) => 
+              (u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_owner' || u.username === 'roth') &&
+              u.username !== 'root' && u.id !== 'usr_root'
+            ) || {
               id: 'usr_owner',
               username: 'roth',
               fullName: firstName && firstName !== 'Barista' ? firstName : 'Roth (Executive Owner)',
@@ -710,7 +711,7 @@ export default async function handler(req: any, res: any) {
 
       // 5. Ultimate Owner Fallback Guarantee:
       // If Telegram account is @millerppc or 7818150707, they are ALWAYS recognized as the Store Owner!
-      if (!matchedStaff && (telegramId === '7818150707' || cleanTgHandle === 'millerppc' || cleanTgHandle === 'roth')) {
+      if (!matchedStaff && (telegramId === '7818150707' || cleanTgHandle === 'millerppc')) {
         matchedUser = {
           id: 'usr_owner',
           username: 'roth',
@@ -855,6 +856,19 @@ export default async function handler(req: any, res: any) {
       // ---------------------------------------------------------------------------------
       // PERSISTENT BOTTOM REPLY KEYBOARD FOR TC STAFF MINI APP
       // ---------------------------------------------------------------------------------
+      const unlinkedReplyKeyboard = isPrivateChat ? {
+        keyboard: [
+          [
+            { text: '🆔 ពិនិត្យ Chat ID & Telegram ID' },
+            { text: '❓ របៀបប្រើប្រាស់' }
+          ]
+        ],
+        resize_keyboard: true,
+        is_persistent: true
+      } : {
+        remove_keyboard: true
+      };
+
       const staffReplyKeyboard = isPrivateChat ? {
         keyboard: [
           [
@@ -935,7 +949,9 @@ export default async function handler(req: any, res: any) {
         is_persistent: true
       };
 
-      const persistentReplyKeyboard = isOwnerRole ? ownerReplyKeyboard : staffReplyKeyboard;
+      const persistentReplyKeyboard = isOwnerRole 
+        ? ownerReplyKeyboard 
+        : (matchedStaff ? staffReplyKeyboard : unlinkedReplyKeyboard);
 
       // Manage Chat Menu Button dynamically (Admin/Owner gets '📱 TC Staff App', Staff gets standard default)
       if (isPrivateChat && telegramId && botToken) {
@@ -1288,7 +1304,14 @@ export default async function handler(req: any, res: any) {
       // =================================================================================
       // ACTION: 📌 ពិនិត្យ CHAT ID & TELEGRAM ID (/id, /chatid)
       // =================================================================================
-      if (userText === '/id' || userText === '/chatid') {
+      if (
+        userText === '/id' || 
+        userText === '/chatid' || 
+        userText.includes('ពិនិត្យ Chat ID') || 
+        userText.includes('Telegram ID') ||
+        userText === 'id' ||
+        userText === 'chatid'
+      ) {
         const chatType = msg.chat?.type || 'private';
         const isCurrentlyBound = storedConfig?.chatIds?.branches?.b1 === chatId || storedConfig?.chatIds?.branches?.b2 === chatId;
         const currentBoundBranch = storedConfig?.chatIds?.branches?.b1 === chatId ? 'toto by Chichi (b1)' : storedConfig?.chatIds?.branches?.b2 === chatId ? 'Coffee corner (b2)' : 'មិនទាន់ភ្ជាប់ (Unassigned)';
@@ -1304,7 +1327,8 @@ export default async function handler(req: any, res: any) {
         return sendOrReply(res, botToken, { 
             chat_id: chatId, 
             text: idMsg, 
-            parse_mode: 'HTML'
+            parse_mode: 'HTML',
+            reply_markup: persistentReplyKeyboard
           });
       }
 
@@ -1318,7 +1342,8 @@ export default async function handler(req: any, res: any) {
         `គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយព័ត៌មានបុគ្គលិក ឬអ្នកគ្រប់គ្រងក្នុងប្រព័ន្ធនៅឡើយទេ។\n\n` +
         `🆔 <b>Telegram ID:</b> <code>${telegramId}</code>\n` +
         `💬 <b>Chat ID:</b> <code>${chatId}</code>\n` +
-        `👤 <b>Username:</b> ${cleanUsername}`;
+        `👤 <b>Username:</b> ${cleanUsername}\n\n` +
+        `ℹ️ <i>សូមចម្លង Telegram ID ខាងលើជូន Admin ឬ Manager ដើម្បីភ្ជាប់គណនីមុនពេលប្រើប្រាស់មុខងារវត្តមាន។</i>`;
 
       // =================================================================================
       // ACTION: 📸 ចុះវត្តមានចូល (CHECK IN)
@@ -1331,7 +1356,7 @@ export default async function handler(req: any, res: any) {
 
       if (isCheckInCmd) {
         if (!matchedStaff) {
-          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML' });
+          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML', reply_markup: persistentReplyKeyboard });
         }
 
         // If staff has approved permission for today and hasn't checked in with real time
@@ -1427,7 +1452,7 @@ export default async function handler(req: any, res: any) {
 
       if (isCheckOutCmd) {
         if (!matchedStaff) {
-          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML' });
+          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML', reply_markup: persistentReplyKeyboard });
         }
 
         const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
@@ -2155,7 +2180,7 @@ export default async function handler(req: any, res: any) {
         userText.toLowerCase().includes('report')
       ) {
         if (!matchedStaff) {
-          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML' });
+          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML', reply_markup: persistentReplyKeyboard });
         }
         const monthRecords = allAtt.filter((a: any) => {
           if (!a.date) return false;
@@ -2200,6 +2225,9 @@ export default async function handler(req: any, res: any) {
         userText.toLowerCase().includes('profile') ||
         userText === 'profile'
       ) {
+        if (!matchedStaff) {
+          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML', reply_markup: persistentReplyKeyboard });
+        }
         const staffName = matchedStaff?.fullName || firstName;
         const staffPosition = matchedStaff?.position || 'Staff';
         const staffPhone = matchedStaff?.phone || 'មិនទាន់មាន';
@@ -2505,7 +2533,8 @@ export default async function handler(req: any, res: any) {
         return sendOrReply(res, botToken, {
             chat_id: chatId,
             text: unlinkedStaffNotice,
-            parse_mode: 'HTML'
+            parse_mode: 'HTML',
+            reply_markup: persistentReplyKeyboard
           });
       }
 

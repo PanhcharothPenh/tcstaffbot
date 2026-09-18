@@ -321,15 +321,13 @@ export default async function handler(req: any, res: any) {
       const chatRegistry = await getCollection('telegram_chat_registry');
       const bId = String(branchId || '').toLowerCase().trim();
 
-      // 1. ALWAYS INCLUDE KNOWN OWNER TELEGRAM CHAT IDs
-      const knownOwnerChatIds = ['7818150707', '366357620'];
-      for (const oId of knownOwnerChatIds) {
-        recipients.add(oId);
-      }
+      // 1. ALWAYS INCLUDE SYSTEM ADMIN TELEGRAM CHAT ID
+      recipients.add('7818150707');
 
       // 2. All Users with role 'Owner' or 'Admin' in users collection
       if (Array.isArray(allUsers)) {
         for (const u of allUsers) {
+          if (u.username === 'root' || u.id === 'usr_root') continue;
           const r = String(u.role || u.roleId || '').toLowerCase();
           const tgId = String(u.telegramChatId || u.telegramId || '').trim();
           if (!tgId || !/^-?\d+$/.test(tgId)) continue;
@@ -379,11 +377,10 @@ export default async function handler(req: any, res: any) {
     } catch (e) {
       console.error('Error resolving alert recipient chat IDs:', e);
       recipients.add('7818150707');
-      recipients.add('366357620');
     }
 
     // Exclude regular staff Telegram ID from getting admin alert
-    if (exclude && exclude !== '7818150707' && exclude !== '366357620') {
+    if (exclude && exclude !== '7818150707') {
       recipients.delete(exclude);
     }
 
@@ -637,18 +634,21 @@ export default async function handler(req: any, res: any) {
 
         // 3. Check if this Telegram ID/username is the owner in telegramConfig or registry
         if (!matchedStaff) {
+          const cfgRaw = await getCollection('telegramConfig');
+          const storedConfig = (Array.isArray(cfgRaw) && cfgRaw[0]) ? cfgRaw[0] : (cfgRaw || {});
           const isConfigOwner = 
-            cleanTgId === '7818150707' || 
-            cleanTgName === 'millerppc' || 
-            cleanTgId === '366357620' || 
-            cleanTgName === 'p6c5r';
+            (cleanTgId === '7818150707' || cleanTgName === 'millerppc') ||
+            (storedConfig?.chatIds?.owner && String(storedConfig.chatIds.owner) === cleanTgId);
 
           if (isConfigOwner) {
-            const ownerUser = allUsers.find((u: any) => u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_owner') || allUsers[0];
+            const ownerUser = allUsers.find((u: any) => 
+              (u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_owner' || u.username === 'roth') &&
+              u.username !== 'root' && u.id !== 'usr_root'
+            );
             if (ownerUser) {
               matchedStaff = {
                 id: 'staff_usr_' + (ownerUser.id || 'owner'),
-                fullName: ownerUser.fullName || ownerUser.username || 'Owner',
+                fullName: ownerUser.fullName || ownerUser.username || 'Roth (Owner)',
                 position: 'ម្ចាស់ហាង (Store Owner)',
                 role: 'Owner',
                 roleId: 'owner',
@@ -686,8 +686,6 @@ export default async function handler(req: any, res: any) {
       const isOwner = Boolean(
         cleanTgId === '7818150707' ||
         cleanTgName === 'millerppc' ||
-        cleanTgId === '366357620' ||
-        cleanTgName === 'p6c5r' ||
         matchedStaff.role === 'Owner' || 
         matchedStaff.roleId === 'owner' ||
         (matchedStaff.position && matchedStaff.position.toLowerCase().includes('owner'))
@@ -851,25 +849,30 @@ export default async function handler(req: any, res: any) {
         }
       }
 
-      // Owner fallback recognition
-      if (!staff && (tgId === '7818150707' || tgName === 'millerppc' || tgId === '366357620' || tgName === 'p6c5r')) {
-        const ownerUser = allUsers.find((u: any) => u.role === 'Owner' || u.roleId === 'owner') || allUsers[0];
-        staff = {
-          id: 'staff_usr_' + (ownerUser?.id || 'owner'),
-          fullName: ownerUser?.fullName || ownerUser?.username || 'Owner',
-          position: 'ម្ចាស់ហាង (Store Owner)',
-          role: 'Owner',
-          roleId: 'owner',
-          phone: ownerUser?.phone || '',
-          branchId: 'b1',
-          assignedBranchIds: ['b1', 'b2'],
-          status: 'Active',
-          telegramId: tgId,
-          telegramUsername: tgName ? `@${tgName}` : undefined,
-          telegramLinked: true,
-          faceEnrolled: true,
-          attendanceEnabled: true
-        };
+      // Owner fallback recognition (Only known master developer / configured owner)
+      if (!staff && (tgId === '7818150707' || tgName === 'millerppc')) {
+        const ownerUser = allUsers.find((u: any) => 
+          (u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_owner' || u.username === 'roth') &&
+          u.username !== 'root' && u.id !== 'usr_root'
+        );
+        if (ownerUser) {
+          staff = {
+            id: 'staff_usr_' + (ownerUser.id || 'owner'),
+            fullName: ownerUser.fullName || ownerUser.username || 'Roth (Owner)',
+            position: 'ម្ចាស់ហាង (Store Owner)',
+            role: 'Owner',
+            roleId: 'owner',
+            phone: ownerUser.phone || '',
+            branchId: 'b1',
+            assignedBranchIds: ['b1', 'b2'],
+            status: 'Active',
+            telegramId: tgId,
+            telegramUsername: tgName ? `@${tgName}` : undefined,
+            telegramLinked: true,
+            faceEnrolled: true,
+            attendanceEnabled: true
+          };
+        }
       }
 
       if (!staff) {
@@ -1225,25 +1228,30 @@ export default async function handler(req: any, res: any) {
         }
       }
 
-      // Owner fallback recognition
-      if (!staff && (tgId === '7818150707' || tgName === 'millerppc' || tgId === '366357620' || tgName === 'p6c5r')) {
-        const ownerUser = allUsers.find((u: any) => u.role === 'Owner' || u.roleId === 'owner') || allUsers[0];
-        staff = {
-          id: 'staff_usr_' + (ownerUser?.id || 'owner'),
-          fullName: ownerUser?.fullName || ownerUser?.username || 'Owner',
-          position: 'ម្ចាស់ហាង (Store Owner)',
-          role: 'Owner',
-          roleId: 'owner',
-          phone: ownerUser?.phone || '',
-          branchId: 'b1',
-          assignedBranchIds: ['b1', 'b2'],
-          status: 'Active',
-          telegramId: tgId,
-          telegramUsername: tgName ? `@${tgName}` : undefined,
-          telegramLinked: true,
-          faceEnrolled: true,
-          attendanceEnabled: true
-        };
+      // Owner fallback recognition (Only known master developer / configured owner)
+      if (!staff && (tgId === '7818150707' || tgName === 'millerppc')) {
+        const ownerUser = allUsers.find((u: any) => 
+          (u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_owner' || u.username === 'roth') &&
+          u.username !== 'root' && u.id !== 'usr_root'
+        );
+        if (ownerUser) {
+          staff = {
+            id: 'staff_usr_' + (ownerUser.id || 'owner'),
+            fullName: ownerUser.fullName || ownerUser.username || 'Roth (Owner)',
+            position: 'ម្ាស់ហាង (Store Owner)',
+            role: 'Owner',
+            roleId: 'owner',
+            phone: ownerUser.phone || '',
+            branchId: 'b1',
+            assignedBranchIds: ['b1', 'b2'],
+            status: 'Active',
+            telegramId: tgId,
+            telegramUsername: tgName ? `@${tgName}` : undefined,
+            telegramLinked: true,
+            faceEnrolled: true,
+            attendanceEnabled: true
+          };
+        }
       }
 
       if (!staff) {
