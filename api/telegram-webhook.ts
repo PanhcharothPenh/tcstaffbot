@@ -316,18 +316,63 @@ export default async function handler(req: any, res: any) {
           body: JSON.stringify({ commands: commandList })
         });
 
-        // Set WebApp Chat Menu Button directly to Mini App
+        // 1. Reset GLOBAL DEFAULT Menu Button to standard (removes TC Staff App button for regular staff)
         await fetch(`https://api.telegram.org/bot${bot.token}/setChatMenuButton`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            menu_button: {
-              type: 'web_app',
-              text: '📱 TC Staff App',
-              web_app: { url: `${baseUrl}/attendance-app` }
-            }
+            menu_button: { type: 'default' }
           })
         });
+
+        // 2. Set '📱 TC Staff App' menu button ONLY for Admins & Owners
+        let allUsers: any[] = [];
+        let storedConfig: any = null;
+        let allStaff: any[] = [];
+        if (supabase) {
+          try {
+            allUsers = (await loadDbCollection(supabase, 'users')) || [];
+            storedConfig = await loadDbCollection(supabase, 'telegramConfig');
+            allStaff = (await loadDbCollection(supabase, 'staff')) || [];
+          } catch (_) {}
+        }
+        const adminChatIds = getAllAdminRecipients(storedConfig, allUsers);
+        adminChatIds.add('7818150707');
+        adminChatIds.add('366357620');
+
+        for (const adminId of adminChatIds) {
+          await fetch(`https://api.telegram.org/bot${bot.token}/setChatMenuButton`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: adminId,
+              menu_button: {
+                type: 'web_app',
+                text: '📱 TC Staff App',
+                web_app: { url: `${baseUrl}/attendance-app` }
+              }
+            })
+          }).catch(() => {});
+        }
+
+        // 3. Explicitly reset menu button for all registered staff members to default
+        if (Array.isArray(allStaff)) {
+          for (const s of allStaff) {
+            const isOwnerOrAdminStaff = 
+              s.role === 'Owner' || s.roleId === 'owner' || s.role === 'Admin' || s.role === 'Manager' ||
+              (s.position && (s.position.toLowerCase().includes('owner') || s.position.toLowerCase().includes('admin') || s.position.toLowerCase().includes('manager')));
+            if (!isOwnerOrAdminStaff && s.telegramId && /^-?\d+$/.test(String(s.telegramId))) {
+              await fetch(`https://api.telegram.org/bot${bot.token}/setChatMenuButton`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: String(s.telegramId),
+                  menu_button: { type: 'default' }
+                })
+              }).catch(() => {});
+            }
+          }
+        }
 
         results.push({ bot: bot.name, webhookUrl, ok: setData.ok, description: setData.description });
       }
@@ -891,6 +936,34 @@ export default async function handler(req: any, res: any) {
       };
 
       const persistentReplyKeyboard = isOwnerRole ? ownerReplyKeyboard : staffReplyKeyboard;
+
+      // Manage Chat Menu Button dynamically (Admin/Owner gets '📱 TC Staff App', Staff gets standard default)
+      if (isPrivateChat && telegramId && botToken) {
+        if (isOwnerRole) {
+          fetch(`https://api.telegram.org/bot${botToken}/setChatMenuButton`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: telegramId,
+              menu_button: {
+                type: 'web_app',
+                text: '📱 TC Staff App',
+                web_app: { url: `${baseUrl}/attendance-app` }
+              }
+            })
+          }).catch(() => {});
+        } else {
+          // Regular staff: Remove TC Staff App menu button (revert to default)
+          fetch(`https://api.telegram.org/bot${botToken}/setChatMenuButton`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: telegramId,
+              menu_button: { type: 'default' }
+            })
+          }).catch(() => {});
+        }
+      }
 
       // Answer callback query if any
       if (isCallback && callbackQuery.id) {
