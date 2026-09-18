@@ -952,35 +952,33 @@ export default function AttendanceView({
         const totalLateMinutes = staffStats ? staffStats.totalLateMinutes : printableTotals.totalLateMinutes;
         const absentCount = staffStats ? staffStats.absentCount : printableTotals.absentCount;
 
+        const monthStr = String(selectedMonth).padStart(2, '0');
         const lateDisplay = lateCount > 0 
-          ? `${lateCount} លើក (${formatLateMinutes(totalLateMinutes, 'kh')})` 
+          ? `${lateCount} លើក — ${formatLateMinutes(totalLateMinutes, 'kh')}` 
           : '0 លើក';
 
-        msg = `📊 <b>របាយការណ៍វត្តមានប្រចាំខែ</b>\n\n` +
+        msg = `📊 <b>វត្តមានប្រចាំខែ ${monthStr}/${selectedYear}</b>\n\n` +
           `👤 <b>បុគ្គលិក:</b> ${targetStaff.fullName}\n` +
-          `💼 <b>តួនាទី:</b> ${targetStaff.position || 'Staff'}\n` +
-          `🏢 <b>សាខា:</b> ${targetBranch?.branchName || 'toto by Chichi'}\n` +
-          `📅 <b>ប្រចាំខែ:</b> ${selectedMonth}/${selectedYear}\n\n` +
+          `🏢 <b>សាខា:</b> ${targetBranch?.branchName || 'toto by Chichi'}\n\n` +
           `📅 <b>ថ្ងៃធ្វើការសរុប:</b> ${daysWorked} ថ្ងៃ\n` +
           `⏱️ <b>ម៉ោងធ្វើការសរុប:</b> ${totalWorkHours}\n` +
-          `⚡ <b>ម៉ោងបន្ថែម (OT):</b> ${totalOtHours} ម៉ោង\n\n` +
-          `🟢 <b>ទាន់ពេល:</b> ${presentCount} ថ្ងៃ\n` +
-          `🟠 <b>មកយឺត:</b> ${lateDisplay}\n` +
-          `🔴 <b>អវត្តមាន:</b> ${absentCount} ថ្ងៃ`;
+          `⚡ <b>ម៉ោងបន្ថែម (OT):</b> ${totalOtHours} ម៉ោង\n` +
+          `⚠️ <b>មកយឺតសរុប:</b> ${lateDisplay}`;
       } else {
+        const monthStr = String(selectedMonth).padStart(2, '0');
         const totalLateCount = staffMonthlyStats.reduce((sum, s) => sum + s.lateCount, 0);
         const totalLateMins = staffMonthlyStats.reduce((sum, s) => sum + s.totalLateMinutes, 0);
         const lateDisplay = totalLateCount > 0 
-          ? `${totalLateCount} លើក (${formatLateMinutes(totalLateMins, 'kh')})` 
+          ? `${totalLateCount} លើក — ${formatLateMinutes(totalLateMins, 'kh')}` 
           : '0 លើក';
 
-        msg = `📊 <b>របាយការណ៍វត្តមានសរុប</b>\n\n` +
+        msg = `📊 <b>វត្តមានប្រចាំខែ ${monthStr}/${selectedYear} (សរុប)</b>\n\n` +
           `🏢 <b>សាខា:</b> ${targetBranch ? targetBranch.branchName : 'គ្រប់សាខាទាំងអស់'}\n` +
-          `📅 <b>ប្រចាំខែ:</b> ${selectedMonth}/${selectedYear}\n\n` +
+          `📅 <b>ប្រចាំខែ:</b> ${monthStr}/${selectedYear}\n\n` +
           `👥 <b>បុគ្គលិកសរុប:</b> ${staffMonthlyStats.length} នាក់\n` +
           `⏱️ <b>ម៉ោងធ្វើការសរុប:</b> ${formatWorkDuration(printableTotals.totalWorkHours, 'kh')}\n` +
           `⚡ <b>ម៉ោងបន្ថែម (OT):</b> ${printableTotals.totalOtHours} ម៉ោង\n` +
-          `🟠 <b>មកយឺតសរុប:</b> ${lateDisplay}`;
+          `⚠️ <b>មកយឺតសរុប:</b> ${lateDisplay}`;
       }
 
       const controller = new AbortController();

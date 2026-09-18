@@ -2201,13 +2201,14 @@ export default async function handler(req: any, res: any) {
         const daysWorked = monthRecords.filter((r: any) => r.checkIn).length;
         const totalWorkHours = monthRecords.reduce((acc: number, r: any) => acc + (Number(r.workHours || r.totalHours) || 0), 0);
         const totalOtHours = monthRecords.reduce((acc: number, r: any) => acc + (Number(r.otHours) || 0), 0);
+        const monthStr = String(curMonth).padStart(2, '0');
         const lateRecords = monthRecords.filter((r: any) => r.status === 'Late' || Number(r.lateMinutes || 0) > 0);
         const totalLateMinutes = lateRecords.reduce((acc: number, r: any) => acc + (Number(r.lateMinutes) || 0), 0);
         const lateDisplay = lateRecords.length > 0
-          ? `${lateRecords.length} លើក (${formatLateDurationKhmer(totalLateMinutes)})`
+          ? `${lateRecords.length} លើក — ${formatLateDurationKhmer(totalLateMinutes)}`
           : '0 លើក';
 
-        const reportMsg = `📊 <b>TC Staff | វត្តមានប្រចាំខែ ${curMonth}/${curYear}</b>\n\n` +
+        const reportMsg = `📊 <b>វត្តមានប្រចាំខែ ${monthStr}/${curYear}</b>\n\n` +
           `👤 <b>បុគ្គលិក:</b> ${matchedStaff ? matchedStaff.fullName : firstName}\n` +
           `🏢 <b>សាខា:</b> ${branchDisplay}\n\n` +
           `📅 <b>ថ្ងៃធ្វើការសរុប:</b> ${daysWorked} ថ្ងៃ\n` +
