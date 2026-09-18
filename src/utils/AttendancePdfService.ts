@@ -57,6 +57,7 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
   let totalOtHours = 0;
   let presentCount = 0;
   let lateCount = 0;
+  let totalLateMinutes = 0;
   let absentCount = 0;
   let completedCount = 0;
 
@@ -65,7 +66,10 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
     totalOtHours += r.overtimeHours || 0;
     if (r.status === 'Present' || r.status === 'Working') presentCount++;
     if (r.status === 'Completed') completedCount++;
-    if (r.status === 'Late') lateCount++;
+    if (r.status === 'Late' || Number(r.lateMinutes || 0) > 0) {
+      lateCount++;
+      totalLateMinutes += Number(r.lateMinutes || 0);
+    }
     if (r.status === 'Absent') absentCount++;
   });
 
@@ -129,20 +133,31 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
   pdf.setTextColor(15, 23, 42);
   pdf.text(generatedBy, pageWidth / 2 + 35, 47);
 
-  // 5. Four Key Summary Stat Badges
+  // Helper duration formatter
+  const formatLatePdf = (mins?: number): string => {
+    if (!mins || isNaN(mins) || mins <= 0) return '0m';
+    const totalMins = Math.round(mins);
+    const h = Math.floor(totalMins / 60);
+    const m = totalMins % 60;
+    if (h === 0) return `${m}m`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}m`;
+  };
+
+  // 5. Five Key Summary Stat Badges
   const boxY = 56;
-  const boxWidth = (pageWidth - 28 - 9) / 4;
+  const boxWidth = (pageWidth - 28 - 12) / 5;
   const boxHeight = 16;
 
   // Box 1: Total Days
   pdf.setFillColor(239, 246, 255);
   pdf.setDrawColor(191, 219, 254);
   pdf.roundedRect(14, boxY, boxWidth, boxHeight, 2, 2, 'FD');
-  pdf.setFontSize(7.5);
+  pdf.setFontSize(7);
   pdf.setTextColor(30, 64, 175);
   pdf.setFont('helvetica', 'normal');
   pdf.text('TOTAL DAYS', 14 + boxWidth / 2, boxY + 5.5, { align: 'center' });
-  pdf.setFontSize(11);
+  pdf.setFontSize(10.5);
   pdf.setFont('helvetica', 'bold');
   pdf.text(String(totalDays), 14 + boxWidth / 2, boxY + 12, { align: 'center' });
 
@@ -150,11 +165,11 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
   pdf.setFillColor(240, 253, 244);
   pdf.setDrawColor(187, 247, 208);
   pdf.roundedRect(14 + boxWidth + 3, boxY, boxWidth, boxHeight, 2, 2, 'FD');
-  pdf.setFontSize(7.5);
+  pdf.setFontSize(7);
   pdf.setTextColor(22, 101, 52);
   pdf.setFont('helvetica', 'normal');
-  pdf.text('TOTAL WORK HOURS', 14 + boxWidth + 3 + boxWidth / 2, boxY + 5.5, { align: 'center' });
-  pdf.setFontSize(11);
+  pdf.text('WORK HOURS', 14 + boxWidth + 3 + boxWidth / 2, boxY + 5.5, { align: 'center' });
+  pdf.setFontSize(10.5);
   pdf.setFont('helvetica', 'bold');
   pdf.text(`${totalHours.toFixed(1)} hrs`, 14 + boxWidth + 3 + boxWidth / 2, boxY + 12, { align: 'center' });
 
@@ -162,11 +177,11 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
   pdf.setFillColor(254, 243, 199);
   pdf.setDrawColor(253, 230, 138);
   pdf.roundedRect(14 + (boxWidth + 3) * 2, boxY, boxWidth, boxHeight, 2, 2, 'FD');
-  pdf.setFontSize(7.5);
+  pdf.setFontSize(7);
   pdf.setTextColor(146, 64, 14);
   pdf.setFont('helvetica', 'normal');
   pdf.text('OVERTIME (OT)', 14 + (boxWidth + 3) * 2 + boxWidth / 2, boxY + 5.5, { align: 'center' });
-  pdf.setFontSize(11);
+  pdf.setFontSize(10.5);
   pdf.setFont('helvetica', 'bold');
   pdf.text(`${totalOtHours.toFixed(1)} hrs`, 14 + (boxWidth + 3) * 2 + boxWidth / 2, boxY + 12, { align: 'center' });
 
@@ -174,13 +189,26 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
   pdf.setFillColor(245, 243, 255);
   pdf.setDrawColor(221, 214, 254);
   pdf.roundedRect(14 + (boxWidth + 3) * 3, boxY, boxWidth, boxHeight, 2, 2, 'FD');
-  pdf.setFontSize(7.5);
+  pdf.setFontSize(7);
   pdf.setTextColor(91, 33, 182);
   pdf.setFont('helvetica', 'normal');
-  pdf.text('ON-TIME / ATTENDED', 14 + (boxWidth + 3) * 3 + boxWidth / 2, boxY + 5.5, { align: 'center' });
-  pdf.setFontSize(11);
+  pdf.text('ON-TIME', 14 + (boxWidth + 3) * 3 + boxWidth / 2, boxY + 5.5, { align: 'center' });
+  pdf.setFontSize(10.5);
   pdf.setFont('helvetica', 'bold');
   pdf.text(`${completedCount + presentCount} days`, 14 + (boxWidth + 3) * 3 + boxWidth / 2, boxY + 12, { align: 'center' });
+
+  // Box 5: Late Duration
+  pdf.setFillColor(255, 247, 237);
+  pdf.setDrawColor(254, 215, 170);
+  pdf.roundedRect(14 + (boxWidth + 3) * 4, boxY, boxWidth, boxHeight, 2, 2, 'FD');
+  pdf.setFontSize(7);
+  pdf.setTextColor(194, 65, 12);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text('LATE (TIME)', 14 + (boxWidth + 3) * 4 + boxWidth / 2, boxY + 5.5, { align: 'center' });
+  pdf.setFontSize(9.5);
+  pdf.setFont('helvetica', 'bold');
+  const lateBadgeStr = lateCount > 0 ? `${lateCount} (${formatLatePdf(totalLateMinutes)})` : '0';
+  pdf.text(lateBadgeStr, 14 + (boxWidth + 3) * 4 + boxWidth / 2, boxY + 12, { align: 'center' });
 
   // 6. Attendance Records Table
   const formatPdfDuration = (hours?: number): string => {
@@ -198,6 +226,13 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const dayOfWeek = isNaN(d.getTime()) ? '' : dayNames[d.getDay()];
 
+    let statusDisplay = r.status || 'Present';
+    if (r.status === 'Late' || Number(r.lateMinutes || 0) > 0) {
+      statusDisplay = r.lateMinutes && r.lateMinutes > 0 
+        ? `Late (${formatLatePdf(r.lateMinutes)})` 
+        : 'Late';
+    }
+
     return [
       String(index + 1),
       `${r.date} (${dayOfWeek})`,
@@ -206,7 +241,7 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
       r.checkOut || '--',
       formatPdfDuration(r.workHours),
       r.overtimeHours ? `${r.overtimeHours}h` : '0h',
-      r.status || 'Present',
+      statusDisplay,
       r.source === 'telegram' ? 'Telegram' : 'Web Manual'
     ];
   });
@@ -245,13 +280,13 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
     columnStyles: {
       0: { halign: 'center', cellWidth: 8 },
       1: { halign: 'left', cellWidth: 26 },
-      2: { halign: 'left', cellWidth: staff ? 22 : 36 },
-      3: { halign: 'center', cellWidth: 20 },
-      4: { halign: 'center', cellWidth: 20 },
+      2: { halign: 'left', cellWidth: staff ? 22 : 34 },
+      3: { halign: 'center', cellWidth: 18 },
+      4: { halign: 'center', cellWidth: 18 },
       5: { halign: 'center', cellWidth: 16 },
-      6: { halign: 'center', cellWidth: 14 },
-      7: { halign: 'center', cellWidth: 20 },
-      8: { halign: 'center', cellWidth: 22 }
+      6: { halign: 'center', cellWidth: 12 },
+      7: { halign: 'center', cellWidth: 26 },
+      8: { halign: 'center', cellWidth: 20 }
     },
     alternateRowStyles: {
       fillColor: [248, 250, 252]

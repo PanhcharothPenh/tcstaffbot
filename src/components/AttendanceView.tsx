@@ -684,6 +684,24 @@ export default function AttendanceView({
     }
   };
 
+  const formatLateMinutes = (mins?: number, overrideLang?: 'kh' | 'en') => {
+    if (mins === undefined || mins === null || isNaN(mins) || mins <= 0) return overrideLang === 'en' ? '0m' : '0 នាទី';
+    const useLang = overrideLang || lang;
+    const totalMinutes = Math.round(mins);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    if (useLang === 'kh') {
+      if (hours === 0) return `${minutes} នាទី`;
+      if (minutes === 0) return `${hours} ម៉ោង`;
+      return `${hours} ម៉ោង ${minutes} នាទី`;
+    } else {
+      if (hours === 0) return `${minutes}m`;
+      if (minutes === 0) return `${hours}h`;
+      return `${hours}h ${minutes}m`;
+    }
+  };
+
   // ----------------------------------------------------
   // MONTHLY & PRINTABLE LEDGER HELPERS
   // ----------------------------------------------------
@@ -713,6 +731,7 @@ export default function AttendanceView({
       let totalOtHours = 0;
       let presentCount = 0;
       let lateCount = 0;
+      let totalLateMinutes = 0;
       let absentCount = 0;
       let permissionCount = 0;
 
@@ -720,7 +739,10 @@ export default function AttendanceView({
         totalWorkHours += r.workHours || 0;
         totalOtHours += r.overtimeHours || 0;
         if (r.status === 'Present' || r.status === 'Completed' || r.status === 'Working') presentCount++;
-        if (r.status === 'Late') lateCount++;
+        if (r.status === 'Late' || Number(r.lateMinutes || 0) > 0) {
+          lateCount++;
+          totalLateMinutes += Number(r.lateMinutes || 0);
+        }
         if (r.status === 'Absent') absentCount++;
         if (r.status === 'Permission') permissionCount++;
       });
@@ -731,6 +753,7 @@ export default function AttendanceView({
         daysWorked,
         presentCount,
         lateCount,
+        totalLateMinutes,
         absentCount,
         permissionCount,
         totalWorkHours,
@@ -761,6 +784,7 @@ export default function AttendanceView({
     let totalOtHours = 0;
     let presentCount = 0;
     let lateCount = 0;
+    let totalLateMinutes = 0;
     let absentCount = 0;
     let permissionCount = 0;
 
@@ -768,7 +792,10 @@ export default function AttendanceView({
       totalWorkHours += r.workHours || 0;
       totalOtHours += r.overtimeHours || 0;
       if (r.status === 'Present' || r.status === 'Completed' || r.status === 'Working') presentCount++;
-      if (r.status === 'Late') lateCount++;
+      if (r.status === 'Late' || Number(r.lateMinutes || 0) > 0) {
+        lateCount++;
+        totalLateMinutes += Number(r.lateMinutes || 0);
+      }
       if (r.status === 'Absent') absentCount++;
       if (r.status === 'Permission') permissionCount++;
     });
@@ -779,6 +806,7 @@ export default function AttendanceView({
       totalOtHours,
       presentCount,
       lateCount,
+      totalLateMinutes,
       absentCount,
       permissionCount
     };
@@ -921,7 +949,12 @@ export default function AttendanceView({
         const totalOtHours = staffStats ? staffStats.totalOtHours : printableTotals.totalOtHours;
         const presentCount = staffStats ? staffStats.presentCount : printableTotals.presentCount;
         const lateCount = staffStats ? staffStats.lateCount : printableTotals.lateCount;
+        const totalLateMinutes = staffStats ? staffStats.totalLateMinutes : printableTotals.totalLateMinutes;
         const absentCount = staffStats ? staffStats.absentCount : printableTotals.absentCount;
+
+        const lateDisplay = lateCount > 0 
+          ? `${lateCount} លើក (${formatLateMinutes(totalLateMinutes, 'kh')})` 
+          : '0 លើក';
 
         msg = `📊 <b>របាយការណ៍វត្តមានប្រចាំខែ</b>\n\n` +
           `👤 <b>បុគ្គលិក:</b> ${targetStaff.fullName}\n` +
@@ -932,15 +965,22 @@ export default function AttendanceView({
           `⏱️ <b>ម៉ោងធ្វើការសរុប:</b> ${totalWorkHours}\n` +
           `⚡ <b>ម៉ោងបន្ថែម (OT):</b> ${totalOtHours} ម៉ោង\n\n` +
           `🟢 <b>ទាន់ពេល:</b> ${presentCount} ថ្ងៃ\n` +
-          `🟠 <b>មកយឺត:</b> ${lateCount} ថ្ងៃ\n` +
+          `🟠 <b>មកយឺត:</b> ${lateDisplay}\n` +
           `🔴 <b>អវត្តមាន:</b> ${absentCount} ថ្ងៃ`;
       } else {
+        const totalLateCount = staffMonthlyStats.reduce((sum, s) => sum + s.lateCount, 0);
+        const totalLateMins = staffMonthlyStats.reduce((sum, s) => sum + s.totalLateMinutes, 0);
+        const lateDisplay = totalLateCount > 0 
+          ? `${totalLateCount} លើក (${formatLateMinutes(totalLateMins, 'kh')})` 
+          : '0 លើក';
+
         msg = `📊 <b>របាយការណ៍វត្តមានសរុប</b>\n\n` +
           `🏢 <b>សាខា:</b> ${targetBranch ? targetBranch.branchName : 'គ្រប់សាខាទាំងអស់'}\n` +
           `📅 <b>ប្រចាំខែ:</b> ${selectedMonth}/${selectedYear}\n\n` +
           `👥 <b>បុគ្គលិកសរុប:</b> ${staffMonthlyStats.length} នាក់\n` +
           `⏱️ <b>ម៉ោងធ្វើការសរុប:</b> ${formatWorkDuration(printableTotals.totalWorkHours, 'kh')}\n` +
-          `⚡ <b>ម៉ោងបន្ថែម (OT):</b> ${printableTotals.totalOtHours} ម៉ោង`;
+          `⚡ <b>ម៉ោងបន្ថែម (OT):</b> ${printableTotals.totalOtHours} ម៉ោង\n` +
+          `🟠 <b>មកយឺតសរុប:</b> ${lateDisplay}`;
       }
 
       const controller = new AbortController();
@@ -1541,7 +1581,7 @@ export default function AttendanceView({
                                    : 'bg-amber-100 text-amber-800 border border-amber-300'
                               }`}>
                                 <span className={`w-1.5 h-1.5 rounded-full inline-block ${rec.isLateExcused ? 'bg-cyan-600' : 'bg-amber-600'}`}></span>
-                                <span>{rec.lateMinutes ? `យឺត ${rec.lateMinutes}mn (~$${Number(rec.indicativeLateAmount || 0).toFixed(2)})` : (rec.isLateExcused ? 'យឺតមិនកាត់ប្រាក់' : (rec.lateDeduction && rec.lateDeduction > 0 ? `យឺតកាត់ $${rec.lateDeduction}` : 'មកយឺត'))}</span>
+                                <span>{rec.lateMinutes ? `យឺត ${formatLateMinutes(rec.lateMinutes, lang)} (~$${Number(rec.indicativeLateAmount || 0).toFixed(2)})` : (rec.isLateExcused ? 'យឺតមិនកាត់ប្រាក់' : (rec.lateDeduction && rec.lateDeduction > 0 ? `យឺតកាត់ $${rec.lateDeduction}` : 'មកយឺត'))}</span>
                               </span>
                             )}
                             {rec.earlyMinutes && rec.earlyMinutes > 0 ? (
@@ -1630,7 +1670,7 @@ export default function AttendanceView({
                              rec.status === 'Working' ? 'កំពុងធ្វើការ' :
                              rec.status === 'Completed' ? (rec.earlyMinutes && rec.earlyMinutes > 0 ? `🏃 ចេញមុន ${rec.earlyMinutes}mn` : 'បានចេញ') :
                              rec.status === 'Present' ? 'វត្តមាន' :
-                             rec.status === 'Late' ? (rec.lateMinutes ? `⏰ យឺត ${rec.lateMinutes}mn (~$${Number(rec.indicativeLateAmount || 0).toFixed(2)})` : (rec.isLateExcused ? '⏰ យឺតមិនកាត់' : (rec.lateDeduction && rec.lateDeduction > 0 ? `⚠️ យឺតកាត់ ($${rec.lateDeduction})` : 'មកយឺត'))) :
+                             rec.status === 'Late' ? (rec.lateMinutes ? `⏰ យឺត ${formatLateMinutes(rec.lateMinutes, lang)} (~$${Number(rec.indicativeLateAmount || 0).toFixed(2)})` : (rec.isLateExcused ? '⏰ យឺតមិនកាត់' : (rec.lateDeduction && rec.lateDeduction > 0 ? `⚠️ យឺតកាត់ ($${rec.lateDeduction})` : 'មកយឺត'))) :
                              rec.status === 'Absent' ? 'អវត្តមាន' : rec.status}
                           </span>
                         </td>
@@ -1729,7 +1769,7 @@ export default function AttendanceView({
                     <th className="py-3 px-3">សាខា</th>
                     <th className="py-3 px-3 text-center">ថ្ងៃធ្វើការ</th>
                     <th className="py-3 px-3 text-center text-emerald-700">ទាន់ពេល</th>
-                    <th className="py-3 px-3 text-center text-amber-700">យឺត</th>
+                    <th className="py-3 px-3 text-center text-amber-700">{lang === 'kh' ? 'យឺត (រយៈពេល)' : 'Late (Time)'}</th>
                     <th className="py-3 px-3 text-center text-rose-700">អវត្តមាន</th>
                     <th className="py-3 px-3 text-center">ម៉ោងសរុប</th>
                     <th className="py-3 px-3 text-center">OT</th>
@@ -1737,7 +1777,7 @@ export default function AttendanceView({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {staffMonthlyStats.map(({ staff, daysWorked, presentCount, lateCount, absentCount, totalWorkHours, totalOtHours }) => (
+                  {staffMonthlyStats.map(({ staff, daysWorked, presentCount, lateCount, totalLateMinutes, absentCount, totalWorkHours, totalOtHours }) => (
                     <tr key={staff.id} className="hover:bg-slate-50/60 transition-colors">
                       <td className="py-3 px-3.5">
                         <div className="flex items-center gap-2.5">
@@ -1767,8 +1807,19 @@ export default function AttendanceView({
                         {presentCount}
                       </td>
 
-                      <td className="py-3 px-3 text-center font-bold text-amber-700">
-                        {lateCount}
+                      <td className="py-3 px-3 text-center">
+                        {lateCount > 0 ? (
+                          <div className="inline-flex flex-col items-center justify-center">
+                            <span className="font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg text-xs">
+                              {lateCount} លើក
+                            </span>
+                            <span className="text-[10px] text-amber-600 font-bold mt-0.5 whitespace-nowrap">
+                              {formatLateMinutes(totalLateMinutes, lang)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 font-medium">0</span>
+                        )}
                       </td>
 
                       <td className="py-3 px-3 text-center font-bold text-rose-700">
@@ -1910,8 +1961,8 @@ export default function AttendanceView({
                 </div>
               </div>
 
-              {/* 4 Summary Stat Badges */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              {/* 5 Summary Stat Badges */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
                 <div className="bg-white border border-blue-200 rounded-xl p-3 text-center shadow-2xs">
                   <span className="text-[10.5px] font-bold text-blue-700 block">ចំនួនថ្ងៃសរុប (Days)</span>
                   <span className="text-xl font-black text-blue-900 mt-1 block">{printableTotals.totalDays}</span>
@@ -1929,6 +1980,13 @@ export default function AttendanceView({
                 <div className="bg-white border border-purple-200 rounded-xl p-3 text-center shadow-2xs">
                   <span className="text-[10.5px] font-bold text-purple-700 block">វត្តមានទាន់ពេល</span>
                   <span className="text-xl font-black text-purple-900 mt-1 block">{printableTotals.presentCount} ថ្ងៃ</span>
+                </div>
+                <div className="bg-white border border-amber-300 rounded-xl p-3 text-center shadow-2xs">
+                  <span className="text-[10.5px] font-bold text-amber-700 block">មកយឺត (Late)</span>
+                  <span className="text-lg font-black text-amber-900 mt-1 block">{printableTotals.lateCount} លើក</span>
+                  <span className="text-[10px] text-amber-600 font-bold block mt-0.5 whitespace-nowrap">
+                    {formatLateMinutes(printableTotals.totalLateMinutes, 'kh')}
+                  </span>
                 </div>
               </div>
 
@@ -1989,13 +2047,15 @@ export default function AttendanceView({
                               <span className={`px-2 py-0.5 rounded text-[10px] font-bold inline-block ${
                                 r.status === 'Completed' || r.status === 'Present'
                                   ? 'bg-emerald-100 text-emerald-800'
-                                  : r.status === 'Late'
+                                  : r.status === 'Late' || Number(r.lateMinutes || 0) > 0
                                   ? 'bg-amber-100 text-amber-800'
                                   : r.status === 'Absent'
                                   ? 'bg-rose-100 text-rose-800'
                                   : 'bg-slate-100 text-slate-800'
                               }`}>
-                                {r.status || 'Present'}
+                                {r.status === 'Late' || Number(r.lateMinutes || 0) > 0
+                                  ? `យឺត (${formatLateMinutes(r.lateMinutes || 0, 'kh')})`
+                                  : (r.status || 'Present')}
                               </span>
                             </td>
                             <td className="py-2 px-2.5 text-center font-bold text-[10px] text-slate-500 uppercase">
@@ -2018,8 +2078,8 @@ export default function AttendanceView({
                         <td className="py-2.5 px-2 text-center border-r border-slate-300 font-mono">
                           {printableTotals.totalOtHours}h
                         </td>
-                        <td colSpan={2} className="py-2.5 px-3 text-center text-[10.5px] text-slate-500">
-                          {printableTotals.totalDays} ថ្ងៃធ្វើការ
+                        <td colSpan={2} className="py-2.5 px-3 text-center text-[10.5px] text-slate-600 font-bold">
+                          {printableTotals.totalDays} ថ្ងៃ{printableTotals.lateCount > 0 ? ` • យឺត ${printableTotals.lateCount} លើក (${formatLateMinutes(printableTotals.totalLateMinutes, 'kh')})` : ''}
                         </td>
                       </tr>
                     )}
