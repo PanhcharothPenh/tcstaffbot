@@ -114,6 +114,7 @@ export interface Staff {
   faceEnrolledAt?: string;
   attendanceEnabled?: boolean;
   assignedBranchId?: string;
+  assignedBranchIds?: string[];
 }
 
 export interface SalarySchedule {

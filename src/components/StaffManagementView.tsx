@@ -65,6 +65,7 @@ export default function StaffManagementView({
   // Form Fields
   const [fullName, setFullName] = useState('');
   const [branchId, setBranchId] = useState(() => branches[0]?.id || 'b1');
+  const [assignedBranchIds, setAssignedBranchIds] = useState<string[]>(() => [branches[0]?.id || 'b1']);
 
   // Branch-specific shift working hours
   const selectedBranchObj = branches.find(b => b.id === branchId);
@@ -186,7 +187,11 @@ export default function StaffManagementView({
     let list = Array.isArray(staff) ? staff.filter(s => s && s.role !== 'Owner' && s.roleId !== 'owner' && !String(s.position || '').toLowerCase().includes('owner') && s.id !== 'staff_owner_clean24') : [];
 
     if (activeBranchId !== 'all') {
-      list = list.filter(s => s.branchId === activeBranchId);
+      list = list.filter(s => 
+        s.branchId === activeBranchId || 
+        s.assignedBranchId === activeBranchId || 
+        (Array.isArray(s.assignedBranchIds) && s.assignedBranchIds.includes(activeBranchId))
+      );
     }
 
     if (statusFilter !== 'all') {
@@ -206,12 +211,17 @@ export default function StaffManagementView({
     const rawTgUser = cleanTelegramInput(telegramUsername);
     const formattedTgUser = rawTgUser ? `@${rawTgUser}` : undefined;
 
+    const effectiveBranchIds = assignedBranchIds.length > 0 ? assignedBranchIds : [branchId];
+    const effectivePrimaryBranch = effectiveBranchIds.includes(branchId) ? branchId : effectiveBranchIds[0];
+
     if (editingStaff) {
       // Edit
       const updated = staff.map(s => s.id === editingStaff.id ? {
         ...s,
         fullName,
-        branchId,
+        branchId: effectivePrimaryBranch,
+        assignedBranchId: effectiveBranchIds.length === 1 ? effectiveBranchIds[0] : undefined,
+        assignedBranchIds: effectiveBranchIds,
         gender,
         dob,
         phone,
@@ -244,7 +254,9 @@ export default function StaffManagementView({
       const newStaff: Staff = {
         id: 's_' + Date.now(),
         fullName,
-        branchId,
+        branchId: effectivePrimaryBranch,
+        assignedBranchId: effectiveBranchIds.length === 1 ? effectiveBranchIds[0] : undefined,
+        assignedBranchIds: effectiveBranchIds,
         gender,
         dob,
         phone,
@@ -280,7 +292,7 @@ export default function StaffManagementView({
           phone,
           password: userAccountPassword || 'TCStaff@123',
           role: userAccountRole as Role,
-          assignedBranchIds: userAccountBranches.length > 0 ? userAccountBranches : [branchId],
+          assignedBranchIds: userAccountBranches.length > 0 ? userAccountBranches : effectiveBranchIds,
           status: 'Active',
           twoFactorMethod: 'disabled'
         } as any).then(() => {
@@ -313,6 +325,8 @@ export default function StaffManagementView({
     setStatus('Active');
     setBaseSalary(250);
     setAttendanceEnabled(true);
+    setBranchId(branches[0]?.id || 'b1');
+    setAssignedBranchIds([branches[0]?.id || 'b1']);
     setCreateUserAccount(false);
     setUserAccountUsername('');
     setUserAccountEmail('');
@@ -326,6 +340,10 @@ export default function StaffManagementView({
     setEditingStaff(s);
     setFullName(s.fullName);
     setBranchId(s.branchId);
+    const existingBranches = Array.isArray(s.assignedBranchIds) && s.assignedBranchIds.length > 0
+      ? s.assignedBranchIds
+      : (s.assignedBranchId ? [s.assignedBranchId] : (s.branchId ? [s.branchId] : [branches[0]?.id || 'b1']));
+    setAssignedBranchIds(existingBranches);
     setGender(s.gender);
     setDob(s.dob);
     setPhone(s.phone);
@@ -716,16 +734,70 @@ export default function StaffManagementView({
             </div>
 
             <div>
-              <label className="text-[11px] font-bold text-slate-500 mb-1 block">Branch *</label>
-              <select
-                value={branchId}
-                onChange={e => setBranchId(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl p-2.5 focus:outline-none"
-              >
-                {branches.map(b => (
-                  <option key={b.id} value={b.id}>{b.branchName} ({b.branchCode})</option>
-                ))}
-              </select>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[11px] font-bold text-slate-700">សាខាធ្វើការ (Branch) *</label>
+                {branches.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allIds = branches.map(b => b.id);
+                      const isAll = branches.every(b => assignedBranchIds.includes(b.id));
+                      if (isAll) {
+                        setAssignedBranchIds([branchId]);
+                      } else {
+                        setAssignedBranchIds(allIds);
+                      }
+                    }}
+                    className="text-[10px] text-blue-600 hover:text-blue-700 font-bold cursor-pointer underline"
+                  >
+                    {branches.every(b => assignedBranchIds.includes(b.id)) ? 'កំណត់ ១ សាខា' : '⚡ ធ្វើទាំង ២ សាខា'}
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {branches.map(b => {
+                  const isAssigned = assignedBranchIds.includes(b.id);
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => {
+                        let next: string[];
+                        if (isAssigned) {
+                          if (assignedBranchIds.length <= 1) return; // Keep at least 1 branch
+                          next = assignedBranchIds.filter(id => id !== b.id);
+                        } else {
+                          next = [...assignedBranchIds, b.id];
+                        }
+                        setAssignedBranchIds(next);
+                        if (!next.includes(branchId)) {
+                          setBranchId(next[0] || 'b1');
+                        }
+                      }}
+                      className={`p-2 rounded-xl border text-left transition cursor-pointer flex items-center justify-between ${
+                        isAssigned 
+                          ? 'bg-blue-50 border-blue-400 text-blue-900 font-bold shadow-2xs' 
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="truncate pr-1">
+                        <p className="text-xs truncate font-semibold">{b.branchName}</p>
+                        <p className="text-[9.5px] text-slate-400 font-mono">{b.branchCode}</p>
+                      </div>
+                      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] shrink-0 ${
+                        isAssigned ? 'bg-blue-600 text-white font-bold' : 'border border-slate-300'
+                      }`}>
+                        {isAssigned ? '✓' : ''}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {assignedBranchIds.length > 1 && (
+                <p className="text-[10px] text-emerald-600 font-medium mt-1">
+                  ✨ បុគ្គលិកនេះអាចស្កេនចូលបានទាំង ២ សាខា (ប្រព័ន្ធស្គាល់ GPS ស្វ័យប្រវត្តិ)
+                </p>
+              )}
             </div>
 
             <div>
@@ -1103,13 +1175,19 @@ export default function StaffManagementView({
                 )}
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm">{s.fullName}</h3>
-                  <div className="flex gap-1.5 mt-1 items-center">
+                  <div className="flex flex-wrap gap-1.5 mt-1 items-center">
                     <span className="text-[9px] font-bold uppercase py-0.5 px-2 bg-slate-100 text-slate-700 rounded">
                       {s.position}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-medium font-mono">
-                      {getBranchCode(s.branchId)}
-                    </span>
+                    {(Array.isArray(s.assignedBranchIds) && s.assignedBranchIds.length > 1) ? (
+                      <span className="text-[9.5px] bg-blue-50 text-blue-700 border border-blue-200 font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                        <span>⚡ ធ្វើ ២ សាខា</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-medium font-mono">
+                        {getBranchCode(s.branchId)}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

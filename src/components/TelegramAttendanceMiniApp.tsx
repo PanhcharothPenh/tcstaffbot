@@ -72,9 +72,28 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     }
     return null;
   });
+  const [availableBranches, setAvailableBranches] = useState<any[]>(() => cachedData?.availableBranches || []);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(() => cachedData?.branch?.id || '');
+  const [isAutoDetectedGps, setIsAutoDetectedGps] = useState<boolean>(false);
   const [todayAttendance, setTodayAttendance] = useState<any>(() => cachedData?.todayAttendance || null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [detectedTgUser, setDetectedTgUser] = useState<any>(null);
+
+  // Helper distance function for mobile mini app GPS branch matching
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371e3; // metres
+    const phi1 = (lat1 * Math.PI) / 180;
+    const phi2 = (lat2 * Math.PI) / 180;
+    const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+    const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+      Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return Math.round(R * c);
+  };
 
   // Camera & Capture State
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -83,6 +102,26 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   const [isVerifying, setIsVerifying] = useState(false);
   const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+
+  // Auto-detect branch based on real-time device GPS coordinates
+  useEffect(() => {
+    if (availableBranches.length > 1 && locationCoords?.lat && locationCoords?.lng) {
+      const candidates = availableBranches.filter(b => b.latitude && b.longitude);
+      if (candidates.length > 0) {
+        const withDist = candidates.map(b => ({
+          branch: b,
+          dist: calculateDistance(locationCoords.lat, locationCoords.lng, b.latitude, b.longitude)
+        }));
+        withDist.sort((a, b) => a.dist - b.dist);
+        const nearest = withDist[0];
+        if (nearest) {
+          setBranchInfo(nearest.branch);
+          setSelectedBranchId(nearest.branch.id);
+          setIsAutoDetectedGps(true);
+        }
+      }
+    }
+  }, [availableBranches, locationCoords]);
 
   // Result state
   const [resultData, setResultData] = useState<any>(null);
@@ -259,7 +298,15 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
       if (data.success && data.staff) {
         setStaffInfo(data.staff);
-        setBranchInfo(data.branch);
+        if (data.availableBranches && Array.isArray(data.availableBranches)) {
+          setAvailableBranches(data.availableBranches);
+        }
+        if (data.branch) {
+          setBranchInfo(data.branch);
+          if (!selectedBranchId) {
+            setSelectedBranchId(data.branch.id);
+          }
+        }
         setTodayAttendance(data.todayAttendance);
 
         // Update local cache for instant future loads
@@ -267,6 +314,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
           localStorage.setItem('tc_staff_mini_cache', JSON.stringify({
             staff: data.staff,
             branch: data.branch,
+            availableBranches: data.availableBranches || [],
             todayAttendance: data.todayAttendance
           }));
         } catch {}
@@ -644,6 +692,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
         body: JSON.stringify({
           initData,
           staffId: staffInfo?.id,
+          branchId: selectedBranchId || branchInfo?.id,
           telegramId: detectedTgUser?.id ? String(detectedTgUser.id) : undefined,
           telegramUsername: detectedTgUser?.username || undefined,
           faceDescriptor: vector,
@@ -854,11 +903,36 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
             {/* Staff & Today's Status Header Card */}
             <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-3">
               <div className="flex items-center justify-between text-xs pb-2.5 border-b border-slate-100">
-                <div className="flex items-center gap-1.5 text-slate-600">
-                  <Building2 size={14} className="text-[#003D9B]" />
-                  <span className="font-bold">{branchInfo?.branchName || 'TC Staff Management'}</span>
+                <div className="flex items-center gap-1.5 text-slate-600 flex-1 mr-2 min-w-0">
+                  <Building2 size={14} className="text-[#003D9B] shrink-0" />
+                  {availableBranches.length > 1 ? (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <select
+                        value={selectedBranchId || branchInfo?.id || ''}
+                        onChange={(e) => {
+                          const bId = e.target.value;
+                          setSelectedBranchId(bId);
+                          setIsAutoDetectedGps(false);
+                          const targetB = availableBranches.find(b => b.id === bId);
+                          if (targetB) setBranchInfo(targetB);
+                        }}
+                        className="bg-blue-50/90 border border-blue-300 text-blue-900 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none cursor-pointer"
+                      >
+                        {availableBranches.map((b: any) => (
+                          <option key={b.id} value={b.id}>{b.branchName}</option>
+                        ))}
+                      </select>
+                      {isAutoDetectedGps && (
+                        <span className="text-[9.5px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-md font-medium shrink-0 flex items-center gap-0.5">
+                          <span>📍 GPS ដឹងស្វ័យប្រវត្តិ</span>
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="font-bold truncate">{branchInfo?.branchName || 'TC Staff Management'}</span>
+                  )}
                 </div>
-                <div className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                <div className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 shrink-0">
                   {staffInfo?.position || 'Staff'}
                 </div>
               </div>

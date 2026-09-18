@@ -718,7 +718,8 @@ export default async function handler(req: any, res: any) {
           faceEnrolled: Boolean(matchedStaff.faceEnrolled && matchedStaff.faceReference),
           attendanceEnabled: matchedStaff.attendanceEnabled !== false,
           branchId: branch.id,
-          branchName: branch.branchName
+          branchName: branch.branchName,
+          assignedBranchIds: assignedIds
         },
         branch: {
           id: branch.id,
@@ -728,6 +729,17 @@ export default async function handler(req: any, res: any) {
           allowedRadius: branch.allowedRadius || 100,
           locationVerificationEnabled: Boolean(branch.locationVerificationEnabled)
         },
+        availableBranches: allBranches.filter((b: any) => 
+          assignedIds.length === 0 || assignedIds.includes('all') || assignedIds.includes(b.id)
+        ).map((b: any) => ({
+          id: b.id,
+          branchName: b.branchName,
+          branchCode: b.branchCode,
+          latitude: b.latitude,
+          longitude: b.longitude,
+          allowedRadius: b.allowedRadius || 100,
+          locationVerificationEnabled: Boolean(b.locationVerificationEnabled)
+        })),
         todayAttendance
       });
     } catch (err: any) {
@@ -837,22 +849,93 @@ export default async function handler(req: any, res: any) {
         }
       }
 
-      const branch = allBranches.find((b: any) => b.id === (staff.assignedBranchId || staff.branchId)) || allBranches[0];
+      const isOwnerStaff = Boolean(
+        staff.role === 'Owner' || 
+        staff.roleId === 'owner' || 
+        String(staff.position || '').toLowerCase().includes('owner') ||
+        staff.id?.startsWith('staff_usr_usr_owner') ||
+        staff.id === 'usr_owner' ||
+        String(val?.user?.id) === '7818150707' ||
+        (val?.user?.username || '').toLowerCase() === 'millerppc'
+      );
+
+      // Multi-Branch resolution & GPS Auto-Detection
+      const staffBranchIds: string[] = Array.isArray(staff.assignedBranchIds) && staff.assignedBranchIds.length > 0
+        ? staff.assignedBranchIds
+        : (staff.assignedBranchId ? [staff.assignedBranchId] : (staff.branchId ? [staff.branchId] : []));
+
+      const candidateBranches = (isOwnerStaff || staffBranchIds.includes('all') || staffBranchIds.length === 0)
+        ? allBranches
+        : allBranches.filter((b: any) => staffBranchIds.includes(b.id));
+
+      let matchedBranch: any = null;
       let distance: number | undefined = undefined;
 
-      if (branch && branch.locationVerificationEnabled && branch.latitude && branch.longitude) {
-        if (latitude === undefined || longitude === undefined) {
+      const requestedBranchId = req.body?.branchId;
+      if (requestedBranchId) {
+        matchedBranch = candidateBranches.find((b: any) => b.id === requestedBranchId) || allBranches.find((b: any) => b.id === requestedBranchId);
+      }
+
+      if (latitude !== undefined && longitude !== undefined) {
+        const candidatesWithDist = (candidateBranches.length > 0 ? candidateBranches : allBranches).map((b: any) => {
+          const dist = (b.latitude && b.longitude)
+            ? calculateHaversineDistance(latitude, longitude, b.latitude, b.longitude)
+            : Infinity;
+          const allowed = b.allowedRadius || 100;
+          return { branch: b, dist, isWithin: dist <= allowed };
+        });
+
+        if (matchedBranch) {
+          const found = candidatesWithDist.find(c => c.branch.id === matchedBranch.id);
+          const branchDist = found ? found.dist : calculateHaversineDistance(latitude, longitude, matchedBranch.latitude, matchedBranch.longitude);
+          const allowedRadius = matchedBranch.allowedRadius || 100;
+
+          if (matchedBranch.locationVerificationEnabled && branchDist > allowedRadius) {
+            // Check if user is physically at another valid assigned branch
+            const alternateWithin = candidatesWithDist.find(c => c.isWithin);
+            if (alternateWithin) {
+              matchedBranch = alternateWithin.branch;
+              distance = alternateWithin.dist;
+            } else {
+              return res.status(400).json({
+                success: false,
+                error: `មិនអាចចុះវត្តមានបានទេ! អ្នកនៅក្រៅតំបន់ដែលបានកំណត់សម្រាប់សាខា ${matchedBranch.branchName} (ចម្ងាយ៖ ${branchDist} ម៉ែត្រ / អនុញ្ញាត៖ ${allowedRadius} ម៉ែត្រ)។`
+              });
+            }
+          } else {
+            distance = branchDist;
+          }
+        } else {
+          // Auto-detect branch based on GPS proximity
+          const withinList = candidatesWithDist.filter(c => c.isWithin);
+          if (withinList.length > 0) {
+            withinList.sort((a, b) => a.dist - b.dist);
+            matchedBranch = withinList[0].branch;
+            distance = withinList[0].dist;
+          } else {
+            candidatesWithDist.sort((a, b) => a.dist - b.dist);
+            const nearest = candidatesWithDist[0];
+            matchedBranch = nearest?.branch || allBranches[0];
+            distance = nearest?.dist;
+
+            if (matchedBranch && matchedBranch.locationVerificationEnabled) {
+              return res.status(400).json({
+                success: false,
+                error: `មិនអាចចុះវត្តមានបានទេ! អ្នកនៅក្រៅតំបន់សាខាដែលបានកំណត់ (ចម្ងាយពី ${matchedBranch.branchName}៖ ${distance} ម៉ែត្រ / អនុញ្ញាត៖ ${matchedBranch.allowedRadius || 100} ម៉ែត្រ)។`
+              });
+            }
+          }
+        }
+      } else {
+        if (!matchedBranch) {
+          matchedBranch = candidateBranches[0] || allBranches[0];
+        }
+        if (matchedBranch && matchedBranch.locationVerificationEnabled) {
           return res.status(400).json({ success: false, error: 'សូមបើក GPS ទីតាំងនៅលើទូរស័ព្ទរបស់អ្នក ដើម្បីផ្ទៀងផ្ទាត់ទីតាំងសាខា!' });
         }
-        distance = calculateHaversineDistance(latitude, longitude, branch.latitude, branch.longitude);
-        const allowedRadius = branch.allowedRadius || 100;
-        if (distance > allowedRadius) {
-          return res.status(400).json({
-            success: false,
-            error: `មិនអាចចុះវត្តមានបានទេ! អ្នកនៅក្រៅតំបន់ដែលបានកំណត់សម្រាប់សាខា ${branch.branchName} (ចម្ងាយ៖ ${distance} ម៉ែត្រ / អនុញ្ញាត៖ ${allowedRadius} ម៉ែត្រ)។`
-          });
-        }
       }
+
+      const branch = matchedBranch || allBranches[0];
 
       const now = new Date();
       const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
@@ -866,16 +949,6 @@ export default async function handler(req: any, res: any) {
           return res.status(400).json({ success: false, error: `អ្នកបានចុះវត្តមានចូលរួចហើយនៅម៉ោង ${exist.checkIn}!` });
         }
       }
-
-      const isOwnerStaff = Boolean(
-        staff.role === 'Owner' || 
-        staff.roleId === 'owner' || 
-        String(staff.position || '').toLowerCase().includes('owner') ||
-        staff.id?.startsWith('staff_usr_usr_owner') ||
-        staff.id === 'usr_owner' ||
-        String(val?.user?.id) === '7818150707' ||
-        (val?.user?.username || '').toLowerCase() === 'millerppc'
-      );
 
       // Branch & Shift Schedule Logic:
       // TOTO by ChiChi: Shift 1: 06:30 - 16:00 (9.5h), Shift 2: 13:00 - 21:00 (8.0h)
@@ -976,9 +1049,9 @@ export default async function handler(req: any, res: any) {
       await saveCollection('attendance', allAtt);
 
       // Dispatch Check-In Alert ONLY to Assigned Admin
-      const branchBotToken = getBotToken(staff.branchId, branch?.branchName) || allBotTokens[0] || botToken;
+      const branchBotToken = getBotToken(branch?.id || staff.branchId, branch?.branchName) || allBotTokens[0] || botToken;
       if (branchBotToken) {
-        const assignedAdminChatId = await getAssignedAdminChatId(staff.branchId || branch?.id, branch?.branchName);
+        const assignedAdminChatId = await getAssignedAdminChatId(branch?.id || staff.branchId, branch?.branchName);
         if (assignedAdminChatId) {
           let lateSection = '';
           if (isLateCheck) {
@@ -1129,20 +1202,6 @@ export default async function handler(req: any, res: any) {
       // Photo is saved directly as live attendance proof; verification is authenticated via Telegram
       const checkOutFaceScore = 1.0;
 
-      const branch = allBranches.find((b: any) => b.id === (staff.assignedBranchId || staff.branchId)) || allBranches[0];
-      let distance: number | undefined = undefined;
-
-      if (branch && branch.locationVerificationEnabled && branch.latitude && branch.longitude) {
-        if (latitude === undefined || longitude === undefined) {
-          return res.status(400).json({ success: false, error: 'សូមបើក GPS ទីតាំងនៅលើទូរស័ព្ទរបស់អ្នក!' });
-        }
-        distance = calculateHaversineDistance(latitude, longitude, branch.latitude, branch.longitude);
-        const allowedRadius = branch.allowedRadius || 100;
-        if (distance > allowedRadius) {
-          return res.status(400).json({ success: false, error: `មិនអាចចុះវត្តមានបានទេ! អ្នកនៅក្រៅតំបន់ដែលបានកំណត់សម្រាប់សាខា (ចម្ងាយ៖ ${distance}m)` });
-        }
-      }
-
       const now = new Date();
       const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
       const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Phnom_Penh' });
@@ -1163,6 +1222,22 @@ export default async function handler(req: any, res: any) {
 
       if (hasRealOut) {
         return res.status(400).json({ success: false, error: `អ្នកបានចុះវត្តមានចេញរួចរាល់ហើយនៅម៉ោង ${attRecord.checkOut}!` });
+      }
+
+      // Check-out branch aligns with the branch where staff checked in today
+      const checkInBranchId = attRecord.branchId || req.body?.branchId;
+      const branch = allBranches.find((b: any) => b.id === (checkInBranchId || staff.assignedBranchId || staff.branchId)) || allBranches[0];
+      let distance: number | undefined = undefined;
+
+      if (branch && branch.locationVerificationEnabled && branch.latitude && branch.longitude) {
+        if (latitude === undefined || longitude === undefined) {
+          return res.status(400).json({ success: false, error: 'សូមបើក GPS ទីតាំងនៅលើទូរស័ព្ទរបស់អ្នក!' });
+        }
+        distance = calculateHaversineDistance(latitude, longitude, branch.latitude, branch.longitude);
+        const allowedRadius = branch.allowedRadius || 100;
+        if (distance > allowedRadius) {
+          return res.status(400).json({ success: false, error: `មិនអាចចុះវត្តមានបានទេ! អ្នកនៅក្រៅតំបន់ដែលបានកំណត់សម្រាប់សាខា ${branch.branchName} (ចម្ងាយ៖ ${distance}m / អនុញ្ញាត៖ ${allowedRadius}m)` });
+        }
       }
 
       let workHours = 8;
@@ -1281,9 +1356,9 @@ export default async function handler(req: any, res: any) {
       await saveCollection('attendance', allAtt);
 
       // Dispatch Check-Out Alert ONLY to Assigned Admin
-      const branchBotToken = getBotToken(staff.branchId, branch?.branchName) || allBotTokens[0] || botToken;
+      const branchBotToken = getBotToken(branch?.id || staff.branchId, branch?.branchName) || allBotTokens[0] || botToken;
       if (branchBotToken) {
-        const assignedAdminChatId = await getAssignedAdminChatId(staff.branchId || branch?.id, branch?.branchName);
+        const assignedAdminChatId = await getAssignedAdminChatId(branch?.id || staff.branchId, branch?.branchName);
         if (assignedAdminChatId) {
           let earlySection = '';
           if (isEarlyCheck) {
