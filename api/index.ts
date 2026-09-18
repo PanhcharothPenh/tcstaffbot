@@ -299,8 +299,11 @@ export default async function handler(req: any, res: any) {
     }
   };
 
-  // Helper to resolve assigned admin chat ID for branch
-  const getAssignedAdminChatId = async (branchId?: string, branchName?: string): Promise<string | null> => {
+  // Helper to resolve ALL alert recipient chat IDs (Owners always included + assigned Branch Admins/Managers)
+  const getAlertRecipientChatIds = async (branchId?: string, branchName?: string, excludeStaffTgId?: string): Promise<string[]> => {
+    const recipients = new Set<string>();
+    const exclude = excludeStaffTgId ? String(excludeStaffTgId).trim() : '';
+
     try {
       const allUsers = await getCollection('users');
       const cfgRaw = await getCollection('telegramConfig');
@@ -308,56 +311,79 @@ export default async function handler(req: any, res: any) {
       const chatRegistry = await getCollection('telegram_chat_registry');
       const bId = String(branchId || '').toLowerCase().trim();
 
-      // 1. Find Admin specifically assigned to this branch
-      if (Array.isArray(allUsers) && bId) {
-        const assignedAdmin = allUsers.find((u: any) => 
-          (u.role === 'Admin' || u.roleId === 'admin') &&
-          u.telegramChatId &&
-          /^-?\d+$/.test(String(u.telegramChatId)) &&
-          Array.isArray(u.assignedBranchIds) &&
-          (u.assignedBranchIds.includes(bId) || u.assignedBranchIds.includes('all'))
-        );
-        if (assignedAdmin) return String(assignedAdmin.telegramChatId);
+      // 1. ALWAYS INCLUDE KNOWN OWNER TELEGRAM CHAT IDs
+      const knownOwnerChatIds = ['7818150707', '366357620'];
+      for (const oId of knownOwnerChatIds) {
+        recipients.add(oId);
       }
 
-      // 2. Check branch-specific admin/manager chat in telegramConfig
+      // 2. All Users with role 'Owner' or 'Admin' in users collection
+      if (Array.isArray(allUsers)) {
+        for (const u of allUsers) {
+          const r = String(u.role || u.roleId || '').toLowerCase();
+          const tgId = String(u.telegramChatId || u.telegramId || '').trim();
+          if (!tgId || !/^-?\d+$/.test(tgId)) continue;
+
+          // Owners always get alerted
+          if (r === 'owner' || u.id === 'usr_owner' || u.username === 'roth' || u.username === 'millerppc') {
+            recipients.add(tgId);
+          } else if (r === 'admin' || r === 'manager') {
+            // Admin / Manager: check branch assignment
+            const assigned = Array.isArray(u.assignedBranchIds) ? u.assignedBranchIds.map((x: any) => String(x).toLowerCase()) : [];
+            if (!bId || assigned.length === 0 || assigned.includes(bId) || assigned.includes('all')) {
+              recipients.add(tgId);
+            }
+          }
+        }
+      }
+
+      // 3. Stored telegramConfig: Owner, Admin, and Branch specific chats
+      if (storedConfig?.chatIds?.owner && /^-?\d+$/.test(String(storedConfig.chatIds.owner))) {
+        recipients.add(String(storedConfig.chatIds.owner));
+      }
+      if (storedConfig?.chatIds?.admin && /^-?\d+$/.test(String(storedConfig.chatIds.admin))) {
+        recipients.add(String(storedConfig.chatIds.admin));
+      }
       if (bId && storedConfig?.chatIds?.branches?.[bId] && /^-?\d+$/.test(String(storedConfig.chatIds.branches[bId]))) {
-        return String(storedConfig.chatIds.branches[bId]);
+        recipients.add(String(storedConfig.chatIds.branches[bId]));
       }
       if (bId && storedConfig?.chatIds?.manager?.[bId] && /^-?\d+$/.test(String(storedConfig.chatIds.manager[bId]))) {
-        return String(storedConfig.chatIds.manager[bId]);
+        recipients.add(String(storedConfig.chatIds.manager[bId]));
       }
 
-      // 3. Fallback to assigned Owner
-      if (Array.isArray(allUsers)) {
-        const ownerUser = allUsers.find((u: any) => 
-          (u.role === 'Owner' || u.id === 'usr_owner' || u.username === 'roth') &&
-          u.telegramChatId &&
-          /^-?\d+$/.test(String(u.telegramChatId))
-        );
-        if (ownerUser) return String(ownerUser.telegramChatId);
-      }
-
-      if (storedConfig?.chatIds?.owner && /^-?\d+$/.test(String(storedConfig.chatIds.owner))) {
-        return String(storedConfig.chatIds.owner);
-      }
-
-      if (storedConfig?.lastPrivateChatId && /^-?\d+$/.test(String(storedConfig.lastPrivateChatId))) {
-        return String(storedConfig.lastPrivateChatId);
-      }
-
+      // 4. Stored registry owner records
       if (Array.isArray(chatRegistry) && chatRegistry.length > 0) {
-        const ownerReg = chatRegistry.find((r: any) => r.isOwner || r.username === 'roth' || r.username === 'millerppc') || chatRegistry[chatRegistry.length - 1];
-        if (ownerReg?.chatId && /^-?\d+$/.test(String(ownerReg.chatId))) return String(ownerReg.chatId);
+        for (const reg of chatRegistry) {
+          if (reg?.chatId && /^-?\d+$/.test(String(reg.chatId))) {
+            if (reg.isOwner || reg.username === 'roth' || reg.username === 'millerppc') {
+              recipients.add(String(reg.chatId));
+            }
+          }
+        }
       }
 
-      if (process.env.TELEGRAM_CHAT_ID && /^-?\d+$/.test(process.env.TELEGRAM_CHAT_ID)) {
-        return process.env.TELEGRAM_CHAT_ID;
+      // 5. Environment variable fallback if empty
+      if (recipients.size === 0 && process.env.TELEGRAM_CHAT_ID && /^-?\d+$/.test(process.env.TELEGRAM_CHAT_ID)) {
+        recipients.add(process.env.TELEGRAM_CHAT_ID);
       }
     } catch (e) {
-      console.error('Error resolving assigned admin chat ID:', e);
+      console.error('Error resolving alert recipient chat IDs:', e);
+      recipients.add('7818150707');
+      recipients.add('366357620');
     }
-    return null;
+
+    // Exclude regular staff Telegram ID from getting admin alert
+    if (exclude && exclude !== '7818150707' && exclude !== '366357620') {
+      recipients.delete(exclude);
+    }
+
+    return Array.from(recipients);
+  };
+
+  // Helper to resolve assigned admin chat ID for branch (backward compatibility)
+  const getAssignedAdminChatId = async (branchId?: string, branchName?: string): Promise<string | null> => {
+    const list = await getAlertRecipientChatIds(branchId, branchName);
+    return list.length > 0 ? list[0] : null;
   };
 
 
@@ -1050,11 +1076,11 @@ export default async function handler(req: any, res: any) {
 
       await saveCollection('attendance', allAtt);
 
-      // Dispatch Check-In Alert ONLY to Assigned Admin
+      // Dispatch Check-In Alert to Owner & Assigned Admin/Manager
       const branchBotToken = getBotToken(branch?.id || staff.branchId, branch?.branchName) || allBotTokens[0] || botToken;
       if (branchBotToken) {
-        const assignedAdminChatId = await getAssignedAdminChatId(branch?.id || staff.branchId, branch?.branchName);
-        if (assignedAdminChatId) {
+        const recipientChatIds = await getAlertRecipientChatIds(branch?.id || staff.branchId, branch?.branchName, staff.telegramId);
+        if (recipientChatIds.length > 0) {
           let lateSection = '';
           if (isLateCheck) {
             lateSection = `⏰ <b>ស្ថានភាព:</b> ⚠️ <b>មកយឺត ${lateMins} នាទី</b> (${shiftName})\n` +
@@ -1072,7 +1098,11 @@ export default async function handler(req: any, res: any) {
             (distance !== undefined ? `📍 <b>ចម្ងាយ GPS:</b> <code>${Math.round(distance)} ម៉ែត្រ</code>\n` : '') +
             `🌐 <b>ប្រភព:</b> Telegram Mini App`;
 
-          sendTelegramNotification(branchBotToken, assignedAdminChatId, adminMsg, photo || staff.photoUrl).catch(() => {});
+          await Promise.allSettled(
+            recipientChatIds.map(chatId =>
+              sendTelegramNotification(branchBotToken, chatId, adminMsg, photo || staff.photoUrl)
+            )
+          ).catch(() => {});
         }
 
         // Send confirmation to staff if linked with Telegram (Item 2 ក)
@@ -1357,11 +1387,11 @@ export default async function handler(req: any, res: any) {
 
       await saveCollection('attendance', allAtt);
 
-      // Dispatch Check-Out Alert ONLY to Assigned Admin
+      // Dispatch Check-Out Alert to Owner & Assigned Admin/Manager
       const branchBotToken = getBotToken(branch?.id || staff.branchId, branch?.branchName) || allBotTokens[0] || botToken;
       if (branchBotToken) {
-        const assignedAdminChatId = await getAssignedAdminChatId(branch?.id || staff.branchId, branch?.branchName);
-        if (assignedAdminChatId) {
+        const recipientChatIds = await getAlertRecipientChatIds(branch?.id || staff.branchId, branch?.branchName, staff.telegramId);
+        if (recipientChatIds.length > 0) {
           let earlySection = '';
           if (isEarlyCheck) {
             earlySection = `⏰ <b>ស្ថានភាព:</b> ⚠️ <b>ចេញមុនម៉ោង ${earlyMins} នាទី</b> (${shiftName})\n` +
@@ -1381,7 +1411,11 @@ export default async function handler(req: any, res: any) {
             (distance !== undefined ? `📍 <b>ចម្ងាយ GPS:</b> <code>${Math.round(distance)} ម៉ែត្រ</code>\n` : '') +
             `🌐 <b>ប្រភព:</b> Telegram Mini App`;
 
-          sendTelegramNotification(branchBotToken, assignedAdminChatId, adminCheckOutMsg, photo || attRecord.checkOutPhoto || staff.photoUrl).catch(() => {});
+          await Promise.allSettled(
+            recipientChatIds.map(chatId =>
+              sendTelegramNotification(branchBotToken, chatId, adminCheckOutMsg, photo || attRecord.checkOutPhoto || staff.photoUrl)
+            )
+          ).catch(() => {});
         }
 
         // Send confirmation to staff if linked with Telegram (Item 2 ខ)
