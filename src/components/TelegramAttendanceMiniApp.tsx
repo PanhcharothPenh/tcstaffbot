@@ -86,6 +86,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
   // Result state
   const [resultData, setResultData] = useState<any>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lateReason, setLateReason] = useState('');
   const [earlyReason, setEarlyReason] = useState('');
 
