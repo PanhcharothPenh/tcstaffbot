@@ -972,7 +972,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     <div className="flex justify-between items-center text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-[11px]">
                       <span>ស្ថានភាពមកយឺត ៖</span>
                       <span className="font-bold">
-                        យឺត {resultData.lateMinutes} នាទី (~${Number(resultData.indicativeLateAmount || 0).toFixed(2)} - មិនកាត់ប្រាក់ខែ)
+                        យឺត {resultData.lateMinutes} នាទី
                       </span>
                     </div>
                   ) : null}
@@ -1044,23 +1044,18 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                       </div>
 
                       {shiftInfo.isLate && (
-                        <div className="space-y-2 pt-2 border-t border-amber-200/90">
-                          <p className="text-[11px] text-amber-900 leading-relaxed">
-                            💡 ស្មើនឹងតម្លៃណែនាំ <b>${shiftInfo.indicativeAmount.toFixed(2)}</b> (សម្រាប់ការដាស់តឿន <b>មិនកាត់ប្រាក់ខែគោលឡើយ</b>)។
-                          </p>
-                          <div>
-                            <label className="text-[11px] font-bold text-amber-950 block mb-1">
-                              សូមបញ្ជាក់មូលហេតុនៃការមកយឺត *៖
-                            </label>
-                            <input
-                              type="text"
-                              value={lateReason}
-                              onChange={e => setLateReason(e.target.value)}
-                              placeholder="ឧ. ស្ទះចរាចរណ៍, ឈឺពោះ, មានធុរៈបន្ទាន់..."
-                              className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-amber-500 shadow-2xs font-medium"
-                              required
-                            />
-                          </div>
+                        <div className="pt-2 border-t border-amber-200/90">
+                          <label className="text-[11px] font-bold text-amber-950 block mb-1">
+                            សូមបញ្ជាក់មូលហេតុនៃការមកយឺត *៖
+                          </label>
+                          <input
+                            type="text"
+                            value={lateReason}
+                            onChange={e => setLateReason(e.target.value)}
+                            placeholder="ឧ. ស្ទះចរាចរណ៍, ឈឺពោះ, មានធុរៈបន្ទាន់..."
+                            className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-amber-500 shadow-2xs font-medium"
+                            required
+                          />
                         </div>
                       )}
                     </div>

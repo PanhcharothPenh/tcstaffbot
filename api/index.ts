@@ -1008,7 +1008,7 @@ export default async function handler(req: any, res: any) {
             `🏢 <b>សាខា:</b> ${branch?.branchName || 'TC Staff'}\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
             `🕒 <b>ម៉ោងចូល:</b> <code>${timeStr}</code> (${shiftName})\n` +
-            (isLateCheck ? `⚠️ <b>មកយឺត:</b> ${lateMins} នាទី (តម្លៃសមមូល ~$${indicativeAmount.toFixed(2)} - មិនកាត់ប្រាក់ខែ)\n` : '') +
+            (isLateCheck ? `⚠️ <b>មកយឺត:</b> ${lateMins} នាទី\n` : '') +
             `\n✨ សូមជូនពរឱ្យការងារថ្ងៃនេះប្រព្រឹត្តទៅដោយរលូន។`;
 
           sendTelegramNotification(branchBotToken, staff.telegramId, staffMsg, photo || staff.photoUrl).catch(() => {});
