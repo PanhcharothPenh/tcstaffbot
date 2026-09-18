@@ -1541,7 +1541,7 @@ export default function AttendanceView({
                                   : 'bg-amber-100 text-amber-800 border border-amber-300'
                               }`}>
                                 <span className={`w-1.5 h-1.5 rounded-full inline-block ${rec.isLateExcused ? 'bg-cyan-600' : 'bg-amber-600'}`}></span>
-                                <span>{rec.isLateExcused ? 'យឺតមិនកាត់ប្រាក់' : (rec.lateDeduction && rec.lateDeduction > 0 ? `យឺតកាត់ $${rec.lateDeduction}` : 'មកយឺត')}</span>
+                                <span>{rec.lateMinutes ? `យឺត ${rec.lateMinutes}mn (~$${Number(rec.indicativeLateAmount || 0).toFixed(2)})` : (rec.isLateExcused ? 'យឺតមិនកាត់ប្រាក់' : (rec.lateDeduction && rec.lateDeduction > 0 ? `យឺតកាត់ $${rec.lateDeduction}` : 'មកយឺត'))}</span>
                               </span>
                             )}
                             {rec.date === todayPhnomPenh && rec.status !== 'Permission' && rec.status !== 'Late' && (
@@ -1619,7 +1619,7 @@ export default function AttendanceView({
                              rec.status === 'Working' ? 'កំពុងធ្វើការ' :
                              rec.status === 'Completed' ? 'បានចេញ' :
                              rec.status === 'Present' ? 'វត្តមាន' :
-                             rec.status === 'Late' ? (rec.isLateExcused ? '⏰ យឺតមិនកាត់' : (rec.lateDeduction && rec.lateDeduction > 0 ? `⚠️ យឺតកាត់ ($${rec.lateDeduction})` : 'មកយឺត')) :
+                             rec.status === 'Late' ? (rec.lateMinutes ? `⏰ យឺត ${rec.lateMinutes}mn (~$${Number(rec.indicativeLateAmount || 0).toFixed(2)})` : (rec.isLateExcused ? '⏰ យឺតមិនកាត់' : (rec.lateDeduction && rec.lateDeduction > 0 ? `⚠️ យឺតកាត់ ($${rec.lateDeduction})` : 'មកយឺត'))) :
                              rec.status === 'Absent' ? 'អវត្តមាន' : rec.status}
                           </span>
                         </td>

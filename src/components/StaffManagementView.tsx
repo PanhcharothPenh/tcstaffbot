@@ -70,7 +70,7 @@ export default function StaffManagementView({
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [position, setPosition] = useState<string>('Helper');
-  const [shift, setShift] = useState<'Morning' | 'Afternoon' | 'Night' | 'Full Time' | 'Day Off'>('Morning');
+  const [shift, setShift] = useState<'Morning' | 'Afternoon' | 'Night' | 'Full Time' | 'Day Off' | 'Shift 1' | 'Shift 2'>('Shift 1');
   const [startDate, setStartDate] = useState(() => new Date().toISOString().substring(0, 10));
   const [resignationDate, setResignationDate] = useState('');
   const [status, setStatus] = useState<'Active' | 'Resigned' | 'Suspended'>('Active');
@@ -769,10 +769,12 @@ export default function StaffManagementView({
                 onChange={e => setShift(e.target.value as any)}
                 className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl p-2.5 focus:outline-none"
               >
-                <option value="Morning">Morning</option>
-                <option value="Afternoon">Afternoon</option>
-                <option value="Night">Night</option>
-                <option value="Full Time">Full Time</option>
+                <option value="Shift 1">Shift 1 (វេនទី ១)</option>
+                <option value="Shift 2">Shift 2 (វេនទី ២)</option>
+                <option value="Morning">Morning (ពេលព្រឹក)</option>
+                <option value="Afternoon">Afternoon (ពេលរសៀល)</option>
+                <option value="Night">Night (ពេលយប់)</option>
+                <option value="Full Time">Full Time (ពេញម៉ោង)</option>
                 <option value="Day Off">Day Off (ថ្ងៃសម្រាក)</option>
               </select>
             </div>

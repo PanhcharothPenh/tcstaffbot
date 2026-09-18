@@ -98,7 +98,7 @@ export interface Staff {
   phone: string;
   address: string;
   position: string;
-  shift: 'Morning' | 'Afternoon' | 'Night' | 'Full Time' | 'Day Off';
+  shift: 'Morning' | 'Afternoon' | 'Night' | 'Full Time' | 'Day Off' | 'Shift 1' | 'Shift 2';
   startDate: string;
   resignationDate?: string;
   baseSalary: number;
@@ -255,6 +255,9 @@ export interface Attendance {
   notes?: string;
   lateDeduction?: number;
   isLateExcused?: boolean;
+  lateMinutes?: number;
+  lateReason?: string;
+  indicativeLateAmount?: number;
   auditHistory?: AttendanceAuditLog[];
   createdAt?: string;
   updatedAt?: string;

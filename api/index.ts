@@ -877,6 +877,60 @@ export default async function handler(req: any, res: any) {
         (val?.user?.username || '').toLowerCase() === 'millerppc'
       );
 
+      // Branch & Shift Schedule Logic:
+      // TOTO by ChiChi: Shift 1: 06:30 - 16:00 (9.5h), Shift 2: 13:00 - 21:00 (8.0h)
+      // Coffee Corner: Shift 1: 06:30 - 14:00 (7.5h), Shift 2: 14:00 - 21:00 (7.0h)
+      const bName = String(branch?.branchName || '').toLowerCase();
+      const bId = String(branch?.id || staff.branchId || '');
+      const isToto = bId === 'b1' || bName.includes('toto') || bName.includes('chi');
+
+      const phnomPenhTime = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Phnom_Penh' });
+      const [hStr, mStr] = phnomPenhTime.split(':');
+      const curMins = parseInt(hStr || '0', 10) * 60 + parseInt(mStr || '0', 10);
+
+      const reqShift = req.body?.shiftType || staff.shift;
+      let isShift1 = false;
+      if (reqShift === 'Shift 1' || reqShift === 'Morning') {
+        isShift1 = true;
+      } else if (reqShift === 'Shift 2' || reqShift === 'Afternoon') {
+        isShift1 = false;
+      } else {
+        isShift1 = curMins < 690; // Before 11:30 AM -> Shift 1
+      }
+
+      const shiftName = isShift1 ? 'Shift 1' : 'Shift 2';
+      let startMins = 390;
+      let durationHours = 8.0;
+
+      if (isToto) {
+        if (isShift1) {
+          startMins = 6 * 60 + 30; // 390 (06:30 AM)
+          durationHours = 9.5;
+        } else {
+          startMins = 13 * 60; // 780 (01:00 PM)
+          durationHours = 8.0;
+        }
+      } else {
+        // Coffee Corner
+        if (isShift1) {
+          startMins = 6 * 60 + 30; // 390 (06:30 AM)
+          durationHours = 7.5;
+        } else {
+          startMins = 14 * 60; // 840 (02:00 PM)
+          durationHours = 7.0;
+        }
+      }
+
+      // Check if late (> 10 minutes past start time)
+      const isLateCheck = Boolean(req.body?.isLate || (curMins > (startMins + 10)));
+      const lateMins = isLateCheck ? (req.body?.lateMinutes || Math.max(0, curMins - startMins)) : 0;
+      const staffSalary = Number(staff.baseSalary || 0);
+      const dailyRate = staffSalary > 0 ? (staffSalary / 30) : 0;
+      const hourlyRate = durationHours > 0 ? (dailyRate / durationHours) : 0;
+      const minuteRate = hourlyRate / 60;
+      const indicativeAmount = Number((req.body?.indicativeLateAmount || (lateMins * minuteRate)).toFixed(2));
+      const lateReason = String(req.body?.lateReason || '').trim();
+
       const existingAtt = existingIndex !== -1 ? allAtt[existingIndex] : null;
       const newRecord: any = {
         id: existingAtt?.id || ('att_' + Date.now()),
@@ -886,10 +940,10 @@ export default async function handler(req: any, res: any) {
         date: todayStr,
         checkIn: timeStr,
         checkOut: isRealTime(existingAtt?.checkOut) ? existingAtt.checkOut : '',
-        shiftType: staff.shift || 'Full Time',
+        shiftType: shiftName,
         workHours: 0,
         overtimeHours: 0,
-        status: 'Working',
+        status: isLateCheck ? 'Late' : 'Working',
         source: 'telegram',
         checkInPhoto: photo || staff.photoUrl,
         checkInFaceScore: 1.0,
@@ -897,11 +951,18 @@ export default async function handler(req: any, res: any) {
         checkInLongitude: longitude,
         checkInDistance: distance,
         isOwner: isOwnerStaff,
-        notes: isOwnerStaff 
-          ? 'ម្ចាស់ហាងតេស្តស្កេន (Owner Test Scan)' 
-          : (existingAtt?.status === 'Permission' 
-              ? (existingAtt.notes ? `${existingAtt.notes} (បានចូលធ្វើការជាក់ស្តែង)` : 'បានចូលធ្វើការជាក់ស្តែង (ពីមុនមានច្បាប់)') 
-              : undefined),
+        lateMinutes: lateMins,
+        lateReason: lateReason || undefined,
+        indicativeLateAmount: indicativeAmount,
+        lateDeduction: 0, // No deduction from base salary per user policy
+        isLateExcused: true,
+        notes: isLateCheck 
+          ? `មកយឺត ${lateMins} នាទី (ស្មើ ~$${indicativeAmount.toFixed(2)} - មិនកាត់ប្រាក់) ${lateReason ? `[មូលហេតុ: ${lateReason}]` : ''}`
+          : (isOwnerStaff 
+              ? 'ម្ចាស់ហាងតេស្តស្កេន (Owner Test Scan)' 
+              : (existingAtt?.status === 'Permission' 
+                  ? (existingAtt.notes ? `${existingAtt.notes} (បានចូលធ្វើការជាក់ស្តែង)` : 'បានចូលធ្វើការជាក់ស្តែង (ពីមុនមានច្បាប់)') 
+                  : undefined)),
         createdAt: existingAtt?.createdAt || now.toISOString(),
         updatedAt: now.toISOString()
       };
@@ -919,12 +980,20 @@ export default async function handler(req: any, res: any) {
       if (branchBotToken) {
         const assignedAdminChatId = await getAssignedAdminChatId(staff.branchId || branch?.id, branch?.branchName);
         if (assignedAdminChatId) {
+          let lateSection = '';
+          if (isLateCheck) {
+            lateSection = `⏰ <b>ស្ថានភាព:</b> ⚠️ <b>មកយឺត ${lateMins} នាទី</b> (${shiftName})\n` +
+              `💡 <b>តម្លៃសមមូល:</b> <code>~$${indicativeAmount.toFixed(2)}</code> (សម្រាប់ណែនាំ - មិនកាត់ពីប្រាក់ខែគោល)\n` +
+              (lateReason ? `📝 <b>មូលហេតុយឺត:</b> <b>${lateReason}</b>\n` : '');
+          }
+
           const adminMsg = `🔔 <b>[TC Staff Management - ដំណឹងវត្តមានបុគ្គលិក]</b>\n\n` +
             `📌 <b>សកម្មភាព:</b> ✅ ចុះវត្តមានចូល (Check-In)\n` +
             `👤 <b>បុគ្គលិក:</b> <b>${staff.fullName}</b> (${staff.position || 'Staff'})\n` +
             `☕ <b>សាខា:</b> <b>${branch?.branchName || 'TC Staff'}</b>\n` +
-            `⏰ <b>ម៉ោងចូល:</b> <code>${timeStr}</code>\n` +
+            `⏰ <b>ម៉ោងចូល:</b> <code>${timeStr}</code> (${shiftName})\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
+            lateSection +
             (distance !== undefined ? `📍 <b>ចម្ងាយ GPS:</b> <code>${Math.round(distance)} ម៉ែត្រ</code>\n` : '') +
             `🌐 <b>ប្រភព:</b> Telegram Mini App`;
 
@@ -938,8 +1007,9 @@ export default async function handler(req: any, res: any) {
             `💼 <b>តួនាទី:</b> ${staff.position || 'Staff'}\n` +
             `🏢 <b>សាខា:</b> ${branch?.branchName || 'TC Staff'}\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
-            `🕒 <b>ម៉ោងចូល:</b> <code>${timeStr}</code>\n\n` +
-            `✨ សូមជូនពរឱ្យការងារថ្ងៃនេះប្រព្រឹត្តទៅដោយរលូន។`;
+            `🕒 <b>ម៉ោងចូល:</b> <code>${timeStr}</code> (${shiftName})\n` +
+            (isLateCheck ? `⚠️ <b>មកយឺត:</b> ${lateMins} នាទី (តម្លៃសមមូល ~$${indicativeAmount.toFixed(2)} - មិនកាត់ប្រាក់ខែ)\n` : '') +
+            `\n✨ សូមជូនពរឱ្យការងារថ្ងៃនេះប្រព្រឹត្តទៅដោយរលូន។`;
 
           sendTelegramNotification(branchBotToken, staff.telegramId, staffMsg, photo || staff.photoUrl).catch(() => {});
         }
@@ -947,11 +1017,17 @@ export default async function handler(req: any, res: any) {
 
       return res.status(200).json({
         success: true,
-        message: '✓ ចុះវត្តមានចូលបានជោគជ័យ',
+        message: isLateCheck ? `✓ ចុះវត្តមានចូលបានជោគជ័យ (យឺត ${lateMins} នាទី)` : '✓ ចុះវត្តមានចូលបានជោគជ័យ',
         employeeName: staff.fullName,
         time: timeStr,
         date: todayStr,
         branchName: branch?.branchName || 'TC Staff',
+        status: isLateCheck ? 'Late' : 'Working',
+        isLate: isLateCheck,
+        lateMinutes: lateMins,
+        indicativeLateAmount: indicativeAmount,
+        lateReason,
+        shiftType: shiftName,
         attendance: newRecord
       });
     } catch (err: any) {

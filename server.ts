@@ -6040,6 +6040,60 @@ app.post('/api/attendance/check-in', async (req, res) => {
       });
     }
 
+    // Branch & Shift Schedule Logic:
+    // TOTO by ChiChi: Shift 1: 06:30 - 16:00 (9.5h), Shift 2: 13:00 - 21:00 (8.0h)
+    // Coffee Corner: Shift 1: 06:30 - 14:00 (7.5h), Shift 2: 14:00 - 21:00 (7.0h)
+    const bName = String(branch?.branchName || '').toLowerCase();
+    const bId = String(branch?.id || staff.branchId || '');
+    const isToto = bId === 'b1' || bName.includes('toto') || bName.includes('chi');
+
+    const phnomPenhTime = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Phnom_Penh' });
+    const [hStr, mStr] = phnomPenhTime.split(':');
+    const curMins = parseInt(hStr || '0', 10) * 60 + parseInt(mStr || '0', 10);
+
+    const reqShift = (req.body as any)?.shiftType || staff.shift;
+    let isShift1 = false;
+    if (reqShift === 'Shift 1' || reqShift === 'Morning') {
+      isShift1 = true;
+    } else if (reqShift === 'Shift 2' || reqShift === 'Afternoon') {
+      isShift1 = false;
+    } else {
+      isShift1 = curMins < 690; // Before 11:30 AM -> Shift 1
+    }
+
+    const shiftName = isShift1 ? 'Shift 1' : 'Shift 2';
+    let startMins = 390;
+    let durationHours = 8.0;
+
+    if (isToto) {
+      if (isShift1) {
+        startMins = 6 * 60 + 30; // 390 (06:30 AM)
+        durationHours = 9.5;
+      } else {
+        startMins = 13 * 60; // 780 (01:00 PM)
+        durationHours = 8.0;
+      }
+    } else {
+      // Coffee Corner
+      if (isShift1) {
+        startMins = 6 * 60 + 30; // 390 (06:30 AM)
+        durationHours = 7.5;
+      } else {
+        startMins = 14 * 60; // 840 (02:00 PM)
+        durationHours = 7.0;
+      }
+    }
+
+    // Check if late (> 10 minutes past start time)
+    const isLateCheck = Boolean((req.body as any)?.isLate || (curMins > (startMins + 10)));
+    const lateMins = isLateCheck ? ((req.body as any)?.lateMinutes || Math.max(0, curMins - startMins)) : 0;
+    const staffSalary = Number(staff.baseSalary || 0);
+    const dailyRate = staffSalary > 0 ? (staffSalary / 30) : 0;
+    const hourlyRate = durationHours > 0 ? (dailyRate / durationHours) : 0;
+    const minuteRate = hourlyRate / 60;
+    const indicativeAmount = Number(((req.body as any)?.indicativeLateAmount || (lateMins * minuteRate)).toFixed(2));
+    const lateReason = String((req.body as any)?.lateReason || '').trim();
+
     const newAttendance: any = {
       id: existing?.id || ('att_' + Date.now()),
       branchId: branch?.id || staff.branchId,
@@ -6048,10 +6102,10 @@ app.post('/api/attendance/check-in', async (req, res) => {
       date: todayStr,
       checkIn: timeStr,
       checkOut: isRealTime(existing?.checkOut) ? existing.checkOut : '',
-      shiftType: staff.shift || 'Full Time',
+      shiftType: shiftName,
       workHours: 0,
       overtimeHours: 0,
-      status: 'Working',
+      status: isLateCheck ? 'Late' : 'Working',
       source: 'telegram',
       checkInPhoto: photo || staff.photoUrl,
       checkInFaceScore: (req.body as any)?.faceScore || 0,
@@ -6061,9 +6115,16 @@ app.post('/api/attendance/check-in', async (req, res) => {
       checkInDevice: resolvedDevice,
       checkInPlatform: resolvedPlatform,
       checkInIp: clientIp,
-      notes: existing?.status === 'Permission'
-        ? (existing.notes ? `${existing.notes} (បានចូលធ្វើការជាក់ស្តែង)` : 'បានចូលធ្វើការជាក់ស្តែង (ពីមុនមានច្បាប់)')
-        : existing?.notes,
+      lateMinutes: lateMins,
+      lateReason: lateReason || undefined,
+      indicativeLateAmount: indicativeAmount,
+      lateDeduction: 0, // No deduction from base salary per user policy
+      isLateExcused: true,
+      notes: isLateCheck 
+        ? `មកយឺត ${lateMins} នាទី (ស្មើ ~$${indicativeAmount.toFixed(2)} - មិនកាត់ប្រាក់) ${lateReason ? `[មូលហេតុ: ${lateReason}]` : ''}`
+        : (existing?.status === 'Permission'
+            ? (existing.notes ? `${existing.notes} (បានចូលធ្វើការជាក់ស្តែង)` : 'បានចូលធ្វើការជាក់ស្តែង (ពីមុនមានច្បាប់)')
+            : existing?.notes),
       createdAt: existing?.createdAt || now.toISOString(),
       updatedAt: now.toISOString()
     };
@@ -6078,11 +6139,17 @@ app.post('/api/attendance/check-in', async (req, res) => {
 
     return res.json({
       success: true,
-      message: '✓ ចុះវត្តមានចូលបានជោគជ័យ',
+      message: isLateCheck ? `✓ ចុះវត្តមានចូលបានជោគជ័យ (យឺត ${lateMins} នាទី)` : '✓ ចុះវត្តមានចូលបានជោគជ័យ',
       employeeName: staff.fullName,
       time: timeStr,
       date: todayStr,
       branchName: branch?.branchName || 'TC Staff Management',
+      status: isLateCheck ? 'Late' : 'Working',
+      isLate: isLateCheck,
+      lateMinutes: lateMins,
+      indicativeLateAmount: indicativeAmount,
+      lateReason,
+      shiftType: shiftName,
       attendance: newAttendance
     });
   } catch (err: any) {

@@ -400,7 +400,9 @@ export default function SalaryManagementView({
       const adj = getAdjustment(staff.id);
       const baseSalary = Number(staff.baseSalary || 0);
       const shiftRate = adj.shiftRate !== undefined ? Number(adj.shiftRate) : 6;
-      const dailyRate = shiftRate;
+      // Daily rate based on standard 30 working days per month
+      const standardDailyRate = Number((baseSalary / 30).toFixed(2));
+      const dailyRate = adj.shiftRate !== undefined ? Number(adj.shiftRate) : standardDailyRate;
 
       // 1. Extra Shifts for this employee in selected month & year (Rate = $shiftRate per shift)
       const empShifts = extraShifts.filter(s => 
@@ -442,16 +444,30 @@ export default function SalaryManagementView({
         return parts.length === 3 ? `${parts[2]}/${parts[1]}` : a.date;
       });
 
-      // Late arrivals: compute deduction for unexcused late records
-      const lateRecords = staffAttendance.filter(a => a.status === 'Late');
-      const deductLateRecords = lateRecords.filter(a => !a.isLateExcused && Number(a.lateDeduction || 0) > 0);
-      const autoLateDeduct = deductLateRecords.reduce((sum, a) => sum + Number(a.lateDeduction || 0), 0);
-      const excusedLateCount = lateRecords.filter(a => a.isLateExcused).length;
-      const deductLateCount = deductLateRecords.length;
+      // Branch-specific Day Off & Leave Deduction Policy:
+      // TOTO by ChiChi: 30 days/month, 1 paid day off per month (first day off is free / not deducted)
+      // Coffee Corner: 30 days full, no day off (all absences/sick leave deducted by dailyRate)
+      const staffBranch = (branches || []).find(b => b.id === (staff.assignedBranchId || staff.branchId));
+      const bName = String(staffBranch?.branchName || '').toLowerCase();
+      const bId = String(staffBranch?.id || staff.branchId || '');
+      const isToto = bId === 'b1' || bName.includes('toto') || bName.includes('chi');
 
-      const finalLeaveDays = adj.leaveDays !== undefined ? adj.leaveDays : autoAbsentDays;
+      const deductibleLeaveDays = isToto ? Math.max(0, autoAbsentDays - 1) : autoAbsentDays;
+      const totoFreeDayOffApplied = isToto && autoAbsentDays >= 1;
+
+      // Late arrivals: per user explicit policy:
+      // "ការកាត់ប្រាក់ មិនតម្រូវអោយកាត់ប្រាក់ពីប្រាក់ខែគោលទេ គ្រាន់តែណែនាំ ថាចំនួន នាទីប៉ុននេះ ស្នើទឹកលុយប៉ុននឹង តែមិនកាត់ប្រាក់ទេ"
+      // -> Late arrivals do NOT deduct from base salary / final payment!
+      const lateRecords = staffAttendance.filter(a => a.status === 'Late');
+      const totalLateMinutes = lateRecords.reduce((sum, a) => sum + Number(a.lateMinutes || 0), 0);
+      const totalIndicativeLateAmount = lateRecords.reduce((sum, a) => sum + Number(a.indicativeLateAmount || 0), 0);
+      const autoLateDeduct = 0; // Not deducted from base salary!
+      const excusedLateCount = lateRecords.length;
+      const deductLateCount = 0;
+
+      const finalLeaveDays = adj.leaveDays !== undefined ? adj.leaveDays : deductibleLeaveDays;
       const finalLeaveDates = adj.leaveDates !== undefined ? adj.leaveDates : autoAbsentDates;
-      const autoLeaveDeduct = Number((finalLeaveDays * dailyRate + autoLateDeduct).toFixed(2));
+      const autoLeaveDeduct = Number((finalLeaveDays * dailyRate).toFixed(2));
       const finalDeduction = adj.deduction !== undefined ? adj.deduction : autoLeaveDeduct;
 
       // FINAL PAYMENT CALCULATION:
@@ -481,6 +497,10 @@ export default function SalaryManagementView({
         autoLateDeduct,
         excusedLateCount,
         deductLateCount,
+        totalLateMinutes,
+        totalIndicativeLateAmount,
+        totoFreeDayOffApplied,
+        rawAbsentDays: autoAbsentDays,
         finalPayment: isPaid && existingPaid ? existingPaid.netSalary : finalPayment,
         isPaid,
         paidRecord: existingPaid,
@@ -1328,7 +1348,7 @@ export default function SalaryManagementView({
                               placeholder="0"
                               onChange={e => {
                                 const days = Math.max(0, Number(e.target.value));
-                                const rate = row.shiftRate ?? 6;
+                                const rate = row.dailyRate ?? 6;
                                 saveAdjustment(st.id, { 
                                   leaveDays: days,
                                   deduction: Number((days * rate).toFixed(2))
@@ -1341,9 +1361,14 @@ export default function SalaryManagementView({
                           <div className="text-[10px] text-right font-mono font-bold text-rose-600 mt-0.5">
                             -${row.deduction}
                           </div>
-                          {row.autoLateDeduct > 0 && (
-                            <div className="text-[9px] text-right text-amber-600 font-bold">
-                              (+យឺត: ${row.autoLateDeduct})
+                          {row.totoFreeDayOffApplied && (
+                            <div className="text-[9px] text-right text-emerald-600 font-bold" title="TOTO: អនុញ្ញាត Day Off ១ ថ្ងៃមិនកាត់ប្រាក់">
+                              (Day off 1ថ្ងៃឥតគិត)
+                            </div>
+                          )}
+                          {row.totalLateMinutes > 0 && (
+                            <div className="text-[9px] text-right text-amber-600 font-bold" title="តម្លៃសមមូលណែនាំ មិនកាត់ពីប្រាក់ខែគោល">
+                              ⏰ យឺត {row.totalLateMinutes}mn (~${row.totalIndicativeLateAmount.toFixed(2)})
                             </div>
                           )}
                         </td>

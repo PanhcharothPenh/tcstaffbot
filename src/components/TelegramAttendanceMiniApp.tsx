@@ -21,7 +21,8 @@ import {
   Loader2,
   ShieldCheck,
   Smartphone,
-  Coffee
+  Coffee,
+  AlertTriangle
 } from 'lucide-react';
 
 interface TelegramAttendanceMiniAppProps {
@@ -86,6 +87,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   // Result state
   const [resultData, setResultData] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [lateReason, setLateReason] = useState('');
 
   // History State
   const [historyMonth, setHistoryMonth] = useState(() => new Date().getMonth() + 1);
@@ -451,8 +453,86 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     return vector.map(v => Number((v / mag).toFixed(4)));
   };
 
+  // Shift Schedule & Late calculation (>10 min grace period)
+  const getShiftScheduleInfo = () => {
+    const now = new Date();
+    const phnomPenhTimeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Phnom_Penh' });
+    const [hStr, mStr] = phnomPenhTimeStr.split(':');
+    const currentMins = parseInt(hStr || '0', 10) * 60 + parseInt(mStr || '0', 10);
+
+    const bName = String(branchInfo?.branchName || '').toLowerCase();
+    const bId = String(branchInfo?.id || '');
+    const isToto = bId === 'b1' || bName.includes('toto') || bName.includes('chi');
+    const staffShift = String(staffInfo?.shift || '');
+
+    let isShift1 = false;
+    if (staffShift === 'Shift 1' || staffShift === 'Morning') {
+      isShift1 = true;
+    } else if (staffShift === 'Shift 2' || staffShift === 'Afternoon') {
+      isShift1 = false;
+    } else {
+      isShift1 = currentMins < 690; // Before 11:30 AM is Shift 1
+    }
+
+    const shiftName = isShift1 ? 'Shift 1' : 'Shift 2';
+    let shiftTimeRange = '';
+    let startMins = 390;
+    let durationHours = 8;
+
+    if (isToto) {
+      if (isShift1) {
+        shiftTimeRange = '06:30 AM – 04:00 PM';
+        startMins = 6 * 60 + 30; // 390
+        durationHours = 9.5;
+      } else {
+        shiftTimeRange = '01:00 PM – 09:00 PM';
+        startMins = 13 * 60; // 780
+        durationHours = 8.0;
+      }
+    } else {
+      // Coffee Corner
+      if (isShift1) {
+        shiftTimeRange = '06:30 AM – 02:00 PM';
+        startMins = 6 * 60 + 30; // 390
+        durationHours = 7.5;
+      } else {
+        shiftTimeRange = '02:00 PM – 09:00 PM';
+        startMins = 14 * 60; // 840
+        durationHours = 7.0;
+      }
+    }
+
+    // Grace period is 10 minutes past shift start time
+    const isLate = currentMins > (startMins + 10);
+    const lateMinutes = isLate ? Math.max(0, currentMins - startMins) : 0;
+
+    const baseSalary = Number(staffInfo?.baseSalary || 0);
+    const dailyRate = baseSalary > 0 ? (baseSalary / 30) : 0;
+    const hourlyRate = durationHours > 0 ? (dailyRate / durationHours) : 0;
+    const minuteRate = hourlyRate / 60;
+    const indicativeAmount = Number((lateMinutes * minuteRate).toFixed(2));
+
+    return {
+      isToto,
+      shiftName,
+      shiftTimeRange,
+      durationHours,
+      startMins,
+      currentMins,
+      isLate,
+      lateMinutes,
+      indicativeAmount
+    };
+  };
+
   const capturePhoto = () => {
     if (!videoRef.current) return;
+
+    const shiftInfo = getShiftScheduleInfo();
+    if (currentAction === 'checkin' && shiftInfo.isLate && !lateReason.trim()) {
+      setErrorMessage('⚠️ អ្នកមកយឺតលើសពី ១០ នាទី! សូមបញ្ចូលមូលហេតុនៃការមកយឺតមុនពេលថតរូបចុះវត្តមានចូល។');
+      return;
+    }
 
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
@@ -494,6 +574,12 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const shiftInfo = getShiftScheduleInfo();
+    if (currentAction === 'checkin' && shiftInfo.isLate && !lateReason.trim()) {
+      setErrorMessage('⚠️ អ្នកមកយឺតលើសពី ១០ នាទី! សូមបញ្ចូលមូលហេតុនៃការមកយឺតមុនពេលថតរូបចុះវត្តមានចូល។');
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       const img = new Image();
@@ -527,6 +613,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     setErrorMessage(null);
     setResultData(null);
 
+    const shiftInfo = getShiftScheduleInfo();
     const endpoint = currentAction === 'checkin' ? '/api/attendance/check-in' : '/api/attendance/check-out';
     const deviceInfo = detectDeviceInfo();
 
@@ -544,13 +631,19 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
           latitude: locationCoords?.lat,
           longitude: locationCoords?.lng,
           device: deviceInfo.device,
-          platform: deviceInfo.platform
+          platform: deviceInfo.platform,
+          isLate: currentAction === 'checkin' ? shiftInfo.isLate : false,
+          lateMinutes: currentAction === 'checkin' ? shiftInfo.lateMinutes : 0,
+          lateReason: currentAction === 'checkin' ? lateReason.trim() : undefined,
+          indicativeLateAmount: currentAction === 'checkin' ? shiftInfo.indicativeAmount : 0,
+          shiftType: shiftInfo.shiftName
         })
       });
 
       const data = await res.json();
       if (data.success) {
         setResultData(data);
+        setLateReason('');
         // Refresh status silently in background without resetting UI to loading screen
         validateSession(initData, true, detectedTgUser);
       } else {
@@ -875,6 +968,20 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     <span>សាខា ៖</span>
                     <span className="font-bold text-slate-900">{resultData.branchName || branchInfo?.branchName}</span>
                   </div>
+                  {resultData.lateMinutes ? (
+                    <div className="flex justify-between items-center text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-[11px]">
+                      <span>ស្ថានភាពមកយឺត ៖</span>
+                      <span className="font-bold">
+                        យឺត {resultData.lateMinutes} នាទី (~${Number(resultData.indicativeLateAmount || 0).toFixed(2)} - មិនកាត់ប្រាក់ខែ)
+                      </span>
+                    </div>
+                  ) : null}
+                  {resultData.lateReason ? (
+                    <div className="flex justify-between items-center text-slate-700 bg-slate-100 p-2 rounded-xl border border-slate-200 text-[11px]">
+                      <span>មូលហេតុ ៖</span>
+                      <span className="font-bold text-slate-900">{resultData.lateReason}</span>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="flex gap-2">
@@ -912,6 +1019,53 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     <span className="font-medium leading-relaxed">{errorMessage}</span>
                   </div>
                 )}
+
+                {/* Shift Info & Late Reason Card */}
+                {currentAction === 'checkin' && (() => {
+                  const shiftInfo = getShiftScheduleInfo();
+                  return (
+                    <div className={`p-3.5 rounded-2xl border text-xs space-y-2.5 text-left transition-all ${
+                      shiftInfo.isLate 
+                        ? 'bg-amber-50/95 border-amber-300 shadow-xs' 
+                        : 'bg-blue-50/70 border-blue-200'
+                    }`}>
+                      <div className="flex items-center justify-between font-bold">
+                        <div className="flex items-center gap-1.5 text-slate-800">
+                          <Clock size={15} className={shiftInfo.isLate ? 'text-amber-600' : 'text-blue-600'} />
+                          <span>{shiftInfo.shiftName} ({shiftInfo.shiftTimeRange})</span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold ${
+                          shiftInfo.isLate 
+                            ? 'bg-amber-200 text-amber-900 border border-amber-300' 
+                            : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        }`}>
+                          {shiftInfo.isLate ? `⚠️ មកយឺត ${shiftInfo.lateMinutes} នាទី` : '🟢 ទាន់ពេល (On-Time)'}
+                        </span>
+                      </div>
+
+                      {shiftInfo.isLate && (
+                        <div className="space-y-2 pt-2 border-t border-amber-200/90">
+                          <p className="text-[11px] text-amber-900 leading-relaxed">
+                            💡 ស្មើនឹងតម្លៃណែនាំ <b>${shiftInfo.indicativeAmount.toFixed(2)}</b> (សម្រាប់ការដាស់តឿន <b>មិនកាត់ប្រាក់ខែគោលឡើយ</b>)។
+                          </p>
+                          <div>
+                            <label className="text-[11px] font-bold text-amber-950 block mb-1">
+                              សូមបញ្ជាក់មូលហេតុនៃការមកយឺត *៖
+                            </label>
+                            <input
+                              type="text"
+                              value={lateReason}
+                              onChange={e => setLateReason(e.target.value)}
+                              placeholder="ឧ. ស្ទះចរាចរណ៍, ឈឺពោះ, មានធុរៈបន្ទាន់..."
+                              className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-amber-500 shadow-2xs font-medium"
+                              required
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
 
                 {/* Camera / Photo Frame */}
