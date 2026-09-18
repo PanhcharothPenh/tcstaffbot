@@ -299,6 +299,16 @@ export default async function handler(req: any, res: any) {
     }
   };
 
+  // Format minutes into Khmer duration: e.g. 128 -> "2 ម៉ោង 8 នាទី", 25 -> "25 នាទី"
+  const formatDurationKhmer = (totalMins: number): string => {
+    const mins = Math.max(0, Math.round(totalMins));
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h > 0 && m > 0) return `${h} ម៉ោង ${m} នាទី`;
+    if (h > 0) return `${h} ម៉ោង`;
+    return `${m} នាទី`;
+  };
+
   // Helper to resolve ALL alert recipient chat IDs (Owners always included + assigned Branch Admins/Managers)
   const getAlertRecipientChatIds = async (branchId?: string, branchName?: string, excludeStaffTgId?: string): Promise<string[]> => {
     const recipients = new Set<string>();
@@ -1081,21 +1091,28 @@ export default async function handler(req: any, res: any) {
       if (branchBotToken) {
         const recipientChatIds = await getAlertRecipientChatIds(branch?.id || staff.branchId, branch?.branchName, staff.telegramId);
         if (recipientChatIds.length > 0) {
+          const displayDate = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Phnom_Penh' }).format(now);
           let lateSection = '';
           if (isLateCheck) {
-            lateSection = `⏰ <b>ស្ថានភាព:</b> ⚠️ <b>មកយឺត ${lateMins} នាទី</b> (${shiftName})\n` +
-              `💡 <b>តម្លៃសមមូល:</b> <code>~$${indicativeAmount.toFixed(2)}</code> (សម្រាប់ណែនាំ - មិនកាត់ពីប្រាក់ខែគោល)\n` +
-              (lateReason ? `📝 <b>មូលហេតុយឺត:</b> <b>${lateReason}</b>\n` : '');
+            lateSection = `\n⚠️ <b>ស្ថានភាព:</b> មកយឺត ${formatDurationKhmer(lateMins)}\n` +
+              (lateReason ? `📝 <b>មូលហេតុ:</b> ${lateReason}\n` : '') +
+              `💰 <b>ទឹកប្រាក់សមមូល:</b> ~$${indicativeAmount.toFixed(2)} (សម្រាប់ជាឯកសារយោង មិនកាត់ពីប្រាក់ខែគោល)\n`;
           }
 
-          const adminMsg = `🔔 <b>[TC Staff Management - ដំណឹងវត្តមានបុគ្គលិក]</b>\n\n` +
-            `📌 <b>សកម្មភាព:</b> ✅ ចុះវត្តមានចូល (Check-In)\n` +
-            `👤 <b>បុគ្គលិក:</b> <b>${staff.fullName}</b> (${staff.position || 'Staff'})\n` +
-            `☕ <b>សាខា:</b> <b>${branch?.branchName || 'TC Staff'}</b>\n` +
-            `⏰ <b>ម៉ោងចូល:</b> <code>${timeStr}</code> (${shiftName})\n` +
-            `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
+          const distanceLine = (distance !== undefined && distance !== null)
+            ? `📍 <b>ចម្ងាយពីទីតាំងការងារ:</b> ${Math.round(distance)} ម៉ែត្រ\n`
+            : '';
+
+          const adminMsg = `🔔 <b>[ដំណឹងវត្តមានបុគ្គលិក]</b>\n\n` +
+            `✅ <b>ចុះវត្តមានចូល (Check-In)</b>\n\n` +
+            `👤 <b>បុគ្គលិក:</b> ${staff.fullName} (${staff.position || 'Staff'})\n` +
+            `🏢 <b>សាខា:</b> ${branch?.branchName || 'TC Staff'}\n` +
+            `🕒 <b>វេនការងារ:</b> ${shiftName}\n` +
+            `📅 <b>កាលបរិច្ឆេទ:</b> ${displayDate}\n` +
+            `⏰ <b>ម៉ោងចូល:</b> ${timeStr}\n` +
             lateSection +
-            (distance !== undefined ? `📍 <b>ចម្ងាយ GPS:</b> <code>${Math.round(distance)} ម៉ែត្រ</code>\n` : '') +
+            `\n` +
+            distanceLine +
             `🌐 <b>ប្រភព:</b> Telegram Mini App`;
 
           await Promise.allSettled(
@@ -1107,13 +1124,15 @@ export default async function handler(req: any, res: any) {
 
         // Send confirmation to staff if linked with Telegram (Item 2 ក)
         if (staff.telegramId) {
+          const displayDate = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Phnom_Penh' }).format(now);
           const staffMsg = `✅ <b>បានចាប់ផ្តើមការងារសម្រាប់ថ្ងៃនេះ</b>\n\n` +
             `👤 <b>បុគ្គលិក:</b> ${staff.fullName}\n` +
             `💼 <b>តួនាទី:</b> ${staff.position || 'Staff'}\n` +
             `🏢 <b>សាខា:</b> ${branch?.branchName || 'TC Staff'}\n` +
-            `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
-            `🕒 <b>ម៉ោងចូល:</b> <code>${timeStr}</code> (${shiftName})\n` +
-            (isLateCheck ? `⚠️ <b>មកយឺត:</b> ${lateMins} នាទី\n` : '') +
+            `🕒 <b>វេនការងារ:</b> ${shiftName}\n` +
+            `📅 <b>កាលបរិច្ឆេទ:</b> <code>${displayDate}</code>\n` +
+            `⏰ <b>ម៉ោងចូល:</b> <code>${timeStr}</code>\n` +
+            (isLateCheck ? `⚠️ <b>មកយឺត:</b> ${formatDurationKhmer(lateMins)}\n` : '') +
             `\n✨ សូមជូនពរឱ្យការងារថ្ងៃនេះប្រព្រឹត្តទៅដោយរលូន។`;
 
           sendTelegramNotification(branchBotToken, staff.telegramId, staffMsg, photo || staff.photoUrl).catch(() => {});
@@ -1392,23 +1411,30 @@ export default async function handler(req: any, res: any) {
       if (branchBotToken) {
         const recipientChatIds = await getAlertRecipientChatIds(branch?.id || staff.branchId, branch?.branchName, staff.telegramId);
         if (recipientChatIds.length > 0) {
+          const displayDate = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Phnom_Penh' }).format(now);
           let earlySection = '';
           if (isEarlyCheck) {
-            earlySection = `⏰ <b>ស្ថានភាព:</b> ⚠️ <b>ចេញមុនម៉ោង ${earlyMins} នាទី</b> (${shiftName})\n` +
-              `💡 <b>តម្លៃសមមូល:</b> <code>~$${indicativeAmount.toFixed(2)}</code> (សម្រាប់ណែនាំ - មិនកាត់ពីប្រាក់ខែគោល)\n` +
-              (earlyReason ? `📝 <b>មូលហេតុចេញមុន:</b> <b>${earlyReason}</b>\n` : '');
+            earlySection = `\n⚠️ <b>ស្ថានភាព:</b> ចេញមុនម៉ោង ${formatDurationKhmer(earlyMins)}\n` +
+              (earlyReason ? `📝 <b>មូលហេតុ:</b> ${earlyReason}\n` : '') +
+              `💰 <b>ទឹកប្រាក់សមមូល:</b> ~$${indicativeAmount.toFixed(2)} (សម្រាប់ជាឯកសារយោង មិនកាត់ពីប្រាក់ខែគោល)\n`;
           }
 
-          const adminCheckOutMsg = `🔔 <b>[TC Staff Management - ដំណឹងវត្តមានបុគ្គលិក]</b>\n\n` +
-            `📌 <b>សកម្មភាព:</b> 🚪 ចុះវត្តមានចេញ (Check-Out)\n` +
-            `👤 <b>បុគ្គលិក:</b> <b>${staff.fullName}</b> (${staff.position || 'Staff'})\n` +
-            `☕ <b>សាខា:</b> <b>${branch?.branchName || 'TC Staff'}</b>\n` +
-            `⏰ <b>ម៉ោងចូល:</b> <code>${attRecord.checkIn}</code>\n` +
-            `⏰ <b>ម៉ោងចេញ:</b> <code>${timeStr}</code>\n` +
-            `⏱️ <b>ម៉ោងធ្វើការសរុប:</b> <b>${hoursStr}</b>\n` +
+          const distanceLine = (distance !== undefined && distance !== null)
+            ? `📍 <b>ចម្ងាយពីទីតាំងការងារ:</b> ${Math.round(distance)} ម៉ែត្រ\n`
+            : '';
+
+          const adminCheckOutMsg = `🔔 <b>[ដំណឹងវត្តមានបុគ្គលិក]</b>\n\n` +
+            `🚪 <b>ចុះវត្តមានចេញ (Check-Out)</b>\n\n` +
+            `👤 <b>បុគ្គលិក:</b> ${staff.fullName} (${staff.position || 'Staff'})\n` +
+            `🏢 <b>សាខា:</b> ${branch?.branchName || 'TC Staff'}\n` +
+            `🕒 <b>វេនការងារ:</b> ${shiftName}\n` +
+            `📅 <b>កាលបរិច្ឆេទ:</b> ${displayDate}\n` +
+            `⏰ <b>ម៉ោងចូល:</b> ${attRecord.checkIn}\n` +
+            `⏰ <b>ម៉ោងចេញ:</b> ${timeStr}\n` +
+            `⏱️ <b>ម៉ោងធ្វើការសរុប:</b> ${hoursStr}\n` +
             earlySection +
-            `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
-            (distance !== undefined ? `📍 <b>ចម្ងាយ GPS:</b> <code>${Math.round(distance)} ម៉ែត្រ</code>\n` : '') +
+            `\n` +
+            distanceLine +
             `🌐 <b>ប្រភព:</b> Telegram Mini App`;
 
           await Promise.allSettled(
@@ -1420,14 +1446,16 @@ export default async function handler(req: any, res: any) {
 
         // Send confirmation to staff if linked with Telegram (Item 2 ខ)
         if (staff.telegramId) {
+          const displayDate = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Phnom_Penh' }).format(now);
           const staffCheckOutMsg = `✅ <b>បានបញ្ចប់ការងារសម្រាប់ថ្ងៃនេះ</b>\n\n` +
             `👤 <b>បុគ្គលិក:</b> ${staff.fullName}\n` +
             `💼 <b>តួនាទី:</b> ${staff.position || 'Staff'}\n` +
             `🏢 <b>សាខា:</b> ${branch?.branchName || 'TC Staff'}\n` +
-            `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
-            `🕒 <b>ម៉ោងចេញ:</b> <code>${timeStr}</code>\n` +
+            `🕒 <b>វេនការងារ:</b> ${shiftName}\n` +
+            `📅 <b>កាលបរិច្ឆេទ:</b> <code>${displayDate}</code>\n` +
+            `⏰ <b>ម៉ោងចេញ:</b> <code>${timeStr}</code>\n` +
             `⏱️ <b>ម៉ោងធ្វើការសរុប:</b> <b>${hoursStr}</b>\n` +
-            (isEarlyCheck ? `⚠️ <b>ចេញមុនម៉ោង:</b> ${earlyMins} នាទី\n` : '') +
+            (isEarlyCheck ? `⚠️ <b>ចេញមុនម៉ោង:</b> ${formatDurationKhmer(earlyMins)}\n` : '') +
             `\n🙏 សូមអរគុណសម្រាប់ការបំពេញការងារថ្ងៃនេះ។`;
 
           sendTelegramNotification(branchBotToken, staff.telegramId, staffCheckOutMsg, photo || attRecord.checkOutPhoto || staff.photoUrl).catch(() => {});
