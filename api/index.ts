@@ -1167,6 +1167,8 @@ export default async function handler(req: any, res: any) {
 
       let workHours = 8;
       let hoursStr = '8h 00m';
+      let inMins = 390;
+      let outMins = 960;
       try {
         const parseTimeToMinutes = (tStr: string) => {
           const parts = tStr.trim().match(/(\d+):(\d+)\s*(AM|PM)?/i);
@@ -1178,8 +1180,8 @@ export default async function handler(req: any, res: any) {
           if (ampm === 'AM' && h === 12) h = 0;
           return h * 60 + m;
         };
-        const inMins = parseTimeToMinutes(attRecord.checkIn);
-        const outMins = parseTimeToMinutes(timeStr);
+        inMins = parseTimeToMinutes(attRecord.checkIn);
+        outMins = parseTimeToMinutes(timeStr);
         let diffMins = outMins - inMins;
         if (diffMins < 0) diffMins += 24 * 60;
         const h = Math.floor(diffMins / 60);
@@ -1187,6 +1189,59 @@ export default async function handler(req: any, res: any) {
         workHours = Number((diffMins / 60).toFixed(2));
         hoursStr = `${h}h ${String(m).padStart(2, '0')}m`;
       } catch {}
+
+      // Branch-aware shift determination & early check-out calculation
+      const bName = String(branch?.branchName || '').toLowerCase();
+      const bId = String(branch?.id || staff.branchId || '');
+      const isToto = bId === 'b1' || bName.includes('toto') || bName.includes('chi');
+      const staffShift = String(attRecord.shiftType || req.body?.shiftType || staff.shift || '');
+
+      let isShift1 = false;
+      if (staffShift === 'Shift 1' || staffShift === 'Morning') {
+        isShift1 = true;
+      } else if (staffShift === 'Shift 2' || staffShift === 'Afternoon') {
+        isShift1 = false;
+      } else {
+        isShift1 = inMins < 690;
+      }
+
+      const shiftName = isShift1 ? 'Shift 1' : 'Shift 2';
+      let endMins = 960;
+      let durationHours = 8.0;
+
+      if (isToto) {
+        if (isShift1) {
+          endMins = 16 * 60; // 04:00 PM (960)
+          durationHours = 9.5;
+        } else {
+          endMins = 21 * 60; // 09:00 PM (1260)
+          durationHours = 8.0;
+        }
+      } else {
+        // Coffee Corner
+        if (isShift1) {
+          endMins = 14 * 60; // 02:00 PM (840)
+          durationHours = 7.5;
+        } else {
+          endMins = 21 * 60; // 09:00 PM (1260)
+          durationHours = 7.0;
+        }
+      }
+
+      // Early checkout calculation (>10 mins early)
+      let earlyMins = 0;
+      let isEarlyCheck = false;
+      if (outMins < (endMins - 10)) {
+        isEarlyCheck = true;
+        earlyMins = Math.max(0, endMins - outMins);
+      }
+
+      const earlyReason = String(req.body?.earlyReason || '').trim();
+      const staffSalary = Number(staff.baseSalary || 0);
+      const dailyRate = staffSalary > 0 ? (staffSalary / 30) : 0;
+      const hourlyRate = durationHours > 0 ? (dailyRate / durationHours) : 0;
+      const minuteRate = hourlyRate / 60;
+      const indicativeAmount = Number((req.body?.indicativeEarlyAmount || (earlyMins * minuteRate)).toFixed(2));
 
       const isOwnerStaff = Boolean(
         staff.role === 'Owner' || 
@@ -1206,6 +1261,16 @@ export default async function handler(req: any, res: any) {
       attRecord.checkOut = timeStr;
       attRecord.workHours = workHours;
       attRecord.status = 'Completed';
+      attRecord.shiftType = shiftName;
+      if (isEarlyCheck) {
+        attRecord.earlyMinutes = earlyMins;
+        attRecord.earlyReason = earlyReason || undefined;
+        attRecord.indicativeEarlyAmount = indicativeAmount;
+        attRecord.earlyDeduction = 0;
+        attRecord.isEarlyExcused = true;
+        const earlyNote = `ចេញមុនម៉ោង ${earlyMins} នាទី (ស្មើ ~$${indicativeAmount.toFixed(2)} - មិនកាត់ប្រាក់) ${earlyReason ? `[មូលហេតុ: ${earlyReason}]` : ''}`;
+        attRecord.notes = attRecord.notes ? `${attRecord.notes} | ${earlyNote}` : earlyNote;
+      }
       attRecord.checkOutPhoto = photo || staff.photoUrl;
       attRecord.checkOutFaceScore = checkOutFaceScore;
       attRecord.checkOutLatitude = latitude;
@@ -1220,6 +1285,13 @@ export default async function handler(req: any, res: any) {
       if (branchBotToken) {
         const assignedAdminChatId = await getAssignedAdminChatId(staff.branchId || branch?.id, branch?.branchName);
         if (assignedAdminChatId) {
+          let earlySection = '';
+          if (isEarlyCheck) {
+            earlySection = `⏰ <b>ស្ថានភាព:</b> ⚠️ <b>ចេញមុនម៉ោង ${earlyMins} នាទី</b> (${shiftName})\n` +
+              `💡 <b>តម្លៃសមមូល:</b> <code>~$${indicativeAmount.toFixed(2)}</code> (សម្រាប់ណែនាំ - មិនកាត់ពីប្រាក់ខែគោល)\n` +
+              (earlyReason ? `📝 <b>មូលហេតុចេញមុន:</b> <b>${earlyReason}</b>\n` : '');
+          }
+
           const adminCheckOutMsg = `🔔 <b>[TC Staff Management - ដំណឹងវត្តមានបុគ្គលិក]</b>\n\n` +
             `📌 <b>សកម្មភាព:</b> 🚪 ចុះវត្តមានចេញ (Check-Out)\n` +
             `👤 <b>បុគ្គលិក:</b> <b>${staff.fullName}</b> (${staff.position || 'Staff'})\n` +
@@ -1227,6 +1299,7 @@ export default async function handler(req: any, res: any) {
             `⏰ <b>ម៉ោងចូល:</b> <code>${attRecord.checkIn}</code>\n` +
             `⏰ <b>ម៉ោងចេញ:</b> <code>${timeStr}</code>\n` +
             `⏱️ <b>ម៉ោងធ្វើការសរុប:</b> <b>${hoursStr}</b>\n` +
+            earlySection +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
             (distance !== undefined ? `📍 <b>ចម្ងាយ GPS:</b> <code>${Math.round(distance)} ម៉ែត្រ</code>\n` : '') +
             `🌐 <b>ប្រភព:</b> Telegram Mini App`;
@@ -1241,8 +1314,10 @@ export default async function handler(req: any, res: any) {
             `💼 <b>តួនាទី:</b> ${staff.position || 'Staff'}\n` +
             `🏢 <b>សាខា:</b> ${branch?.branchName || 'TC Staff'}\n` +
             `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
-            `🕒 <b>ម៉ោងចេញ:</b> <code>${timeStr}</code>\n\n` +
-            `🙏 សូមអរគុណសម្រាប់ការបំពេញការងារថ្ងៃនេះ។`;
+            `🕒 <b>ម៉ោងចេញ:</b> <code>${timeStr}</code>\n` +
+            `⏱️ <b>ម៉ោងធ្វើការសរុប:</b> <b>${hoursStr}</b>\n` +
+            (isEarlyCheck ? `⚠️ <b>ចេញមុនម៉ោង:</b> ${earlyMins} នាទី\n` : '') +
+            `\n🙏 សូមអរគុណសម្រាប់ការបំពេញការងារថ្ងៃនេះ។`;
 
           sendTelegramNotification(branchBotToken, staff.telegramId, staffCheckOutMsg, photo || attRecord.checkOutPhoto || staff.photoUrl).catch(() => {});
         }
@@ -1250,11 +1325,16 @@ export default async function handler(req: any, res: any) {
 
       return res.status(200).json({
         success: true,
-        message: '✓ ចុះវត្តមានចេញបានជោគជ័យ',
+        message: isEarlyCheck ? `✓ ចុះវត្តមានចេញបានជោគជ័យ (ចេញមុន ${earlyMins} នាទី)` : '✓ ចុះវត្តមានចេញបានជោគជ័យ',
         employeeName: staff.fullName,
         checkIn: attRecord.checkIn,
         checkOut: timeStr,
         workHours: hoursStr,
+        isEarly: isEarlyCheck,
+        earlyMinutes: earlyMins,
+        earlyReason: earlyReason || undefined,
+        indicativeEarlyAmount: indicativeAmount,
+        shiftType: shiftName,
         branchName: branch?.branchName || 'TC Staff',
         attendance: attRecord
       });

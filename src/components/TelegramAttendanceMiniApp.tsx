@@ -86,8 +86,8 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
   // Result state
   const [resultData, setResultData] = useState<any>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lateReason, setLateReason] = useState('');
+  const [earlyReason, setEarlyReason] = useState('');
 
   // History State
   const [historyMonth, setHistoryMonth] = useState(() => new Date().getMonth() + 1);
@@ -477,16 +477,19 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     const shiftName = isShift1 ? 'Shift 1' : 'Shift 2';
     let shiftTimeRange = '';
     let startMins = 390;
+    let endMins = 960;
     let durationHours = 8;
 
     if (isToto) {
       if (isShift1) {
         shiftTimeRange = '06:30 AM – 04:00 PM';
         startMins = 6 * 60 + 30; // 390
+        endMins = 16 * 60; // 960 (04:00 PM)
         durationHours = 9.5;
       } else {
         shiftTimeRange = '01:00 PM – 09:00 PM';
         startMins = 13 * 60; // 780
+        endMins = 21 * 60; // 1260 (09:00 PM)
         durationHours = 8.0;
       }
     } else {
@@ -494,10 +497,12 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       if (isShift1) {
         shiftTimeRange = '06:30 AM – 02:00 PM';
         startMins = 6 * 60 + 30; // 390
+        endMins = 14 * 60; // 840 (02:00 PM)
         durationHours = 7.5;
       } else {
         shiftTimeRange = '02:00 PM – 09:00 PM';
         startMins = 14 * 60; // 840
+        endMins = 21 * 60; // 1260 (09:00 PM)
         durationHours = 7.0;
       }
     }
@@ -506,11 +511,16 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     const isLate = currentMins > (startMins + 10);
     const lateMinutes = isLate ? Math.max(0, currentMins - startMins) : 0;
 
+    // Early departure: more than 10 minutes before shift end time
+    const isEarly = currentMins < (endMins - 10);
+    const earlyMinutes = isEarly ? Math.max(0, endMins - currentMins) : 0;
+
     const baseSalary = Number(staffInfo?.baseSalary || 0);
     const dailyRate = baseSalary > 0 ? (baseSalary / 30) : 0;
     const hourlyRate = durationHours > 0 ? (dailyRate / durationHours) : 0;
     const minuteRate = hourlyRate / 60;
     const indicativeAmount = Number((lateMinutes * minuteRate).toFixed(2));
+    const indicativeEarlyAmount = Number((earlyMinutes * minuteRate).toFixed(2));
 
     return {
       isToto,
@@ -518,10 +528,14 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       shiftTimeRange,
       durationHours,
       startMins,
+      endMins,
       currentMins,
       isLate,
       lateMinutes,
-      indicativeAmount
+      indicativeAmount,
+      isEarly,
+      earlyMinutes,
+      indicativeEarlyAmount
     };
   };
 
@@ -531,6 +545,11 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     const shiftInfo = getShiftScheduleInfo();
     if (currentAction === 'checkin' && shiftInfo.isLate && !lateReason.trim()) {
       setErrorMessage('⚠️ អ្នកមកយឺតលើសពី ១០ នាទី! សូមបញ្ចូលមូលហេតុនៃការមកយឺតមុនពេលថតរូបចុះវត្តមានចូល។');
+      return;
+    }
+
+    if (currentAction === 'checkout' && shiftInfo.isEarly && !earlyReason.trim()) {
+      setErrorMessage('⚠️ អ្នកចេញមុនម៉ោងលើសពី ១០ នាទី! សូមបញ្ចូលមូលហេតុនៃការចេញមុនម៉ោងមុនពេលថតរូបចុះវត្តមានចេញ។');
       return;
     }
 
@@ -636,6 +655,10 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
           lateMinutes: currentAction === 'checkin' ? shiftInfo.lateMinutes : 0,
           lateReason: currentAction === 'checkin' ? lateReason.trim() : undefined,
           indicativeLateAmount: currentAction === 'checkin' ? shiftInfo.indicativeAmount : 0,
+          isEarly: currentAction === 'checkout' ? shiftInfo.isEarly : false,
+          earlyMinutes: currentAction === 'checkout' ? shiftInfo.earlyMinutes : 0,
+          earlyReason: currentAction === 'checkout' ? earlyReason.trim() : undefined,
+          indicativeEarlyAmount: currentAction === 'checkout' ? shiftInfo.indicativeEarlyAmount : 0,
           shiftType: shiftInfo.shiftName
         })
       });
@@ -644,6 +667,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       if (data.success) {
         setResultData(data);
         setLateReason('');
+        setEarlyReason('');
         // Refresh status silently in background without resetting UI to loading screen
         validateSession(initData, true, detectedTgUser);
       } else {
@@ -982,6 +1006,20 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                       <span className="font-bold text-slate-900">{resultData.lateReason}</span>
                     </div>
                   ) : null}
+                  {resultData.earlyMinutes ? (
+                    <div className="flex justify-between items-center text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-[11px]">
+                      <span>ស្ថានភាពចេញមុន ៖</span>
+                      <span className="font-bold">
+                        ចេញមុនម៉ោង {resultData.earlyMinutes} នាទី
+                      </span>
+                    </div>
+                  ) : null}
+                  {resultData.earlyReason ? (
+                    <div className="flex justify-between items-center text-slate-700 bg-slate-100 p-2 rounded-xl border border-slate-200 text-[11px]">
+                      <span>មូលហេតុចេញមុន ៖</span>
+                      <span className="font-bold text-slate-900">{resultData.earlyReason}</span>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="flex gap-2">
@@ -989,6 +1027,8 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     onClick={() => {
                       setResultData(null);
                       setCapturedImage(null);
+                      setLateReason('');
+                      setEarlyReason('');
                     }}
                     className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
                   >
@@ -1020,46 +1060,90 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                   </div>
                 )}
 
-                {/* Shift Info & Late Reason Card */}
-                {currentAction === 'checkin' && (() => {
+                {/* Shift Info & Late / Early Reason Card */}
+                {(() => {
                   const shiftInfo = getShiftScheduleInfo();
-                  return (
-                    <div className={`p-3.5 rounded-2xl border text-xs space-y-2.5 text-left transition-all ${
-                      shiftInfo.isLate 
-                        ? 'bg-amber-50/95 border-amber-300 shadow-xs' 
-                        : 'bg-blue-50/70 border-blue-200'
-                    }`}>
-                      <div className="flex items-center justify-between font-bold">
-                        <div className="flex items-center gap-1.5 text-slate-800">
-                          <Clock size={15} className={shiftInfo.isLate ? 'text-amber-600' : 'text-blue-600'} />
-                          <span>{shiftInfo.shiftName} ({shiftInfo.shiftTimeRange})</span>
+                  if (currentAction === 'checkin') {
+                    return (
+                      <div className={`p-3.5 rounded-2xl border text-xs space-y-2.5 text-left transition-all ${
+                        shiftInfo.isLate 
+                          ? 'bg-amber-50/95 border-amber-300 shadow-xs' 
+                          : 'bg-blue-50/70 border-blue-200'
+                      }`}>
+                        <div className="flex items-center justify-between font-bold">
+                          <div className="flex items-center gap-1.5 text-slate-800">
+                            <Clock size={15} className={shiftInfo.isLate ? 'text-amber-600' : 'text-blue-600'} />
+                            <span>{shiftInfo.shiftName} ({shiftInfo.shiftTimeRange})</span>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold ${
+                            shiftInfo.isLate 
+                              ? 'bg-amber-200 text-amber-900 border border-amber-300' 
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          }`}>
+                            {shiftInfo.isLate ? `⚠️ មកយឺត ${shiftInfo.lateMinutes} នាទី` : '🟢 ទាន់ពេល (On-Time)'}
+                          </span>
                         </div>
-                        <span className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold ${
-                          shiftInfo.isLate 
-                            ? 'bg-amber-200 text-amber-900 border border-amber-300' 
-                            : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                        }`}>
-                          {shiftInfo.isLate ? `⚠️ មកយឺត ${shiftInfo.lateMinutes} នាទី` : '🟢 ទាន់ពេល (On-Time)'}
-                        </span>
-                      </div>
 
-                      {shiftInfo.isLate && (
-                        <div className="pt-2 border-t border-amber-200/90">
-                          <label className="text-[11px] font-bold text-amber-950 block mb-1">
-                            សូមបញ្ជាក់មូលហេតុនៃការមកយឺត *៖
-                          </label>
-                          <input
-                            type="text"
-                            value={lateReason}
-                            onChange={e => setLateReason(e.target.value)}
-                            placeholder="ឧ. ស្ទះចរាចរណ៍, ឈឺពោះ, មានធុរៈបន្ទាន់..."
-                            className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-amber-500 shadow-2xs font-medium"
-                            required
-                          />
+                        {shiftInfo.isLate && (
+                          <div className="pt-2 border-t border-amber-200/90">
+                            <label className="text-[11px] font-bold text-amber-950 block mb-1">
+                              សូមបញ្ជាក់មូលហេតុនៃការមកយឺត *៖
+                            </label>
+                            <input
+                              type="text"
+                              value={lateReason}
+                              onChange={e => setLateReason(e.target.value)}
+                              placeholder="ឧ. ស្ទះចរាចរណ៍, ឈឺពោះ, មានធុរៈបន្ទាន់..."
+                              className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-amber-500 shadow-2xs font-medium"
+                              required
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  if (currentAction === 'checkout') {
+                    return (
+                      <div className={`p-3.5 rounded-2xl border text-xs space-y-2.5 text-left transition-all ${
+                        shiftInfo.isEarly 
+                          ? 'bg-amber-50/95 border-amber-300 shadow-xs' 
+                          : 'bg-blue-50/70 border-blue-200'
+                      }`}>
+                        <div className="flex items-center justify-between font-bold">
+                          <div className="flex items-center gap-1.5 text-slate-800">
+                            <Clock size={15} className={shiftInfo.isEarly ? 'text-amber-600' : 'text-blue-600'} />
+                            <span>{shiftInfo.shiftName} ({shiftInfo.shiftTimeRange})</span>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold ${
+                            shiftInfo.isEarly 
+                              ? 'bg-amber-200 text-amber-900 border border-amber-300' 
+                              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          }`}>
+                            {shiftInfo.isEarly ? `⚠️ ចេញមុន ${shiftInfo.earlyMinutes} នាទី` : '🟢 គ្រប់ម៉ោង (On-Time)'}
+                          </span>
                         </div>
-                      )}
-                    </div>
-                  );
+
+                        {shiftInfo.isEarly && (
+                          <div className="pt-2 border-t border-amber-200/90">
+                            <label className="text-[11px] font-bold text-amber-950 block mb-1">
+                              សូមបញ្ជាក់មូលហេតុនៃការចេញមុនម៉ោង *៖
+                            </label>
+                            <input
+                              type="text"
+                              value={earlyReason}
+                              onChange={e => setEarlyReason(e.target.value)}
+                              placeholder="ឧ. មានធុរៈបន្ទាន់, ឈឺក្បាល, ត្រូវទៅរៀន..."
+                              className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-amber-500 shadow-2xs font-medium"
+                              required
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return null;
                 })()}
 
 

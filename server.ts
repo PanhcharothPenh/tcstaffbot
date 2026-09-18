@@ -6313,54 +6313,124 @@ app.post('/api/attendance/check-out', async (req, res) => {
 
     let workHours = 8;
     let hoursStr = '8h 00m';
+    let inMins = 390;
+    let outMins = 960;
     try {
       const parseTimeToMinutes = (tStr: string) => {
-        const parts = tStr.trim().match(/(\d+):(\d+)\s*(AM|PM)?/i);
-        if (!parts) return 0;
-        let h = parseInt(parts[1], 10);
-        const m = parseInt(parts[2], 10);
-        const ampm = parts[3]?.toUpperCase();
-        if (ampm === 'PM' && h < 12) h += 12;
-        if (ampm === 'AM' && h === 12) h = 0;
-        return h * 60 + m;
-      };
+          const parts = tStr.trim().match(/(\d+):(\d+)\s*(AM|PM)?/i);
+          if (!parts) return 0;
+          let h = parseInt(parts[1], 10);
+          const m = parseInt(parts[2], 10);
+          const ampm = parts[3]?.toUpperCase();
+          if (ampm === 'PM' && h < 12) h += 12;
+          if (ampm === 'AM' && h === 12) h = 0;
+          return h * 60 + m;
+        };
 
-      const inMins = parseTimeToMinutes(attRecord.checkIn);
-      const outMins = parseTimeToMinutes(timeStr);
-      let diffMins = outMins - inMins;
-      if (diffMins < 0) diffMins += 24 * 60;
+        inMins = parseTimeToMinutes(attRecord.checkIn);
+        outMins = parseTimeToMinutes(timeStr);
+        let diffMins = outMins - inMins;
+        if (diffMins < 0) diffMins += 24 * 60;
 
-      const h = Math.floor(diffMins / 60);
-      const m = diffMins % 60;
-      workHours = Number((diffMins / 60).toFixed(2));
-      hoursStr = `${h}h ${String(m).padStart(2, '0')}m`;
-    } catch {}
+        const h = Math.floor(diffMins / 60);
+        const m = diffMins % 60;
+        workHours = Number((diffMins / 60).toFixed(2));
+        hoursStr = `${h}h ${String(m).padStart(2, '0')}m`;
+      } catch {}
 
-    attRecord.checkOut = timeStr;
-    attRecord.workHours = workHours;
-    attRecord.status = 'Completed';
-    attRecord.checkOutPhoto = photo || staff.photoUrl;
-    attRecord.checkOutFaceScore = checkOutFaceScore;
-    attRecord.checkOutLatitude = latitude;
-    attRecord.checkOutLongitude = longitude;
-    attRecord.checkOutDistance = distance;
-    attRecord.checkOutDevice = resolvedDevice;
-    attRecord.checkOutPlatform = resolvedPlatform;
-    attRecord.checkOutIp = clientIp;
-    attRecord.updatedAt = now.toISOString();
+      // Branch-aware shift determination & early check-out calculation
+      const bName = String(branch?.branchName || '').toLowerCase();
+      const bId = String(branch?.id || staff.branchId || '');
+      const isToto = bId === 'b1' || bName.includes('toto') || bName.includes('chi');
+      const staffShift = String(attRecord.shiftType || (req.body as any)?.shiftType || staff.shift || '');
 
-    saveLocalDb();
+      let isShift1 = false;
+      if (staffShift === 'Shift 1' || staffShift === 'Morning') {
+        isShift1 = true;
+      } else if (staffShift === 'Shift 2' || staffShift === 'Afternoon') {
+        isShift1 = false;
+      } else {
+        isShift1 = inMins < 690;
+      }
 
-    return res.json({
-      success: true,
-      message: '✓ ចុះវត្តមានចេញបានជោគជ័យ',
-      employeeName: staff.fullName,
-      checkIn: attRecord.checkIn,
-      checkOut: timeStr,
-      workHours: hoursStr,
-      branchName: branch?.branchName || 'TC Staff Management',
-      attendance: attRecord
-    });
+      const shiftName = isShift1 ? 'Shift 1' : 'Shift 2';
+      let endMins = 960;
+      let durationHours = 8.0;
+
+      if (isToto) {
+        if (isShift1) {
+          endMins = 16 * 60; // 04:00 PM (960)
+          durationHours = 9.5;
+        } else {
+          endMins = 21 * 60; // 09:00 PM (1260)
+          durationHours = 8.0;
+        }
+      } else {
+        // Coffee Corner
+        if (isShift1) {
+          endMins = 14 * 60; // 02:00 PM (840)
+          durationHours = 7.5;
+        } else {
+          endMins = 21 * 60; // 09:00 PM (1260)
+          durationHours = 7.0;
+        }
+      }
+
+      // Early checkout calculation (>10 mins early)
+      let earlyMins = 0;
+      let isEarlyCheck = false;
+      if (outMins < (endMins - 10)) {
+        isEarlyCheck = true;
+        earlyMins = Math.max(0, endMins - outMins);
+      }
+
+      const earlyReason = String((req.body as any)?.earlyReason || '').trim();
+      const staffSalary = Number(staff.baseSalary || 0);
+      const dailyRate = staffSalary > 0 ? (staffSalary / 30) : 0;
+      const hourlyRate = durationHours > 0 ? (dailyRate / durationHours) : 0;
+      const minuteRate = hourlyRate / 60;
+      const indicativeAmount = Number(((req.body as any)?.indicativeEarlyAmount || (earlyMins * minuteRate)).toFixed(2));
+
+      attRecord.checkOut = timeStr;
+      attRecord.workHours = workHours;
+      attRecord.status = 'Completed';
+      attRecord.shiftType = shiftName;
+      if (isEarlyCheck) {
+        attRecord.earlyMinutes = earlyMins;
+        attRecord.earlyReason = earlyReason || undefined;
+        attRecord.indicativeEarlyAmount = indicativeAmount;
+        attRecord.earlyDeduction = 0;
+        attRecord.isEarlyExcused = true;
+        const earlyNote = `ចេញមុនម៉ោង ${earlyMins} នាទី (ស្មើ ~$${indicativeAmount.toFixed(2)} - មិនកាត់ប្រាក់) ${earlyReason ? `[មូលហេតុ: ${earlyReason}]` : ''}`;
+        attRecord.notes = attRecord.notes ? `${attRecord.notes} | ${earlyNote}` : earlyNote;
+      }
+      attRecord.checkOutPhoto = photo || staff.photoUrl;
+      attRecord.checkOutFaceScore = checkOutFaceScore;
+      attRecord.checkOutLatitude = latitude;
+      attRecord.checkOutLongitude = longitude;
+      attRecord.checkOutDistance = distance;
+      attRecord.checkOutDevice = resolvedDevice;
+      attRecord.checkOutPlatform = resolvedPlatform;
+      attRecord.checkOutIp = clientIp;
+      attRecord.updatedAt = now.toISOString();
+
+      saveLocalDb();
+
+      return res.json({
+        success: true,
+        message: isEarlyCheck ? `✓ ចុះវត្តមានចេញបានជោគជ័យ (ចេញមុន ${earlyMins} នាទី)` : '✓ ចុះវត្តមានចេញបានជោគជ័យ',
+        employeeName: staff.fullName,
+        checkIn: attRecord.checkIn,
+        checkOut: timeStr,
+        workHours: hoursStr,
+        isEarly: isEarlyCheck,
+        earlyMinutes: earlyMins,
+        earlyReason: earlyReason || undefined,
+        indicativeEarlyAmount: indicativeAmount,
+        shiftType: shiftName,
+        branchName: branch?.branchName || 'TC Staff Management',
+        attendance: attRecord
+      });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
   }

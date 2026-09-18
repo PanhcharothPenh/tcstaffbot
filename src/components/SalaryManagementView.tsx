@@ -457,13 +457,17 @@ export default function SalaryManagementView({
 
       // Late arrivals: per user explicit policy:
       // "ការកាត់ប្រាក់ មិនតម្រូវអោយកាត់ប្រាក់ពីប្រាក់ខែគោលទេ គ្រាន់តែណែនាំ ថាចំនួន នាទីប៉ុននេះ ស្នើទឹកលុយប៉ុននឹង តែមិនកាត់ប្រាក់ទេ"
-      // -> Late arrivals do NOT deduct from base salary / final payment!
       const lateRecords = staffAttendance.filter(a => a.status === 'Late');
       const totalLateMinutes = lateRecords.reduce((sum, a) => sum + Number(a.lateMinutes || 0), 0);
       const totalIndicativeLateAmount = lateRecords.reduce((sum, a) => sum + Number(a.indicativeLateAmount || 0), 0);
       const autoLateDeduct = 0; // Not deducted from base salary!
       const excusedLateCount = lateRecords.length;
       const deductLateCount = 0;
+
+      // Early departure records:
+      const earlyRecords = staffAttendance.filter(a => a.earlyMinutes && a.earlyMinutes > 0);
+      const totalEarlyMinutes = earlyRecords.reduce((sum, a) => sum + Number(a.earlyMinutes || 0), 0);
+      const totalIndicativeEarlyAmount = earlyRecords.reduce((sum, a) => sum + Number(a.indicativeEarlyAmount || 0), 0);
 
       const finalLeaveDays = adj.leaveDays !== undefined ? adj.leaveDays : deductibleLeaveDays;
       const finalLeaveDates = adj.leaveDates !== undefined ? adj.leaveDates : autoAbsentDates;
@@ -499,6 +503,8 @@ export default function SalaryManagementView({
         deductLateCount,
         totalLateMinutes,
         totalIndicativeLateAmount,
+        totalEarlyMinutes,
+        totalIndicativeEarlyAmount,
         totoFreeDayOffApplied,
         rawAbsentDays: autoAbsentDays,
         finalPayment: isPaid && existingPaid ? existingPaid.netSalary : finalPayment,
@@ -1369,6 +1375,11 @@ export default function SalaryManagementView({
                           {row.totalLateMinutes > 0 && (
                             <div className="text-[9px] text-right text-amber-600 font-bold" title="តម្លៃសមមូលណែនាំ មិនកាត់ពីប្រាក់ខែគោល">
                               ⏰ យឺត {row.totalLateMinutes}mn (~${row.totalIndicativeLateAmount.toFixed(2)})
+                            </div>
+                          )}
+                          {row.totalEarlyMinutes > 0 && (
+                            <div className="text-[9px] text-right text-rose-600 font-bold" title="តម្លៃសមមូលចេញមុនម៉ោង មិនកាត់ពីប្រាក់ខែគោល">
+                              🏃 ចេញមុន {row.totalEarlyMinutes}mn (~${row.totalIndicativeEarlyAmount.toFixed(2)})
                             </div>
                           )}
                         </td>

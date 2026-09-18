@@ -1537,13 +1537,19 @@ export default function AttendanceView({
                             {rec.status === 'Late' && (
                               <span className={`px-1.5 py-0.5 rounded-md text-[9.5px] font-black inline-flex items-center gap-1 shadow-2xs ${
                                 rec.isLateExcused 
-                                  ? 'bg-cyan-100 text-cyan-800 border border-cyan-300' 
-                                  : 'bg-amber-100 text-amber-800 border border-amber-300'
+                                   ? 'bg-cyan-100 text-cyan-800 border border-cyan-300' 
+                                   : 'bg-amber-100 text-amber-800 border border-amber-300'
                               }`}>
                                 <span className={`w-1.5 h-1.5 rounded-full inline-block ${rec.isLateExcused ? 'bg-cyan-600' : 'bg-amber-600'}`}></span>
                                 <span>{rec.lateMinutes ? `យឺត ${rec.lateMinutes}mn (~$${Number(rec.indicativeLateAmount || 0).toFixed(2)})` : (rec.isLateExcused ? 'យឺតមិនកាត់ប្រាក់' : (rec.lateDeduction && rec.lateDeduction > 0 ? `យឺតកាត់ $${rec.lateDeduction}` : 'មកយឺត'))}</span>
                               </span>
                             )}
+                            {rec.earlyMinutes && rec.earlyMinutes > 0 ? (
+                              <span className="px-1.5 py-0.5 rounded-md text-[9.5px] font-black inline-flex items-center gap-1 shadow-2xs bg-amber-100 text-amber-800 border border-amber-300">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-600 inline-block"></span>
+                                <span>ចេញមុន {rec.earlyMinutes}mn (~${Number(rec.indicativeEarlyAmount || 0).toFixed(2)})</span>
+                              </span>
+                            ) : null}
                             {rec.date === todayPhnomPenh && rec.status !== 'Permission' && rec.status !== 'Late' && (
                               <span className="px-1.5 py-0.2 rounded-md text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
                                 ថ្ងៃនេះ
@@ -1583,7 +1589,12 @@ export default function AttendanceView({
                         {/* Check Out */}
                         <td className="py-3 px-3 text-center font-mono font-bold">
                           {rec.checkOut && rec.checkOut !== '--' ? (
-                            <span className="text-rose-700">{rec.checkOut}</span>
+                            <div className="flex flex-col items-center">
+                              <span className="text-rose-700">{rec.checkOut}</span>
+                              {rec.earlyMinutes && rec.earlyMinutes > 0 ? (
+                                <span className="text-[9.5px] text-amber-700 font-sans font-medium">មុន {rec.earlyMinutes}mn</span>
+                              ) : null}
+                            </div>
                           ) : rec.status === 'Permission' ? (
                             <span className="text-[10.5px] font-black text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md border border-rose-200">
                               សុំច្បាប់
@@ -1617,7 +1628,7 @@ export default function AttendanceView({
                           }`}>
                             {rec.status === 'Permission' ? 'ច្បាប់សម្រាក (Permission)' :
                              rec.status === 'Working' ? 'កំពុងធ្វើការ' :
-                             rec.status === 'Completed' ? 'បានចេញ' :
+                             rec.status === 'Completed' ? (rec.earlyMinutes && rec.earlyMinutes > 0 ? `🏃 ចេញមុន ${rec.earlyMinutes}mn` : 'បានចេញ') :
                              rec.status === 'Present' ? 'វត្តមាន' :
                              rec.status === 'Late' ? (rec.lateMinutes ? `⏰ យឺត ${rec.lateMinutes}mn (~$${Number(rec.indicativeLateAmount || 0).toFixed(2)})` : (rec.isLateExcused ? '⏰ យឺតមិនកាត់' : (rec.lateDeduction && rec.lateDeduction > 0 ? `⚠️ យឺតកាត់ ($${rec.lateDeduction})` : 'មកយឺត'))) :
                              rec.status === 'Absent' ? 'អវត្តមាន' : rec.status}

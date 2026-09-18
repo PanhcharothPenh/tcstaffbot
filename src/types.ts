@@ -258,6 +258,11 @@ export interface Attendance {
   lateMinutes?: number;
   lateReason?: string;
   indicativeLateAmount?: number;
+  earlyMinutes?: number;
+  earlyReason?: string;
+  indicativeEarlyAmount?: number;
+  earlyDeduction?: number;
+  isEarlyExcused?: boolean;
   auditHistory?: AttendanceAuditLog[];
   createdAt?: string;
   updatedAt?: string;
