@@ -86,6 +86,7 @@ export default function StaffManagementView({
   const [resignationDate, setResignationDate] = useState('');
   const [status, setStatus] = useState<'Active' | 'Resigned' | 'Suspended'>('Active');
   const [baseSalary, setBaseSalary] = useState(250);
+  const [branchSalaries, setBranchSalaries] = useState<Record<string, number>>({});
   const [idCardNumber, setIdCardNumber] = useState('');
   const [emergencyContact, setEmergencyContact] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
@@ -214,6 +215,12 @@ export default function StaffManagementView({
     const effectiveBranchIds = assignedBranchIds.length > 0 ? assignedBranchIds : [branchId];
     const effectivePrimaryBranch = effectiveBranchIds.includes(branchId) ? branchId : effectiveBranchIds[0];
 
+    const cleanBranchSalaries: Record<string, number> = {};
+    effectiveBranchIds.forEach(bId => {
+      cleanBranchSalaries[bId] = Number(branchSalaries[bId] !== undefined ? branchSalaries[bId] : baseSalary);
+    });
+    const primarySalary = Number(cleanBranchSalaries[effectivePrimaryBranch] || baseSalary);
+
     if (editingStaff) {
       // Edit
       const updated = staff.map(s => s.id === editingStaff.id ? {
@@ -231,7 +238,8 @@ export default function StaffManagementView({
         startDate,
         resignationDate: status === 'Resigned' ? (resignationDate || s.resignationDate || new Date().toISOString().substring(0, 10)) : undefined,
         status,
-        baseSalary: Number(baseSalary),
+        baseSalary: primarySalary,
+        branchSalaries: cleanBranchSalaries,
         idCardNumber,
         emergencyContact,
         photoUrl: pic,
@@ -264,7 +272,8 @@ export default function StaffManagementView({
         position,
         shift,
         startDate,
-        baseSalary: Number(baseSalary),
+        baseSalary: primarySalary,
+        branchSalaries: cleanBranchSalaries,
         status: 'Active',
         photoUrl: pic,
         idCardNumber,
@@ -324,6 +333,7 @@ export default function StaffManagementView({
     setResignationDate('');
     setStatus('Active');
     setBaseSalary(250);
+    setBranchSalaries({});
     setAttendanceEnabled(true);
     setBranchId(branches[0]?.id || 'b1');
     setAssignedBranchIds([branches[0]?.id || 'b1']);
@@ -359,6 +369,7 @@ export default function StaffManagementView({
     setResignationDate(s.resignationDate || '');
     setStatus(s.status || 'Active');
     setBaseSalary(s.baseSalary);
+    setBranchSalaries(s.branchSalaries || (s.branchId ? { [s.branchId]: s.baseSalary } : {}));
     setIdCardNumber(s.idCardNumber);
     setEmergencyContact(s.emergencyContact);
     setPhotoUrl(s.photoUrl && !s.photoUrl.includes('images.unsplash.com') ? s.photoUrl : '');
@@ -976,18 +987,74 @@ export default function StaffManagementView({
               />
             </div>
 
-            <div>
-              <label className="text-[11px] font-bold text-slate-500 mb-1 block">{t.baseSalary} (USD) *</label>
-              <input
-                type="number"
-                min="0"
-                step="5"
-                value={baseSalary}
-                onChange={e => setBaseSalary(Number(e.target.value))}
-                className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl p-2.5 focus:outline-none font-mono"
-                required
-              />
-            </div>
+            {assignedBranchIds.length > 1 ? (
+              <div className="sm:col-span-3 bg-emerald-50/50 border border-emerald-200/80 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-extrabold text-emerald-950 flex items-center gap-1.5">
+                    <CreditCard size={14} className="text-emerald-600" />
+                    <span>ប្រាក់ខែគោលតាមសាខានីមួយៗ (Branch-Specific Base Salaries) *</span>
+                  </label>
+                  <span className="text-[10px] text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded font-bold">
+                    គិតតាមថ្ងៃធ្វើការជាក់ស្តែង
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {assignedBranchIds.map(bId => {
+                    const bObj = branches.find(b => b.id === bId);
+                    const bName = bObj?.branchName || bId;
+                    const val = branchSalaries[bId] !== undefined ? branchSalaries[bId] : baseSalary;
+                    const daily = val > 0 ? (val / 30).toFixed(2) : '0.00';
+                    return (
+                      <div key={bId} className="bg-white border border-emerald-200/90 rounded-xl p-3 shadow-2xs space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                          <span>{bName}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">~${daily}/ថ្ងៃ</span>
+                        </div>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="5"
+                            value={val}
+                            onChange={e => {
+                              const num = Number(e.target.value);
+                              setBranchSalaries(prev => ({ ...prev, [bId]: num }));
+                              if (bId === branchId) setBaseSalary(num);
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 text-xs rounded-lg pl-7 pr-3 py-2 font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
+                            required
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="text-[11px] font-bold text-slate-500 mb-1 block">{t.baseSalary} (USD) *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="5"
+                    value={baseSalary}
+                    onChange={e => {
+                      const num = Number(e.target.value);
+                      setBaseSalary(num);
+                      if (branchId) {
+                        setBranchSalaries(prev => ({ ...prev, [branchId]: num }));
+                      }
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl pl-7 pr-3 py-2.5 focus:outline-none font-mono font-bold"
+                    required
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Status Selector when editing */}
             {editingStaff && (
@@ -1234,7 +1301,21 @@ export default function StaffManagementView({
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400 font-medium">{t.baseSalary}:</span>
-                  <span className="font-bold text-emerald-700 font-mono">{formatCurrency(s.baseSalary, 'USD')}</span>
+                  {s.branchSalaries && Object.keys(s.branchSalaries).length > 1 ? (
+                    <div className="flex items-center gap-1.5 font-mono text-[10.5px]">
+                      {Object.entries(s.branchSalaries).map(([bId, amt]) => {
+                        const bObj = branches.find(b => b.id === bId);
+                        const bCode = bObj?.branchCode || bId;
+                        return (
+                          <span key={bId} className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded font-bold">
+                            {bCode}: ${amt}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <span className="font-bold text-emerald-700 font-mono">{formatCurrency(s.baseSalary, 'USD')}</span>
+                  )}
                 </div>
                 {s.status === 'Resigned' && s.resignationDate && (
                   <div className="flex items-center justify-between text-rose-600 font-bold text-[11px] pt-1">

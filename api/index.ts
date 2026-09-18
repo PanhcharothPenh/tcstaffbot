@@ -719,7 +719,9 @@ export default async function handler(req: any, res: any) {
           attendanceEnabled: matchedStaff.attendanceEnabled !== false,
           branchId: branch.id,
           branchName: branch.branchName,
-          assignedBranchIds: assignedIds
+          assignedBranchIds: assignedIds,
+          baseSalary: matchedStaff.baseSalary,
+          branchSalaries: matchedStaff.branchSalaries
         },
         branch: {
           id: branch.id,
@@ -997,7 +999,7 @@ export default async function handler(req: any, res: any) {
       // Check if late (> 10 minutes past start time)
       const isLateCheck = Boolean(req.body?.isLate || (curMins > (startMins + 10)));
       const lateMins = isLateCheck ? (req.body?.lateMinutes || Math.max(0, curMins - startMins)) : 0;
-      const staffSalary = Number(staff.baseSalary || 0);
+      const staffSalary = Number((staff.branchSalaries && branch?.id && staff.branchSalaries[branch.id]) || staff.baseSalary || 0);
       const dailyRate = staffSalary > 0 ? (staffSalary / 30) : 0;
       const hourlyRate = durationHours > 0 ? (dailyRate / durationHours) : 0;
       const minuteRate = hourlyRate / 60;
@@ -1312,7 +1314,7 @@ export default async function handler(req: any, res: any) {
       }
 
       const earlyReason = String(req.body?.earlyReason || '').trim();
-      const staffSalary = Number(staff.baseSalary || 0);
+      const staffSalary = Number((staff.branchSalaries && branch?.id && staff.branchSalaries[branch.id]) || staff.baseSalary || 0);
       const dailyRate = staffSalary > 0 ? (staffSalary / 30) : 0;
       const hourlyRate = durationHours > 0 ? (dailyRate / durationHours) : 0;
       const minuteRate = hourlyRate / 60;

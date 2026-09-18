@@ -564,7 +564,12 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     const isEarly = currentMins < (endMins - 10);
     const earlyMinutes = isEarly ? Math.max(0, endMins - currentMins) : 0;
 
-    const baseSalary = Number(staffInfo?.baseSalary || 0);
+    const activeBranchId = String(branchInfo?.id || '');
+    const baseSalary = Number(
+      (staffInfo?.branchSalaries && activeBranchId && staffInfo.branchSalaries[activeBranchId]) ||
+      staffInfo?.baseSalary ||
+      0
+    );
     const dailyRate = baseSalary > 0 ? (baseSalary / 30) : 0;
     const hourlyRate = durationHours > 0 ? (dailyRate / durationHours) : 0;
     const minuteRate = hourlyRate / 60;

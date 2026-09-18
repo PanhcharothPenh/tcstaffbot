@@ -321,7 +321,11 @@ export default function SalaryManagementView({
     });
 
     if (selectedBranchId !== 'all') {
-      list = list.filter(s => s.branchId === selectedBranchId);
+      list = list.filter(s => 
+        s.branchId === selectedBranchId || 
+        s.assignedBranchId === selectedBranchId || 
+        (Array.isArray(s.assignedBranchIds) && s.assignedBranchIds.includes(selectedBranchId))
+      );
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
@@ -398,7 +402,63 @@ export default function SalaryManagementView({
   const payrollRows = useMemo(() => {
     return availableStaff.map(staff => {
       const adj = getAdjustment(staff.id);
-      const baseSalary = Number(staff.baseSalary || 0);
+
+      // 4. Leaves & Absences / Deductions
+      const staffAttendance = (attendance || []).filter(a => 
+        a.staffId === staff.id && isRecordInPeriod(a.date, selectedMonth, selectedYear)
+      );
+
+      // Multi-Branch base salary calculation based on actual attendance per branch
+      const isMultiBranchStaff = Boolean(
+        (staff.branchSalaries && Object.keys(staff.branchSalaries).length > 1) || 
+        (Array.isArray(staff.assignedBranchIds) && staff.assignedBranchIds.length > 1)
+      );
+
+      let baseSalary = Number(staff.baseSalary || 0);
+      let branchBreakdownText = '';
+
+      const b1 = branches[0];
+      const b2 = branches[1];
+      const b1Id = b1?.id || 'b1';
+      const b2Id = b2?.id || 'b2';
+
+      if (isMultiBranchStaff && staff.branchSalaries && Object.keys(staff.branchSalaries).length > 1) {
+        const b1Salary = Number(staff.branchSalaries[b1Id] || staff.baseSalary || 0);
+        const b2Salary = Number(staff.branchSalaries[b2Id] || staff.baseSalary || 0);
+
+        const b1Daily = Number((b1Salary / 30).toFixed(2));
+        const b2Daily = Number((b2Salary / 30).toFixed(2));
+
+        // Count actual days worked at each branch in this month
+        const b1Days = staffAttendance.filter(a => 
+          (a.branchId === b1Id || (!a.branchId && staff.branchId === b1Id)) && 
+          a.status !== 'Absent' && a.status !== 'Permission'
+        ).length;
+
+        const b2Days = staffAttendance.filter(a => 
+          (a.branchId === b2Id || (!a.branchId && staff.branchId === b2Id)) && 
+          a.status !== 'Absent' && a.status !== 'Permission'
+        ).length;
+
+        if (selectedBranchId === b1Id) {
+          baseSalary = b1Days > 0 ? Number((b1Days * b1Daily).toFixed(2)) : b1Salary;
+          branchBreakdownText = `${b1Days} ថ្ងៃ @ $${b1Daily}/ថ្ងៃ ($${b1Salary}/ខែ)`;
+        } else if (selectedBranchId === b2Id) {
+          baseSalary = b2Days > 0 ? Number((b2Days * b2Daily).toFixed(2)) : b2Salary;
+          branchBreakdownText = `${b2Days} ថ្ងៃ @ $${b2Daily}/ថ្ងៃ ($${b2Salary}/ខែ)`;
+        } else {
+          // 'all' branches: sum proportional pay
+          if (b1Days > 0 || b2Days > 0) {
+            const b1Earned = Number((b1Days * b1Daily).toFixed(2));
+            const b2Earned = Number((b2Days * b2Daily).toFixed(2));
+            baseSalary = Number((b1Earned + b2Earned).toFixed(2));
+            branchBreakdownText = `${b1?.branchCode || 'Toto'}: ${b1Days}ថ្ងៃ ($${b1Earned}) + ${b2?.branchCode || 'Corner'}: ${b2Days}ថ្ងៃ ($${b2Earned})`;
+          } else {
+            baseSalary = Number(staff.baseSalary || 0);
+          }
+        }
+      }
+
       const shiftRate = adj.shiftRate !== undefined ? Number(adj.shiftRate) : 6;
       // Daily rate based on standard 30 working days per month
       const standardDailyRate = Number((baseSalary / 30).toFixed(2));
@@ -433,10 +493,6 @@ export default function SalaryManagementView({
       );
       const advancesDeduct = empAdvances.reduce((sum, a) => sum + Number(a.amount || 0), 0);
 
-      // 4. Leaves & Absences / Deductions
-      const staffAttendance = (attendance || []).filter(a => 
-        a.staffId === staff.id && isRecordInPeriod(a.date, selectedMonth, selectedYear)
-      );
       const absentRecords = staffAttendance.filter(a => a.status === 'Absent' || a.status === 'Permission');
       const autoAbsentDays = absentRecords.length;
       const autoAbsentDates = absentRecords.map(a => {
@@ -489,6 +545,7 @@ export default function SalaryManagementView({
       return {
         staff,
         baseSalary,
+        branchBreakdownText,
         shiftRate,
         dailyRate,
         extraShiftCount: finalShiftCount,
@@ -514,7 +571,7 @@ export default function SalaryManagementView({
         unpaidShifts: empShifts
       };
     });
-  }, [availableStaff, extraShifts, staffExpenses, salaryAdvances, attendance, adjustments, salaries, selectedMonth, selectedYear]);
+  }, [availableStaff, branches, extraShifts, staffExpenses, salaryAdvances, attendance, adjustments, salaries, selectedMonth, selectedYear, selectedBranchId]);
 
   // Current Month External Temp Covers
   const currentMonthTempCovers = useMemo(() => {
@@ -1306,7 +1363,12 @@ export default function SalaryManagementView({
 
                         {/* Base Salary */}
                         <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
-                          ${row.baseSalary.toLocaleString()}
+                          <div>${row.baseSalary.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</div>
+                          {row.branchBreakdownText && (
+                            <div className="text-[9.5px] font-sans font-medium text-emerald-700 mt-0.5 leading-tight">
+                              {row.branchBreakdownText}
+                            </div>
+                          )}
                         </td>
 
                         {/* 1. Extra Shifts (ជំនួសវេន $6/វេន) */}

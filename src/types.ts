@@ -115,6 +115,7 @@ export interface Staff {
   attendanceEnabled?: boolean;
   assignedBranchId?: string;
   assignedBranchIds?: string[];
+  branchSalaries?: Record<string, number>; // e.g. { b1: 250, b2: 200 }
 }
 
 export interface SalarySchedule {
