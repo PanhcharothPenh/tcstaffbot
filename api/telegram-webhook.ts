@@ -316,12 +316,12 @@ export default async function handler(req: any, res: any) {
           body: JSON.stringify({ commands: commandList })
         });
 
-        // 1. Reset GLOBAL DEFAULT Menu Button to standard (removes TC Staff App button for regular staff)
+        // 1. Reset GLOBAL DEFAULT Menu Button to standard commands (removes TC Staff App button for regular staff)
         await fetch(`https://api.telegram.org/bot${bot.token}/setChatMenuButton`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            menu_button: { type: 'default' }
+            menu_button: { type: 'commands' }
           })
         });
 
@@ -355,7 +355,7 @@ export default async function handler(req: any, res: any) {
           }).catch(() => {});
         }
 
-        // 3. Explicitly reset menu button for all registered staff members to default
+        // 3. Explicitly reset menu button for all registered staff members to commands
         if (Array.isArray(allStaff)) {
           for (const s of allStaff) {
             const isOwnerOrAdminStaff = 
@@ -367,7 +367,7 @@ export default async function handler(req: any, res: any) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   chat_id: String(s.telegramId),
-                  menu_button: { type: 'default' }
+                  menu_button: { type: 'commands' }
                 })
               }).catch(() => {});
             }
@@ -953,13 +953,13 @@ export default async function handler(req: any, res: any) {
             })
           }).catch(() => {});
         } else {
-          // Regular staff: Remove TC Staff App menu button (revert to default)
+          // Regular staff: Remove TC Staff App menu button (set to standard commands)
           fetch(`https://api.telegram.org/bot${botToken}/setChatMenuButton`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: telegramId,
-              menu_button: { type: 'default' }
+              menu_button: { type: 'commands' }
             })
           }).catch(() => {});
         }
