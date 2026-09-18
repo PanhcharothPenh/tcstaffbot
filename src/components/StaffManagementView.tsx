@@ -65,6 +65,16 @@ export default function StaffManagementView({
   // Form Fields
   const [fullName, setFullName] = useState('');
   const [branchId, setBranchId] = useState(() => branches[0]?.id || 'b1');
+
+  // Branch-specific shift working hours
+  const selectedBranchObj = branches.find(b => b.id === branchId);
+  const isTotoBranch = selectedBranchObj 
+    ? (selectedBranchObj.id === 'b1' || String(selectedBranchObj.branchName).toLowerCase().includes('toto') || String(selectedBranchObj.branchName).toLowerCase().includes('chi'))
+    : (branchId === 'b1');
+  const shift1Hours = isTotoBranch ? '06:30 AM – 04:00 PM' : '06:30 AM – 02:00 PM';
+  const shift2Hours = isTotoBranch ? '01:00 PM – 09:00 PM' : '02:00 PM – 09:00 PM';
+  const branchDisplayName = selectedBranchObj?.branchName || (isTotoBranch ? 'Toto By Chi Chi' : 'Coffee Corner');
+
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
   const [dob, setDob] = useState('1998-01-01');
   const [phone, setPhone] = useState('');
@@ -297,7 +307,7 @@ export default function StaffManagementView({
     setTelegramUsername('');
     setGender('Female');
     setPosition('Staff');
-    setShift('Morning');
+    setShift('Shift 1');
     setStartDate(new Date().toISOString().substring(0, 10));
     setResignationDate('');
     setStatus('Active');
@@ -321,7 +331,12 @@ export default function StaffManagementView({
     setPhone(s.phone);
     setAddress(s.address);
     setPosition(s.position);
-    setShift(s.shift);
+    const resolvedShift = (s.shift === 'Morning' || s.shift === 'Full Time') 
+      ? 'Shift 1' 
+      : (s.shift === 'Afternoon' || s.shift === 'Night') 
+      ? 'Shift 2' 
+      : (s.shift || 'Shift 1');
+    setShift(resolvedShift as any);
     setStartDate(s.startDate);
     setResignationDate(s.resignationDate || '');
     setStatus(s.status || 'Active');
@@ -763,23 +778,6 @@ export default function StaffManagementView({
             </div>
 
             <div>
-              <label className="text-[11px] font-bold text-slate-500 mb-1 block">{t.shift} *</label>
-              <select
-                value={shift}
-                onChange={e => setShift(e.target.value as any)}
-                className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl p-2.5 focus:outline-none"
-              >
-                <option value="Shift 1">Shift 1 (វេនទី ១)</option>
-                <option value="Shift 2">Shift 2 (វេនទី ២)</option>
-                <option value="Morning">Morning (ពេលព្រឹក)</option>
-                <option value="Afternoon">Afternoon (ពេលរសៀល)</option>
-                <option value="Night">Night (ពេលយប់)</option>
-                <option value="Full Time">Full Time (ពេញម៉ោង)</option>
-                <option value="Day Off">Day Off (ថ្ងៃសម្រាក)</option>
-              </select>
-            </div>
-
-            <div>
               <label className="text-[11px] font-bold text-slate-500 mb-1 block">{t.idCard} *</label>
               <input
                 type="text"
@@ -789,6 +787,109 @@ export default function StaffManagementView({
                 className="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl p-2.5 focus:outline-none"
                 required
               />
+            </div>
+
+            {/* Shift Selection - Easy 3-Card Visual Selector */}
+            <div className="sm:col-span-3 bg-slate-50/90 border border-slate-200/90 rounded-2xl p-4 space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <label className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                  <Clock size={14} className="text-[#003D9B]" />
+                  <span>{t.shift} (ជ្រើសរើសវេនការងារសម្រាប់ {branchDisplayName}) *</span>
+                </label>
+                <span className="text-[11px] text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-lg border border-blue-100 font-bold">
+                  {isTotoBranch ? 'សាខា Toto: Shift 1 (9.5h) | Shift 2 (8.0h)' : 'សាខា Corner: Shift 1 (7.5h) | Shift 2 (7.0h)'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                {/* Shift 1 Card */}
+                <button
+                  type="button"
+                  onClick={() => setShift('Shift 1')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                    shift === 'Shift 1' || shift === 'Morning' || shift === 'Full Time'
+                      ? 'bg-white border-[#003D9B] ring-2 ring-[#003D9B]/20 text-[#003D9B] shadow-xs'
+                      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-xs flex items-center gap-1.5">
+                      <span className="text-amber-500 text-sm">☀️</span>
+                      <span>Shift 1 (វេនទី ១)</span>
+                    </span>
+                    {(shift === 'Shift 1' || shift === 'Morning' || shift === 'Full Time') ? (
+                      <CheckCircle2 size={16} className="text-[#003D9B]" />
+                    ) : (
+                      <span className="w-4 h-4 rounded-full border-2 border-slate-300"></span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-mono font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200/80">
+                      {shift1Hours}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {isTotoBranch ? '9.5 ម៉ោង' : '7.5 ម៉ោង'}
+                    </span>
+                  </div>
+                </button>
+
+                {/* Shift 2 Card */}
+                <button
+                  type="button"
+                  onClick={() => setShift('Shift 2')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                    shift === 'Shift 2' || shift === 'Afternoon' || shift === 'Night'
+                      ? 'bg-white border-[#003D9B] ring-2 ring-[#003D9B]/20 text-[#003D9B] shadow-xs'
+                      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-xs flex items-center gap-1.5">
+                      <span className="text-indigo-500 text-sm">🌙</span>
+                      <span>Shift 2 (វេនទី ២)</span>
+                    </span>
+                    {(shift === 'Shift 2' || shift === 'Afternoon' || shift === 'Night') ? (
+                      <CheckCircle2 size={16} className="text-[#003D9B]" />
+                    ) : (
+                      <span className="w-4 h-4 rounded-full border-2 border-slate-300"></span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-mono font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200/80">
+                      {shift2Hours}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {isTotoBranch ? '8.0 ម៉ោង' : '7.0 ម៉ោង'}
+                    </span>
+                  </div>
+                </button>
+
+                {/* Day Off Card */}
+                <button
+                  type="button"
+                  onClick={() => setShift('Day Off')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                    shift === 'Day Off'
+                      ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-500/20 text-amber-900 shadow-xs'
+                      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-xs flex items-center gap-1.5">
+                      <span className="text-emerald-600 text-sm">🏖️</span>
+                      <span>Day Off (ថ្ងៃសម្រាក)</span>
+                    </span>
+                    {shift === 'Day Off' ? (
+                      <CheckCircle2 size={16} className="text-amber-600" />
+                    ) : (
+                      <span className="w-4 h-4 rounded-full border-2 border-slate-300"></span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-500 leading-snug py-0.5">
+                    បុគ្គលិកឈប់សម្រាកប្រចាំខែ
+                  </div>
+                </button>
+              </div>
             </div>
 
             <div>
