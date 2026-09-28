@@ -486,6 +486,7 @@ export default async function handler(req: any, res: any) {
       let allAtt: any[] = [];
       let allUsers: any[] = [];
       let chatRegistry: any[] = [];
+      let allLeaveRequests: any[] = [];
 
       const isPrivateChat = msg.chat?.type === 'private' || !msg.chat?.type;
 
@@ -504,6 +505,7 @@ export default async function handler(req: any, res: any) {
           chatRegistry = Array.isArray(batch['telegram_chat_registry']) ? batch['telegram_chat_registry'] : [];
           storedConfig = batch['telegramConfig'] || { chatIds: { branches: {} } };
           storedRecipients = Array.isArray(batch['telegramRecipients']) ? batch['telegramRecipients'] : [];
+          allLeaveRequests = Array.isArray(batch['leaveRequests']) ? batch['leaveRequests'] : [];
 
           const isNotInactive = (item: any) => {
             if (!item) return false;
@@ -1616,7 +1618,6 @@ export default async function handler(req: any, res: any) {
         const curMins = parseInt(hStr || '0', 10) * 60 + parseInt(mStr || '0', 10);
 
         const todayRecords = allAtt.filter((a: any) => a.date === phnomPenhDateStr);
-        const allLeaveRequests = Array.isArray(batch?.['leaveRequests']) ? batch['leaveRequests'] : [];
         const todayLeaves = allLeaveRequests.filter((l: any) => l.date === phnomPenhDateStr && l.status === 'Approved');
 
         const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
