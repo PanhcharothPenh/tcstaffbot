@@ -2005,10 +2005,14 @@ export default async function handler(req: any, res: any) {
 
       const missingCheckInsShift1: any[] = [];
       const missingCheckOutsShift1: any[] = [];
+      const workingShift1: any[] = [];
+      const permissionsShift1: any[] = [];
+
       const missingCheckInsShift2: any[] = [];
       const missingCheckOutsShift2: any[] = [];
-      const currentlyWorking: any[] = [];
-      const permissions: any[] = [];
+      const workingShift2: any[] = [];
+      const permissionsShift2: any[] = [];
+
       const expiredEntries: any[] = [];
 
       const isForce = (req.query as any)?.force === 'true' || (req.query as any)?.test === 'true';
@@ -2073,12 +2077,14 @@ export default async function handler(req: any, res: any) {
         const hasPermission = att?.status === 'Permission' || todayLeaves.some((l: any) => l.staffId === s.id);
 
         if (hasPermission) {
-          permissions.push({
+          const pItem = {
             staff: s,
             branchName: bName,
             shiftLabel,
             note: att?.notes || 'ច្បាប់ឈប់សម្រាក'
-          });
+          };
+          if (isShift2) permissionsShift2.push(pItem);
+          else permissionsShift1.push(pItem);
           continue;
         }
 
@@ -2103,7 +2109,8 @@ export default async function handler(req: any, res: any) {
             const item = {
               staff: s,
               branchName: bName,
-              shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
+              shiftLabel,
+              shiftRange: `${startTimeDisplay} - ${endTimeDisplay}`,
               shiftKey,
               overdueMins,
               alertKey: checkInAlertKey
@@ -2114,7 +2121,6 @@ export default async function handler(req: any, res: any) {
               missingCheckInsShift1.push(item);
             }
           } else if (!isAlreadySent && curMins > checkInAlertThreshold + 75) {
-            // Window expired for today: mark as seen so this shift alert never leaks into subsequent shifts
             alreadySentAlertKeys.add(checkInAlertKey);
             sentAlertKeysMemoryCache.add(checkInAlertKey);
             expiredEntries.push({ id: checkInAlertKey, date: todayStr, staffId: s.id, type: `${shiftKey}_in`, sentAt: new Date().toISOString() });
@@ -2127,7 +2133,8 @@ export default async function handler(req: any, res: any) {
             const item = {
               staff: s,
               branchName: bName,
-              shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
+              shiftLabel,
+              shiftRange: `${startTimeDisplay} - ${endTimeDisplay}`,
               shiftKey,
               checkIn: att.checkIn,
               overdueMins,
@@ -2143,14 +2150,27 @@ export default async function handler(req: any, res: any) {
             sentAlertKeysMemoryCache.add(checkOutAlertKey);
             expiredEntries.push({ id: checkOutAlertKey, date: todayStr, staffId: s.id, type: `${shiftKey}_out`, sentAt: new Date().toISOString() });
           } else {
-            currentlyWorking.push({
+            const item = {
               staff: s,
               branchName: bName,
               checkIn: att.checkIn,
               shiftLabel,
-              shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`
-            });
+              shiftRange: `${startTimeDisplay} - ${endTimeDisplay}`
+            };
+            if (isShift2) workingShift2.push(item);
+            else workingShift1.push(item);
           }
+        } else if (hasRealIn && hasRealOut) {
+          const item = {
+            staff: s,
+            branchName: bName,
+            checkIn: att.checkIn,
+            checkOut: att.checkOut,
+            shiftLabel,
+            shiftRange: `${startTimeDisplay} - ${endTimeDisplay}`
+          };
+          if (isShift2) workingShift2.push(item);
+          else workingShift1.push(item);
         }
       }
 
@@ -2170,76 +2190,133 @@ export default async function handler(req: any, res: any) {
         const adminChatIds = await getAlertRecipientChatIds();
         const botToken = getBotToken();
 
-        const hasShift1 = missingCheckInsShift1.length > 0 || missingCheckOutsShift1.length > 0;
-        const hasShift2 = missingCheckInsShift2.length > 0 || missingCheckOutsShift2.length > 0;
+        const [yStr, mStr2, dStr2] = todayStr.split('-');
+        const displayDate = `${dStr2}-${mStr2}-${yStr}`;
+        const timeFormatted = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Phnom_Penh' });
 
-        let shiftBadge = '';
-        if (hasShift1 && !hasShift2) shiftBadge = ' — ☀️ វេនទី 1';
-        else if (!hasShift1 && hasShift2) shiftBadge = ' — 🌙 វេនទី 2';
-        else if (hasShift1 && hasShift2) shiftBadge = ' — ☀️ វេនទី 1 & 🌙 វេនទី 2';
+        const totalShift1Staff = missingCheckInsShift1.length + missingCheckOutsShift1.length + workingShift1.length + permissionsShift1.length;
+        const totalShift2Staff = missingCheckInsShift2.length + missingCheckOutsShift2.length + workingShift2.length + permissionsShift2.length;
 
-        let alertMsg = `⚠️ <b>[របាយការណ៍បុគ្គលិកមិនទាន់ Check In / Out${shiftBadge}]</b>\n` +
-          `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
-          `⏰ <b>ម៉ោងពិនិត្យ:</b> <code>${phnomPenhTime}</code>\n\n`;
+        let alertMsg = `⚠️ <b>របាយការណ៍ Check In / Out បុគ្គលិក</b>\n\n` +
+          `📅 <b>កាលបរិច្ឆេទ៖</b> <code>${displayDate}</code>\n` +
+          `⏰ <b>ម៉ោងពិនិត្យ៖</b> <code>${timeFormatted}</code>\n\n`;
 
-        if (totalMissing === 0) {
-          alertMsg += `🎉 <b>ពុំមានបុគ្គលិកណាខកខាន ឬភ្លេច Check In/Out ថ្មីដែលត្រូវជូនដំណឹងឡើយ!</b>\n\n`;
-        } else {
-          // ==================== វេនទី 1 (SHIFT 1) ====================
-          if (hasShift1) {
-            alertMsg += `☀️ <b>══════ [ វេនទី 1 (Shift 1) ] ══════</b>\n`;
-            if (missingCheckInsShift1.length > 0) {
-              alertMsg += `🔴 <b>មិនទាន់ Check In (${missingCheckInsShift1.length} នាក់)៖</b>\n`;
-              missingCheckInsShift1.forEach((item, idx) => {
-                alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
-                  `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-                  `   ⏳ យឺត៖ <b>${formatDurationKhmer(item.overdueMins)}</b> ${item.staff.phone ? `| 📞 <code>${item.staff.phone}</code>` : ''}\n`;
-              });
-              alertMsg += `\n`;
-            }
+        // ==================== វេនទី 1 ====================
+        if (totalShift1Staff > 0) {
+          alertMsg += `☀️ <b>══════ វេនទី 1 ══════</b>\n\n`;
 
-            if (missingCheckOutsShift1.length > 0) {
-              alertMsg += `🟠 <b>មិនទាន់ Check Out (${missingCheckOutsShift1.length} នាក់)៖</b>\n`;
-              missingCheckOutsShift1.forEach((item, idx) => {
-                alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
-                  `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-                  `   🚪 ចូលម៉ោង៖ <code>${item.checkIn}</code> | ⏳ ហួសម៉ោង៖ <b>${formatDurationKhmer(item.overdueMins)}</b>\n`;
-              });
-              alertMsg += `\n`;
-            }
+          if (missingCheckInsShift1.length > 0) {
+            alertMsg += `🔴 <b>មិនទាន់ Check In (${missingCheckInsShift1.length} នាក់)</b>\n\n`;
+            missingCheckInsShift1.forEach((item, idx) => {
+              alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b>\n` +
+                `   🏢 ${item.branchName}\n` +
+                `   🕐 វេន៖ <code>${item.shiftRange}</code>\n` +
+                `   ⏳ យឺត៖ <b>${formatDurationKhmer(item.overdueMins)}</b>\n` +
+                (item.staff.phone ? `   📞 <code>${item.staff.phone}</code>\n` : '') +
+                `\n`;
+            });
           }
 
-          // ==================== វេនទី 2 (SHIFT 2) ====================
-          if (hasShift2) {
-            alertMsg += `🌙 <b>══════ [ វេនទី 2 (Shift 2) ] ══════</b>\n`;
-            if (missingCheckInsShift2.length > 0) {
-              alertMsg += `🔴 <b>មិនទាន់ Check In (${missingCheckInsShift2.length} នាក់)៖</b>\n`;
-              missingCheckInsShift2.forEach((item, idx) => {
-                alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
-                  `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-                  `   ⏳ យឺត៖ <b>${formatDurationKhmer(item.overdueMins)}</b> ${item.staff.phone ? `| 📞 <code>${item.staff.phone}</code>` : ''}\n`;
-              });
-              alertMsg += `\n`;
-            }
-
-            if (missingCheckOutsShift2.length > 0) {
-              alertMsg += `🟠 <b>មិនទាន់ Check Out (${missingCheckOutsShift2.length} នាក់)៖</b>\n`;
-              missingCheckOutsShift2.forEach((item, idx) => {
-                alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
-                  `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-                  `   🚪 ចូលម៉ោង៖ <code>${item.checkIn}</code> | ⏳ ហួសម៉ោង៖ <b>${formatDurationKhmer(item.overdueMins)}</b>\n`;
-              });
-              alertMsg += `\n`;
-            }
+          if (missingCheckOutsShift1.length > 0) {
+            alertMsg += `🟠 <b>មិនទាន់ Check Out (${missingCheckOutsShift1.length} នាក់)</b>\n\n`;
+            missingCheckOutsShift1.forEach((item, idx) => {
+              alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b>\n` +
+                `   🏢 ${item.branchName}\n` +
+                `   🕐 វេន៖ <code>${item.shiftRange}</code>\n` +
+                `   🚪 ចូលម៉ោង៖ <code>${item.checkIn}</code>\n` +
+                `   ⏳ ហួសម៉ោង៖ <b>${formatDurationKhmer(item.overdueMins)}</b>\n\n`;
+            });
           }
 
-          alertMsg += `<i>💡 ការជូនដំណឹងនេះលោតតែម្តងគត់ក្នុងមួយវេន (មិនរំខានរៀងរាល់ 30 នាទីឡើយ)។</i>\n`;
+          if (workingShift1.length > 0) {
+            alertMsg += `🟢 <b>កំពុងបំពេញការងារ (${workingShift1.length} នាក់)</b>\n\n`;
+            workingShift1.forEach((item, idx) => {
+              alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b> — <code>${item.checkIn}</code>\n`;
+            });
+            alertMsg += `\n`;
+          }
+
+          if (permissionsShift1.length > 0) {
+            alertMsg += `🏖️ <b>ច្បាប់ឈប់សម្រាក (${permissionsShift1.length} នាក់)</b>\n\n`;
+            permissionsShift1.forEach((item, idx) => {
+              alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.branchName}): ${item.note}\n`;
+            });
+            alertMsg += `\n`;
+          }
+
+          alertMsg += `📊 <b>សរុបវេនទី 1</b>\n` +
+            `👥 បុគ្គលិក៖ <b>${totalShift1Staff} នាក់</b>\n` +
+            `🟢 Check In៖ <b>${workingShift1.length} នាក់</b>\n` +
+            `🔴 មិនទាន់ Check In៖ <b>${missingCheckInsShift1.length} នាក់</b>\n`;
+          if (missingCheckOutsShift1.length > 0) {
+            alertMsg += `🟠 មិនទាន់ Check Out៖ <b>${missingCheckOutsShift1.length} នាក់</b>\n`;
+          }
+          if (permissionsShift1.length > 0) {
+            alertMsg += `🏖️ ច្បាប់៖ <b>${permissionsShift1.length} នាក់</b>\n`;
+          }
+          alertMsg += `\n`;
+        }
+
+        // ==================== វេនទី 2 ====================
+        if (totalShift2Staff > 0) {
+          alertMsg += `🌙 <b>══════ វេនទី 2 ══════</b>\n\n`;
+
+          if (missingCheckInsShift2.length > 0) {
+            alertMsg += `🔴 <b>មិនទាន់ Check In (${missingCheckInsShift2.length} នាក់)</b>\n\n`;
+            missingCheckInsShift2.forEach((item, idx) => {
+              alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b>\n` +
+                `   🏢 ${item.branchName}\n` +
+                `   🕐 វេន៖ <code>${item.shiftRange}</code>\n` +
+                `   ⏳ យឺត៖ <b>${formatDurationKhmer(item.overdueMins)}</b>\n` +
+                (item.staff.phone ? `   📞 <code>${item.staff.phone}</code>\n` : '') +
+                `\n`;
+            });
+          }
+
+          if (missingCheckOutsShift2.length > 0) {
+            alertMsg += `🟠 <b>មិនទាន់ Check Out (${missingCheckOutsShift2.length} នាក់)</b>\n\n`;
+            missingCheckOutsShift2.forEach((item, idx) => {
+              alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b>\n` +
+                `   🏢 ${item.branchName}\n` +
+                `   🕐 វេន៖ <code>${item.shiftRange}</code>\n` +
+                `   🚪 ចូលម៉ោង៖ <code>${item.checkIn}</code>\n` +
+                `   ⏳ ហួសម៉ោង៖ <b>${formatDurationKhmer(item.overdueMins)}</b>\n\n`;
+            });
+          }
+
+          if (workingShift2.length > 0) {
+            alertMsg += `🟢 <b>កំពុងបំពេញការងារ (${workingShift2.length} នាក់)</b>\n\n`;
+            workingShift2.forEach((item, idx) => {
+              alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b> — <code>${item.checkIn}</code>\n`;
+            });
+            alertMsg += `\n`;
+          }
+
+          if (permissionsShift2.length > 0) {
+            alertMsg += `🏖️ <b>ច្បាប់ឈប់សម្រាក (${permissionsShift2.length} នាក់)</b>\n\n`;
+            permissionsShift2.forEach((item, idx) => {
+              alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.branchName}): ${item.note}\n`;
+            });
+            alertMsg += `\n`;
+          }
+
+          alertMsg += `📊 <b>សរុបវេនទី 2</b>\n` +
+            `👥 បុគ្គលិក៖ <b>${totalShift2Staff} នាក់</b>\n` +
+            `🟢 Check In៖ <b>${workingShift2.length} នាក់</b>\n` +
+            `🔴 មិនទាន់ Check In៖ <b>${missingCheckInsShift2.length} នាក់</b>\n`;
+          if (missingCheckOutsShift2.length > 0) {
+            alertMsg += `🟠 មិនទាន់ Check Out៖ <b>${missingCheckOutsShift2.length} នាក់</b>\n`;
+          }
+          if (permissionsShift2.length > 0) {
+            alertMsg += `🏖️ ច្បាប់៖ <b>${permissionsShift2.length} នាក់</b>\n`;
+          }
+          alertMsg += `\n`;
         }
 
         if (botToken && adminChatIds.length > 0) {
           for (const cId of adminChatIds) {
             try {
-              await sendTelegramNotification(botToken, cId, `🚨 <b>[ការជូនដំណឹងបន្ទាន់៖ វត្តមានបុគ្គលិក${shiftBadge}]</b>\n\n${alertMsg.trim()}`);
+              await sendTelegramNotification(botToken, cId, alertMsg.trim());
               dispatchedRecipients++;
             } catch (e) {
               console.warn('Failed to send missing attendance notification to', cId, e);

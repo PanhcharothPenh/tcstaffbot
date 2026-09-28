@@ -1633,10 +1633,13 @@ export default async function handler(req: any, res: any) {
 
         const missingCheckInsShift1: any[] = [];
         const missingCheckOutsShift1: any[] = [];
+        const workingShift1: any[] = [];
+        const permissionsShift1: any[] = [];
+
         const missingCheckInsShift2: any[] = [];
         const missingCheckOutsShift2: any[] = [];
-        const currentlyWorking: any[] = [];
-        const permissions: any[] = [];
+        const workingShift2: any[] = [];
+        const permissionsShift2: any[] = [];
 
         for (const s of allStaff) {
           if (s.shift === 'Day Off') continue;
@@ -1649,7 +1652,6 @@ export default async function handler(req: any, res: any) {
           const sShift = String(s.shift || '').toLowerCase().trim();
           const isShift2 = sShift.includes('2') || sShift.includes('afternoon') || sShift.includes('រសៀល') || sShift.includes('night') || sShift.includes('យប់') || sShift.includes('ល្ងាច');
           const shiftLabel = isShift2 ? 'វេនទី 2' : 'វេនទី 1';
-          const shiftKey = isShift2 ? 'shift2' : 'shift1';
 
           let startMins = 390; // 06:30
           let endMins = 960;   // 16:00
@@ -1697,12 +1699,13 @@ export default async function handler(req: any, res: any) {
           const hasPermission = att?.status === 'Permission' || todayLeaves.some((l: any) => l.staffId === s.id);
 
           if (hasPermission) {
-            permissions.push({
+            const pItem = {
               staff: s,
               branchName: bName,
-              shiftLabel,
               note: att?.notes || 'ច្បាប់ឈប់សម្រាក'
-            });
+            };
+            if (isShift2) permissionsShift2.push(pItem);
+            else permissionsShift1.push(pItem);
             continue;
           }
 
@@ -1715,14 +1718,11 @@ export default async function handler(req: any, res: any) {
               const item = {
                 staff: s,
                 branchName: bName,
-                shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
+                shiftRange: `${startTimeDisplay} - ${endTimeDisplay}`,
                 overdueMins
               };
-              if (isShift2) {
-                missingCheckInsShift2.push(item);
-              } else {
-                missingCheckInsShift1.push(item);
-              }
+              if (isShift2) missingCheckInsShift2.push(item);
+              else missingCheckInsShift1.push(item);
             }
           } else if (hasRealIn && !hasRealOut) {
             if (curMins >= checkOutAlertThreshold) {
@@ -1730,100 +1730,157 @@ export default async function handler(req: any, res: any) {
               const item = {
                 staff: s,
                 branchName: bName,
-                shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
+                shiftRange: `${startTimeDisplay} - ${endTimeDisplay}`,
                 checkIn: att.checkIn,
                 overdueMins
               };
-              if (isShift2) {
-                missingCheckOutsShift2.push(item);
-              } else {
-                missingCheckOutsShift1.push(item);
-              }
+              if (isShift2) missingCheckOutsShift2.push(item);
+              else missingCheckOutsShift1.push(item);
             } else {
-              currentlyWorking.push({
+              const item = {
                 staff: s,
                 branchName: bName,
                 checkIn: att.checkIn,
-                shiftLabel,
-                shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`
-              });
+                shiftRange: `${startTimeDisplay} - ${endTimeDisplay}`
+              };
+              if (isShift2) workingShift2.push(item);
+              else workingShift1.push(item);
             }
+          } else if (hasRealIn && hasRealOut) {
+            // Already checked in and checked out
+            const item = {
+              staff: s,
+              branchName: bName,
+              checkIn: att.checkIn,
+              checkOut: att.checkOut,
+              shiftRange: `${startTimeDisplay} - ${endTimeDisplay}`
+            };
+            if (isShift2) workingShift2.push(item);
+            else workingShift1.push(item);
           }
         }
 
-        const totalMissing = missingCheckInsShift1.length + missingCheckOutsShift1.length + missingCheckInsShift2.length + missingCheckOutsShift2.length;
-        const hasShift1 = missingCheckInsShift1.length > 0 || missingCheckOutsShift1.length > 0;
-        const hasShift2 = missingCheckInsShift2.length > 0 || missingCheckOutsShift2.length > 0;
+        const [yStr, mStr2, dStr2] = phnomPenhDateStr.split('-');
+        const displayDate = `${dStr2}-${mStr2}-${yStr}`;
+        const timeFormatted = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Phnom_Penh' });
 
-        let summaryText = `⚠️ <b>[របាយការណ៍បុគ្គលិកមិនទាន់ Check In / Out]</b>\n` +
-          `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n` +
-          `⏰ <b>ម៉ោងពិនិត្យ:</b> <code>${phnomPenhTime}</code>\n\n`;
+        let summaryText = `⚠️ <b>របាយការណ៍ Check In / Out បុគ្គលិក</b>\n\n` +
+          `📅 <b>កាលបរិច្ឆេទ៖</b> <code>${displayDate}</code>\n` +
+          `⏰ <b>ម៉ោងពិនិត្យ៖</b> <code>${timeFormatted}</code>\n\n`;
 
-        if (totalMissing === 0) {
-          summaryText += `🎉 <b>ពុំមានបុគ្គលិកណាខកខាន ឬភ្លេច Check In/Out លើស 30 នាទីឡើយ!</b>\n\n`;
-        } else {
-          // ==================== វេនទី 1 (Shift 1) ====================
-          if (hasShift1) {
-            summaryText += `☀️ <b>══════ [ វេនទី 1 (Shift 1) ] ══════</b>\n`;
-            if (missingCheckInsShift1.length > 0) {
-              summaryText += `🔴 <b>មិនទាន់ Check In (${missingCheckInsShift1.length} នាក់)៖</b>\n`;
-              missingCheckInsShift1.forEach((item, idx) => {
-                summaryText += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
-                  `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-                  `   ⏳ យឺត៖ <b>${formatMinutesKhmer(item.overdueMins)}</b> ${item.staff.phone ? `| 📞 <code>${item.staff.phone}</code>` : ''}\n`;
-              });
-              summaryText += `\n`;
-            }
+        const totalShift1Staff = missingCheckInsShift1.length + missingCheckOutsShift1.length + workingShift1.length + permissionsShift1.length;
+        const totalShift2Staff = missingCheckInsShift2.length + missingCheckOutsShift2.length + workingShift2.length + permissionsShift2.length;
 
-            if (missingCheckOutsShift1.length > 0) {
-              summaryText += `🟠 <b>មិនទាន់ Check Out (${missingCheckOutsShift1.length} នាក់)៖</b>\n`;
-              missingCheckOutsShift1.forEach((item, idx) => {
-                summaryText += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
-                  `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-                  `   🚪 ចូលម៉ោង៖ <code>${item.checkIn}</code> | ⏳ ហួសម៉ោង៖ <b>${formatMinutesKhmer(item.overdueMins)}</b>\n`;
-              });
-              summaryText += `\n`;
-            }
+        // ==================== វេនទី 1 ====================
+        if (totalShift1Staff > 0) {
+          summaryText += `☀️ <b>══════ វេនទី 1 ══════</b>\n\n`;
+
+          if (missingCheckInsShift1.length > 0) {
+            summaryText += `🔴 <b>មិនទាន់ Check In (${missingCheckInsShift1.length} នាក់)</b>\n\n`;
+            missingCheckInsShift1.forEach((item, idx) => {
+              summaryText += `${idx + 1}. <b>${item.staff.fullName}</b>\n` +
+                `   🏢 ${item.branchName}\n` +
+                `   🕐 វេន៖ <code>${item.shiftRange}</code>\n` +
+                `   ⏳ យឺត៖ <b>${formatMinutesKhmer(item.overdueMins)}</b>\n` +
+                (item.staff.phone ? `   📞 <code>${item.staff.phone}</code>\n` : '') +
+                `\n`;
+            });
           }
 
-          // ==================== វេនទី 2 (Shift 2) ====================
-          if (hasShift2) {
-            summaryText += `🌙 <b>══════ [ វេនទី 2 (Shift 2) ] ══════</b>\n`;
-            if (missingCheckInsShift2.length > 0) {
-              summaryText += `🔴 <b>មិនទាន់ Check In (${missingCheckInsShift2.length} នាក់)៖</b>\n`;
-              missingCheckInsShift2.forEach((item, idx) => {
-                summaryText += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
-                  `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-                  `   ⏳ យឺត៖ <b>${formatMinutesKhmer(item.overdueMins)}</b> ${item.staff.phone ? `| 📞 <code>${item.staff.phone}</code>` : ''}\n`;
-              });
-              summaryText += `\n`;
-            }
-
-            if (missingCheckOutsShift2.length > 0) {
-              summaryText += `🟠 <b>មិនទាន់ Check Out (${missingCheckOutsShift2.length} នាក់)៖</b>\n`;
-              missingCheckOutsShift2.forEach((item, idx) => {
-                summaryText += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
-                  `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-                  `   🚪 ចូលម៉ោង៖ <code>${item.checkIn}</code> | ⏳ ហួសម៉ោង៖ <b>${formatMinutesKhmer(item.overdueMins)}</b>\n`;
-              });
-              summaryText += `\n`;
-            }
+          if (missingCheckOutsShift1.length > 0) {
+            summaryText += `🟠 <b>មិនទាន់ Check Out (${missingCheckOutsShift1.length} នាក់)</b>\n\n`;
+            missingCheckOutsShift1.forEach((item, idx) => {
+              summaryText += `${idx + 1}. <b>${item.staff.fullName}</b>\n` +
+                `   🏢 ${item.branchName}\n` +
+                `   🕐 វេន៖ <code>${item.shiftRange}</code>\n` +
+                `   🚪 ចូលម៉ោង៖ <code>${item.checkIn}</code>\n` +
+                `   ⏳ ហួសម៉ោង៖ <b>${formatMinutesKhmer(item.overdueMins)}</b>\n\n`;
+            });
           }
-        }
 
-        if (permissions.length > 0) {
-          summaryText += `🏖️ <b>ច្បាប់ឈប់សម្រាក (${permissions.length} នាក់)៖</b>\n`;
-          permissions.forEach((p: any) => {
-            summaryText += `- <b>${p.staff.fullName}</b> (${p.branchName}): ${p.note}\n`;
-          });
+          if (workingShift1.length > 0) {
+            summaryText += `🟢 <b>កំពុងបំពេញការងារ (${workingShift1.length} នាក់)</b>\n\n`;
+            workingShift1.forEach((item, idx) => {
+              summaryText += `${idx + 1}. <b>${item.staff.fullName}</b> — <code>${item.checkIn}</code>\n`;
+            });
+            summaryText += `\n`;
+          }
+
+          if (permissionsShift1.length > 0) {
+            summaryText += `🏖️ <b>ច្បាប់ឈប់សម្រាក (${permissionsShift1.length} នាក់)</b>\n\n`;
+            permissionsShift1.forEach((item, idx) => {
+              summaryText += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.branchName}): ${item.note}\n`;
+            });
+            summaryText += `\n`;
+          }
+
+          summaryText += `📊 <b>សរុបវេនទី 1</b>\n` +
+            `👥 បុគ្គលិក៖ <b>${totalShift1Staff} នាក់</b>\n` +
+            `🟢 Check In៖ <b>${workingShift1.length} នាក់</b>\n` +
+            `🔴 មិនទាន់ Check In៖ <b>${missingCheckInsShift1.length} នាក់</b>\n`;
+          if (missingCheckOutsShift1.length > 0) {
+            summaryText += `🟠 មិនទាន់ Check Out៖ <b>${missingCheckOutsShift1.length} នាក់</b>\n`;
+          }
+          if (permissionsShift1.length > 0) {
+            summaryText += `🏖️ ច្បាប់៖ <b>${permissionsShift1.length} នាក់</b>\n`;
+          }
           summaryText += `\n`;
         }
 
-        if (currentlyWorking.length > 0) {
-          summaryText += `🟢 <b>បុគ្គលិកកំពុងបំពេញការងារ (${currentlyWorking.length} នាក់)៖</b>\n`;
-          currentlyWorking.forEach((w: any, idx: number) => {
-            summaryText += `${idx + 1}. <b>${w.staff.fullName}</b> (${w.branchName}) — ចូលម៉ោង <code>${w.checkIn}</code>\n`;
-          });
+        // ==================== វេនទី 2 ====================
+        if (totalShift2Staff > 0) {
+          summaryText += `🌙 <b>══════ វេនទី 2 ══════</b>\n\n`;
+
+          if (missingCheckInsShift2.length > 0) {
+            summaryText += `🔴 <b>មិនទាន់ Check In (${missingCheckInsShift2.length} នាក់)</b>\n\n`;
+            missingCheckInsShift2.forEach((item, idx) => {
+              summaryText += `${idx + 1}. <b>${item.staff.fullName}</b>\n` +
+                `   🏢 ${item.branchName}\n` +
+                `   🕐 វេន៖ <code>${item.shiftRange}</code>\n` +
+                `   ⏳ យឺត៖ <b>${formatMinutesKhmer(item.overdueMins)}</b>\n` +
+                (item.staff.phone ? `   📞 <code>${item.staff.phone}</code>\n` : '') +
+                `\n`;
+            });
+          }
+
+          if (missingCheckOutsShift2.length > 0) {
+            summaryText += `🟠 <b>មិនទាន់ Check Out (${missingCheckOutsShift2.length} នាក់)</b>\n\n`;
+            missingCheckOutsShift2.forEach((item, idx) => {
+              summaryText += `${idx + 1}. <b>${item.staff.fullName}</b>\n` +
+                `   🏢 ${item.branchName}\n` +
+                `   🕐 វេន៖ <code>${item.shiftRange}</code>\n` +
+                `   🚪 ចូលម៉ោង៖ <code>${item.checkIn}</code>\n` +
+                `   ⏳ ហួសម៉ោង៖ <b>${formatMinutesKhmer(item.overdueMins)}</b>\n\n`;
+            });
+          }
+
+          if (workingShift2.length > 0) {
+            summaryText += `🟢 <b>កំពុងបំពេញការងារ (${workingShift2.length} នាក់)</b>\n\n`;
+            workingShift2.forEach((item, idx) => {
+              summaryText += `${idx + 1}. <b>${item.staff.fullName}</b> — <code>${item.checkIn}</code>\n`;
+            });
+            summaryText += `\n`;
+          }
+
+          if (permissionsShift2.length > 0) {
+            summaryText += `🏖️ <b>ច្បាប់ឈប់សម្រាក (${permissionsShift2.length} នាក់)</b>\n\n`;
+            permissionsShift2.forEach((item, idx) => {
+              summaryText += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.branchName}): ${item.note}\n`;
+            });
+            summaryText += `\n`;
+          }
+
+          summaryText += `📊 <b>សរុបវេនទី 2</b>\n` +
+            `👥 បុគ្គលិក៖ <b>${totalShift2Staff} នាក់</b>\n` +
+            `🟢 Check In៖ <b>${workingShift2.length} នាក់</b>\n` +
+            `🔴 មិនទាន់ Check In៖ <b>${missingCheckInsShift2.length} នាក់</b>\n`;
+          if (missingCheckOutsShift2.length > 0) {
+            summaryText += `🟠 មិនទាន់ Check Out៖ <b>${missingCheckOutsShift2.length} នាក់</b>\n`;
+          }
+          if (permissionsShift2.length > 0) {
+            summaryText += `🏖️ ច្បាប់៖ <b>${permissionsShift2.length} នាក់</b>\n`;
+          }
+          summaryText += `\n`;
         }
 
         return sendOrReply(res, botToken, {
