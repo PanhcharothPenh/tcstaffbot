@@ -6,20 +6,16 @@ import './index.css';
 const isMiniAppSession = typeof window !== 'undefined' && (
   window.location.pathname.startsWith('/attendance-app') ||
   window.location.pathname === '/attendance-app' ||
-  window.location.pathname.startsWith('/mini') ||
-  window.location.pathname.startsWith('/app') ||
-  Boolean((window as any).Telegram?.WebApp?.initData) ||
-  Boolean((window as any).Telegram?.WebApp?.platform) ||
+  (Boolean((window as any).Telegram?.WebApp?.initData) && (window as any).Telegram?.WebApp?.initData.length > 0) ||
   window.location.hash.includes('tgWebAppData') ||
   window.location.search.includes('tgWebAppData') ||
   window.location.search.includes('tgWebAppPlatform') ||
-  (window.location.search.includes('action=') && (window.location.search.includes('checkin') || window.location.search.includes('checkout') || window.location.search.includes('history'))) ||
-  Boolean(navigator.userAgent && navigator.userAgent.includes('Telegram'))
+  (window.location.search.includes('action=') && (window.location.search.includes('checkin') || window.location.search.includes('checkout') || window.location.search.includes('history')))
 );
 
-// Call ready and expand immediately in main.tsx as well
+// Call ready and expand only if inside Telegram WebApp
 try {
-  if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
+  if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.initData) {
     (window as any).Telegram.WebApp.ready();
     (window as any).Telegram.WebApp.expand();
   }
