@@ -266,19 +266,69 @@ export default async function handler(req: any, res: any) {
   const botToken = getBotToken();
   const allBotTokens = getAllBotTokens();
 
-  // Helper to fetch collection
-  const getCollection = async (id: string): Promise<any[]> => {
+  // Global In-Memory Cache for Supabase Collections (speeds up reads from seconds to sub-milliseconds)
+  const INDEX_MEM_CACHE: Record<string, { data: any[]; expires: number }> = {};
+
+  // Helper to fetch collection with cache
+  const getCollection = async (id: string, ttlMs = 30000): Promise<any[]> => {
+    const now = Date.now();
+    if (INDEX_MEM_CACHE[id] && INDEX_MEM_CACHE[id].expires > now) {
+      return INDEX_MEM_CACHE[id].data;
+    }
     if (!supabase) return [];
     try {
       let { data } = await supabase.from('tc_collections').select('data').eq('id', id).maybeSingle();
-      return (data && Array.isArray(data.data)) ? data.data : [];
+      const result = (data && Array.isArray(data.data)) ? data.data : [];
+      INDEX_MEM_CACHE[id] = { data: result, expires: now + ttlMs };
+      return result;
     } catch {
       return [];
     }
   };
 
+  // Ultra-Fast Batch Collection Loader (loads multiple collections in a single round-trip)
+  const getMultipleCollections = async (ids: string[], ttlMs = 30000): Promise<Record<string, any[]>> => {
+    const now = Date.now();
+    const result: Record<string, any[]> = {};
+    const missingIds: string[] = [];
+
+    for (const id of ids) {
+      if (INDEX_MEM_CACHE[id] && INDEX_MEM_CACHE[id].expires > now) {
+        result[id] = INDEX_MEM_CACHE[id].data;
+      } else {
+        missingIds.push(id);
+      }
+    }
+
+    if (missingIds.length === 0) return result;
+    if (!supabase) return result;
+
+    try {
+      const { data: rows } = await supabase.from('tc_collections').select('id, data').in('id', missingIds);
+      if (Array.isArray(rows)) {
+        for (const r of rows) {
+          if (r && r.id) {
+            const arr = Array.isArray(r.data) ? r.data : (r.data ? [r.data] : []);
+            result[r.id] = arr;
+            INDEX_MEM_CACHE[r.id] = { data: arr, expires: now + ttlMs };
+          }
+        }
+      }
+      for (const id of missingIds) {
+        if (!result[id]) {
+          result[id] = [];
+          INDEX_MEM_CACHE[id] = { data: [], expires: now + ttlMs };
+        }
+      }
+    } catch (e) {
+      console.warn('[api/index] Batch load error:', e);
+    }
+    return result;
+  };
+
   // Helper to save collection
   const saveCollection = async (id: string, list: any[]) => {
+    INDEX_MEM_CACHE[id] = { data: list, expires: Date.now() + 30000 };
     if (!supabase) return false;
     const item = { id, data: list, updated_at: new Date().toISOString() };
     try {
@@ -1963,10 +2013,22 @@ export default async function handler(req: any, res: any) {
       const [hStr, mStr] = phnomPenhTime.split(':');
       const curMins = parseInt(hStr || '0', 10) * 60 + parseInt(mStr || '0', 10);
 
-      const rawStaff: any[] = (await getCollection('staff')) || [];
-      const allBranches: any[] = (await getCollection('branches')) || [];
-      const allAtt: any[] = (await getCollection('attendance')) || [];
-      const allLeaves: any[] = (await getCollection('leaveRequests')) || [];
+      // Ultra-fast single roundtrip load of all collections needed
+      const collections = await getMultipleCollections([
+        'staff',
+        'branches',
+        'attendance',
+        'leaveRequests',
+        'missing_attendance_alert_logs',
+        'users',
+        'telegramConfig',
+        'telegram_chat_registry'
+      ]);
+
+      const rawStaff: any[] = collections['staff'] || [];
+      const allBranches: any[] = collections['branches'] || [];
+      const allAtt: any[] = collections['attendance'] || [];
+      const allLeaves: any[] = collections['leaveRequests'] || [];
 
       const allStaff = rawStaff.filter((s: any) => 
         s && 
@@ -1985,7 +2047,7 @@ export default async function handler(req: any, res: any) {
       const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
 
       // Persistent alert logs from Supabase to guarantee only ONE alert per staff per missing event
-      const alertLogsRaw: any[] = (await getCollection('missing_attendance_alert_logs')) || [];
+      const alertLogsRaw: any[] = collections['missing_attendance_alert_logs'] || [];
       const cutoffDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
       const validAlertLogs = (Array.isArray(alertLogsRaw) ? alertLogsRaw : []).filter((entry: any) => {
         const d = typeof entry === 'string' ? entry.split('_')[0] : entry?.date;

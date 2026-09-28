@@ -492,9 +492,9 @@ export default async function handler(req: any, res: any) {
 
       if (supabase) {
         try {
-          // Ultra-Fast Targeted Loading with 5s cache to ensure quick propagation of Web updates
+          // Ultra-Fast Targeted Loading with 30s cache to guarantee lightning-fast bot responses
           const neededIds = ['staff', 'branches', 'users', 'telegramConfig', 'telegramRecipients', 'attendance', 'leaveRequests', 'telegram_chat_registry'];
-          const batch = await loadMultipleCollections(supabase, neededIds, 5000);
+          const batch = await loadMultipleCollections(supabase, neededIds, 30000);
 
           let rawStaff = Array.isArray(batch['staff']) ? batch['staff'] : [];
           // Employee roster (excludes Owner so owners don't show as absent employees or on payroll)
@@ -616,8 +616,8 @@ export default async function handler(req: any, res: any) {
               } else {
                 allUsers.push(matchedUser);
               }
-              await saveDbCollectionAsync(supabase, 'users', allUsers);
               updateMemCache('users', allUsers);
+              saveDbCollection(supabase, 'users', allUsers).catch(() => {});
             }
           }
 
@@ -674,8 +674,8 @@ export default async function handler(req: any, res: any) {
             const sIdx = rawStaff.findIndex((s: any) => s.id === matchedStaff.id);
             if (sIdx >= 0) {
               rawStaff[sIdx] = { ...rawStaff[sIdx], telegramId, telegramLinked: true };
-              await saveDbCollectionAsync(supabase, 'staff', rawStaff);
               updateMemCache('staff', rawStaff);
+              saveDbCollection(supabase, 'staff', rawStaff).catch(() => {});
             }
           }
 
@@ -684,34 +684,32 @@ export default async function handler(req: any, res: any) {
             staffBranch = allBranches.find((b: any) => b.id === matchedStaff.branchId);
           }
 
-          // Automatically record Telegram numeric Chat ID into address book (telegram_chat_registry & telegramRecentUsers)
+          // Record Telegram numeric Chat ID into address book in background (non-blocking)
           if (telegramId && /^-?\d+$/.test(telegramId)) {
             try {
               let regArr: any[] = Array.isArray(chatRegistry) ? [...chatRegistry] : [];
               const regIdx = regArr.findIndex((r: any) => String(r.chatId || r.telegramId) === telegramId || (cleanTgHandle && String(r.username || '').replace(/^@/, '').toLowerCase() === cleanTgHandle));
-              const regEntry = {
-                chatId: telegramId,
-                telegramId: telegramId,
-                username: cleanTgHandle ? `@${cleanTgHandle}` : '',
-                firstName: firstName || '',
-                isOwner: Boolean(matchedUser && (matchedUser.role === 'Owner' || matchedUser.roleId === 'owner' || matchedUser.id === 'usr_owner')),
-                updatedAt: new Date().toISOString()
-              };
-              if (regIdx >= 0) {
-                regArr[regIdx] = { ...regArr[regIdx], ...regEntry };
-              } else {
-                regArr.push(regEntry);
-              }
-              chatRegistry = regArr;
-              await saveDbCollectionAsync(supabase, 'telegram_chat_registry', regArr);
+              const isOwner = Boolean(matchedUser && (matchedUser.role === 'Owner' || matchedUser.roleId === 'owner' || matchedUser.id === 'usr_owner'));
+              const existing = regIdx >= 0 ? regArr[regIdx] : null;
 
-              // Also update telegramRecentUsers for auto-detect in Web User Management
-              await saveDbCollectionAsync(supabase, 'telegramRecentUsers', {
-                chatId: telegramId,
-                username: cleanTgHandle,
-                firstName: firstName,
-                date: new Date().toISOString()
-              });
+              if (!existing || existing.isOwner !== isOwner || (cleanTgHandle && !existing.username)) {
+                const regEntry = {
+                  chatId: telegramId,
+                  telegramId: telegramId,
+                  username: cleanTgHandle ? `@${cleanTgHandle}` : (existing?.username || ''),
+                  firstName: firstName || existing?.firstName || '',
+                  isOwner,
+                  updatedAt: new Date().toISOString()
+                };
+                if (regIdx >= 0) {
+                  regArr[regIdx] = { ...existing, ...regEntry };
+                } else {
+                  regArr.push(regEntry);
+                }
+                chatRegistry = regArr;
+                updateMemCache('telegram_chat_registry', regArr);
+                saveDbCollection(supabase, 'telegram_chat_registry', regArr).catch(() => {});
+              }
             } catch (regErr) {
               console.warn('Error recording chat registry:', regErr);
             }
