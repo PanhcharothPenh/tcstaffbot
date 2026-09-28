@@ -527,8 +527,21 @@ export default async function handler(req: any, res: any) {
           const batch = await loadMultipleCollections(supabase, neededIds, 30000);
 
           let rawStaff = Array.isArray(batch['staff']) ? batch['staff'] : [];
-          // Employee roster (excludes Owner so owners don't show as absent employees or on payroll)
-          allStaff = rawStaff.filter((s: any) => s && s.role !== 'Owner' && s.roleId !== 'owner' && !String(s.position || '').toLowerCase().includes('owner') && s.id !== 'staff_owner_clean24');
+          allStaff = rawStaff.filter((s: any) => 
+            s && 
+            s.role !== 'Owner' && 
+            s.roleId !== 'owner' && 
+            s.role !== 'Admin' &&
+            s.roleId !== 'admin' &&
+            !String(s.position || '').toLowerCase().includes('owner') && 
+            !String(s.position || '').toLowerCase().includes('admin') &&
+            !String(s.fullName || '').toLowerCase().includes('miller') &&
+            !String(s.username || '').toLowerCase().includes('miller') &&
+            !String(s.fullName || '').toLowerCase().includes('roth') &&
+            !String(s.username || '').toLowerCase().includes('roth') &&
+            s.id !== 'staff_owner_clean24' &&
+            s.id !== 'usr_owner'
+          );
           allBranches = Array.isArray(batch['branches']) ? batch['branches'] : [];
           allAtt = Array.isArray(batch['attendance']) ? batch['attendance'] : [];
           allUsers = Array.isArray(batch['users']) ? batch['users'] : [];
@@ -1570,54 +1583,200 @@ export default async function handler(req: any, res: any) {
       }
 
       // =================================================================================
+      // SHARED ATTENDANCE HELPERS & ROBUST KHMER NORMALIZATION
+      // =================================================================================
+      const isTodayDateMatch = (recordDate?: string, recordCreatedAt?: string): boolean => {
+        if (!recordDate && !recordCreatedAt) return false;
+        if (recordDate) {
+          const r = String(recordDate).trim();
+          if (r === phnomPenhDateStr || r.startsWith(phnomPenhDateStr)) return true;
+          if (r === `${d}-${m}-${y}` || r === `${d}/${m}/${y}`) return true;
+          const cleanR = r.replace(/[\/\.]/g, '-');
+          const parts = cleanR.split('-');
+          if (parts.length === 3) {
+            if (parts[0].length === 4) {
+              const py = parseInt(parts[0], 10);
+              const pm = parseInt(parts[1], 10);
+              const pd = parseInt(parts[2], 10);
+              if (py === curYear && pm === curMonth && pd === parseInt(d, 10)) return true;
+            } else {
+              const pd = parseInt(parts[0], 10);
+              const pm = parseInt(parts[1], 10);
+              const py = parseInt(parts[2], 10);
+              if (py === curYear && pm === curMonth && pd === parseInt(d, 10)) return true;
+            }
+          }
+        }
+        if (recordCreatedAt) {
+          try {
+            const cDate = new Date(recordCreatedAt).toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
+            if (cDate === phnomPenhDateStr) return true;
+          } catch (_) {}
+        }
+        return false;
+      };
+
+      const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
+
+      const isCheckedIn = (record?: any): boolean => {
+        if (!record) return false;
+        if (isRealTime(record.checkIn)) return true;
+        const st = String(record.status || '').toLowerCase().trim();
+        if (st === 'working' || st === 'late' || st === 'present' || st === 'normal' || st === 'completed') return true;
+        if (record.checkIn && record.checkIn !== '--' && record.checkIn.toLowerCase() !== 'absent') return true;
+        return false;
+      };
+
+      const normalizeStaffId = (id: any) => String(id || '').replace(/^staff_usr_/, '').replace(/^staff_/, '').replace(/^usr_/, '').toLowerCase().trim();
+      const cleanStaffName = (name: any) => {
+        if (!name) return '';
+        return String(name)
+          .replace(/\s*\([^)]*\)/g, '')
+          .replace(/\s*（[^）]*）/g, '')
+          .replace(/\u17bc\u17c9/g, '\u17c9\u17bc') // normalize mobile keyboard inverted Khmer diacritic order
+          .replace(/\u17bc\u17ca/g, '\u17ca\u17bc')
+          .replace(/[\s\-_]/g, '')
+          .toLowerCase()
+          .trim();
+      };
+      const cleanPhone = (p: any) => String(p || '').replace(/\D/g, '');
+
+      const isNameMatch = (n1: any, n2: any): boolean => {
+        const c1 = cleanStaffName(n1);
+        const c2 = cleanStaffName(n2);
+        if (!c1 || !c2) return false;
+        if (c1 === c2 || c1.includes(c2) || c2.includes(c1)) return true;
+        // Diacritic-stripped phonetic matching (handles typing variations)
+        const s1 = c1.replace(/[\u17c6-\u17d3]/g, '');
+        const s2 = c2.replace(/[\u17c6-\u17d3]/g, '');
+        if (s1.length >= 3 && s2.length >= 3 && (s1 === s2 || s1.includes(s2) || s2.includes(s1))) {
+          return true;
+        }
+        // Romanized comparison if English letters present
+        const r1 = c1.replace(/[^a-z0-9]/g, '');
+        const r2 = c2.replace(/[^a-z0-9]/g, '');
+        if (r1 && r2 && (r1 === r2 || r1.includes(r2) || r2.includes(r1))) {
+          return true;
+        }
+        return false;
+      };
+
+      const isRecordForStaff = (a: any, s: any): boolean => {
+        if (!a || !s) return false;
+        // 1. Direct or normalized staffId match
+        const aId = String(a.staffId || a.employeeId || a.id || '').trim();
+        const sId = String(s.id || s.staffId || '').trim();
+        if (aId && sId) {
+          if (aId === sId) return true;
+          if (normalizeStaffId(aId) === normalizeStaffId(sId)) return true;
+        }
+        // 2. Telegram ID match
+        if (s.telegramId && a.telegramId && String(s.telegramId).trim() === String(a.telegramId).trim()) return true;
+        // 3. Name match across all possible name fields
+        const aNames = [a.staffName, a.name, a.fullName, a.employeeName].filter(Boolean);
+        const sNames = [s.fullName, s.name, s.staffName].filter(Boolean);
+        for (const an of aNames) {
+          for (const sn of sNames) {
+            if (isNameMatch(an, sn)) return true;
+          }
+        }
+        // 4. Phone match
+        if (s.phone && a.phone) {
+          const p1 = cleanPhone(s.phone);
+          const p2 = cleanPhone(a.phone);
+          if (p1 && p2 && p1 === p2) return true;
+        }
+        return false;
+      };
+
+      // =================================================================================
       // ACTION: 👥 របាយការណ៍វត្តមានបុគ្គលិកទាំងអស់ (OWNER: ALL STAFF ATTENDANCE TODAY)
       // =================================================================================
       if (userText.includes('វត្តមានបុគ្គលិកទាំងអស់') || (userText.includes('វត្តមានបុគ្គលិក') && isOwnerRole)) {
-        const todayRecords = allAtt.filter((a: any) => a.date === phnomPenhDateStr);
-        const presentStaff = todayRecords.filter((a: any) => {
-          if (!a.checkIn || a.checkIn === '--' || a.status === 'Permission' || a.status === 'Absent' || a.isOwner) return false;
+        const todayRecords = allAtt.filter((a: any) => isTodayDateMatch(a.date, a.createdAt));
+
+        const presentStaffMap = new Map<string, { staff: any, att: any }>();
+        const permissionStaff: any[] = [];
+        const absentStaff: any[] = [];
+
+        for (const s of allStaff) {
+          if (s.shift === 'Day Off') continue;
+          const matchingStaffRecords = todayRecords.filter((a: any) => isRecordForStaff(a, s));
+          const att = matchingStaffRecords.find((a: any) => isCheckedIn(a)) || matchingStaffRecords[matchingStaffRecords.length - 1] || null;
+
+          if (isCheckedIn(att)) {
+            presentStaffMap.set(s.id, { staff: s, att });
+          } else if (att?.status === 'Permission' || allLeaveRequests.some((l: any) => isTodayDateMatch(l.date, l.createdAt) && isRecordForStaff(l, s) && l.status === 'Approved')) {
+            permissionStaff.push({ staff: s, att });
+          } else {
+            absentStaff.push(s);
+          }
+        }
+
+        // Include any additional checked-in records not explicitly mapped in allStaff
+        for (const a of todayRecords) {
+          if (!isCheckedIn(a) || a.isOwner) continue;
           const isOwnerRec = a.staffId === 'usr_owner' || String(a.staffId || '').startsWith('staff_usr_usr_owner') || a.staffId === 'staff_owner_clean24';
-          if (isOwnerRec) return false;
-          const st = allStaff.find((s: any) => s.id === a.staffId);
-          return Boolean(st);
-        });
-        const permissionStaff = todayRecords.filter((a: any) => a.status === 'Permission');
-        const absentStaff = allStaff.filter((s: any) => 
-          s.status === 'Active' && 
-          s.role !== 'Owner' && 
-          s.roleId !== 'owner' && 
-          !String(s.position || '').toLowerCase().includes('owner') && 
-          s.id !== 'staff_owner_clean24' &&
-          !todayRecords.some((a: any) => a.staffId === s.id && (a.checkIn && a.checkIn !== '--' || a.status === 'Permission'))
-        );
+          if (isOwnerRec) continue;
+          const alreadyMapped = Array.from(presentStaffMap.values()).some(p => isRecordForStaff(a, p.staff));
+          if (!alreadyMapped) {
+            const st = allStaff.find((s: any) => isRecordForStaff(a, s)) || { id: a.staffId || ('att_st_' + Date.now()), fullName: a.staffName || 'Staff', branchId: a.branchId, position: 'Staff' };
+            presentStaffMap.set(st.id, { staff: st, att: a });
+          }
+        }
+
+        const presentList = Array.from(presentStaffMap.values());
+
+        const [yStr, mStr2, dStr2] = phnomPenhDateStr.split('-');
+        const displayDate = `${dStr2}-${mStr2}-${yStr}`;
 
         let summaryText = `👥 <b>[របាយការណ៍វត្តមានបុគ្គលិកថ្ងៃនេះ]</b>\n` +
-          `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n\n` +
-          `🟢 <b>បានចុះវត្តមានចូល (${presentStaff.length} នាក់)៖</b>\n`;
+          `📅 <b>កាលបរិច្ឆេទ:</b> <code>${displayDate}</code>\n\n` +
+          `🟢 <b>បានចុះវត្តមានចូល (${presentList.length} នាក់)៖</b>\n`;
 
-        if (presentStaff.length === 0) {
+        if (presentList.length === 0) {
           summaryText += `(មិនទាន់មានបុគ្គលិកចុះវត្តមានចូលនៅឡើយទេ)\n`;
         } else {
-          presentStaff.forEach((r: any, idx: number) => {
-            const st = allStaff.find((s: any) => s.id === r.staffId);
+          presentList.forEach((item: any, idx: number) => {
+            const st = item.staff;
+            const r = item.att;
             const name = st?.fullName || r.staffName || 'Staff';
-            const bName = allBranches.find((b: any) => b.id === (st?.branchId || r.branchId))?.branchName || '';
-            summaryText += `${idx + 1}. <b>${name}</b> ${bName ? `(${bName})` : ''}: ចូល <code>${r.checkIn}</code> ${r.checkOut && r.checkOut !== '--' ? `→ ចេញ <code>${r.checkOut}</code>` : ''}\n`;
+            const bId = r.branchId || st?.branchId || (String(name).toLowerCase().includes('corner') ? 'b2' : 'b1');
+            const bObj = allBranches.find((b: any) => b.id === bId);
+            let bName = bObj?.branchName || (bId === 'b2' ? 'Coffee Corner SMC' : 'Toto By Chi Chi MC Park');
+            if (String(name).toLowerCase().includes('corner')) bName = 'Coffee Corner SMC';
+            else if (String(name).toLowerCase().includes('toto')) bName = 'Toto By Chi Chi MC Park';
+
+            let checkInTime = r.checkIn;
+            if (!checkInTime || checkInTime === '--' || checkInTime === 'Late' || checkInTime === 'Working') {
+              if (r.createdAt) {
+                try {
+                  checkInTime = new Date(r.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Phnom_Penh' });
+                } catch (_) {
+                  checkInTime = 'បាន Check In';
+                }
+              } else {
+                checkInTime = 'បាន Check In';
+              }
+            }
+
+            summaryText += `${idx + 1}. <b>${name}</b> (${bName}): ចូល <code>${checkInTime}</code> ${r.checkOut && r.checkOut !== '--' ? `→ ចេញ <code>${r.checkOut}</code>` : ''}\n`;
           });
         }
 
         if (permissionStaff.length > 0) {
           summaryText += `\n🟡 <b>ច្បាប់ឈប់សម្រាក (${permissionStaff.length} នាក់)៖</b>\n`;
-          permissionStaff.forEach((r: any) => {
-            const st = allStaff.find((s: any) => s.id === r.staffId);
-            const name = st?.fullName || r.staffName || 'Staff';
-            summaryText += `- ${name}: ${r.notes || 'សុំច្បាប់'}\n`;
+          permissionStaff.forEach((item: any) => {
+            const st = item.staff;
+            const r = item.att;
+            const name = st?.fullName || r?.staffName || 'Staff';
+            summaryText += `- ${name}: ${r?.notes || 'សុំច្បាប់'}\n`;
           });
         }
 
         if (absentStaff.length > 0) {
           summaryText += `\n🔴 <b>មិនទាន់ចូល (${absentStaff.length} នាក់)៖</b>\n`;
-          absentStaff.forEach((s: any, idx: number) => {
+          absentStaff.forEach((s: any) => {
             summaryText += `- ${s.fullName} (${s.position || 'Staff'})\n`;
           });
         }
@@ -1651,112 +1810,8 @@ export default async function handler(req: any, res: any) {
         const [hStr, mStr] = phnomPenhTime.split(':');
         const curMins = parseInt(hStr || '0', 10) * 60 + parseInt(mStr || '0', 10);
 
-        const isTodayDateMatch = (recordDate?: string, recordCreatedAt?: string): boolean => {
-          if (!recordDate && !recordCreatedAt) return false;
-          if (recordDate) {
-            const r = String(recordDate).trim();
-            if (r === phnomPenhDateStr || r.startsWith(phnomPenhDateStr)) return true;
-            if (r === `${d}-${m}-${y}` || r === `${d}/${m}/${y}`) return true;
-            const cleanR = r.replace(/[\/\.]/g, '-');
-            const parts = cleanR.split('-');
-            if (parts.length === 3) {
-              if (parts[0].length === 4) {
-                const py = parseInt(parts[0], 10);
-                const pm = parseInt(parts[1], 10);
-                const pd = parseInt(parts[2], 10);
-                if (py === curYear && pm === curMonth && pd === parseInt(d, 10)) return true;
-              } else {
-                const pd = parseInt(parts[0], 10);
-                const pm = parseInt(parts[1], 10);
-                const py = parseInt(parts[2], 10);
-                if (py === curYear && pm === curMonth && pd === parseInt(d, 10)) return true;
-              }
-            }
-          }
-          if (recordCreatedAt) {
-            try {
-              const cDate = new Date(recordCreatedAt).toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
-              if (cDate === phnomPenhDateStr) return true;
-            } catch (_) {}
-          }
-          return false;
-        };
-
         const todayRecords = allAtt.filter((a: any) => isTodayDateMatch(a.date, a.createdAt));
         const todayLeaves = allLeaveRequests.filter((l: any) => isTodayDateMatch(l.date, l.createdAt) && l.status === 'Approved');
-
-        const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
-
-        const isCheckedIn = (record?: any): boolean => {
-          if (!record) return false;
-          if (isRealTime(record.checkIn)) return true;
-          const st = String(record.status || '').toLowerCase().trim();
-          if (st === 'working' || st === 'late' || st === 'present' || st === 'normal' || st === 'completed') return true;
-          if (record.checkIn && record.checkIn !== '--' && record.checkIn.toLowerCase() !== 'absent') return true;
-          return false;
-        };
-
-        const normalizeStaffId = (id: any) => String(id || '').replace(/^staff_usr_/, '').replace(/^staff_/, '').replace(/^usr_/, '').toLowerCase().trim();
-        const cleanStaffName = (name: any) => {
-          if (!name) return '';
-          return String(name)
-            .replace(/\s*\([^)]*\)/g, '')
-            .replace(/\s*（[^）]*）/g, '')
-            .replace(/\u17bc\u17c9/g, '\u17c9\u17bc') // normalize mobile keyboard inverted Khmer diacritic order
-            .replace(/\u17bc\u17ca/g, '\u17ca\u17bc')
-            .replace(/[\s\-_]/g, '')
-            .toLowerCase()
-            .trim();
-        };
-        const cleanPhone = (p: any) => String(p || '').replace(/\D/g, '');
-
-        const isNameMatch = (n1: any, n2: any): boolean => {
-          const c1 = cleanStaffName(n1);
-          const c2 = cleanStaffName(n2);
-          if (!c1 || !c2) return false;
-          if (c1 === c2 || c1.includes(c2) || c2.includes(c1)) return true;
-          // Diacritic-stripped phonetic matching (handles typing variations)
-          const s1 = c1.replace(/[\u17c6-\u17d3]/g, '');
-          const s2 = c2.replace(/[\u17c6-\u17d3]/g, '');
-          if (s1.length >= 3 && s2.length >= 3 && (s1 === s2 || s1.includes(s2) || s2.includes(s1))) {
-            return true;
-          }
-          // Romanized comparison if English letters present
-          const r1 = c1.replace(/[^a-z0-9]/g, '');
-          const r2 = c2.replace(/[^a-z0-9]/g, '');
-          if (r1 && r2 && (r1 === r2 || r1.includes(r2) || r2.includes(r1))) {
-            return true;
-          }
-          return false;
-        };
-
-        const isRecordForStaff = (a: any, s: any): boolean => {
-          if (!a || !s) return false;
-          // 1. Direct or normalized staffId match
-          const aId = String(a.staffId || a.employeeId || a.id || '').trim();
-          const sId = String(s.id || s.staffId || '').trim();
-          if (aId && sId) {
-            if (aId === sId) return true;
-            if (normalizeStaffId(aId) === normalizeStaffId(sId)) return true;
-          }
-          // 2. Telegram ID match
-          if (s.telegramId && a.telegramId && String(s.telegramId).trim() === String(a.telegramId).trim()) return true;
-          // 3. Name match across all possible name fields
-          const aNames = [a.staffName, a.name, a.fullName, a.employeeName].filter(Boolean);
-          const sNames = [s.fullName, s.name, s.staffName].filter(Boolean);
-          for (const an of aNames) {
-            for (const sn of sNames) {
-              if (isNameMatch(an, sn)) return true;
-            }
-          }
-          // 4. Phone match
-          if (s.phone && a.phone) {
-            const p1 = cleanPhone(s.phone);
-            const p2 = cleanPhone(a.phone);
-            if (p1 && p2 && p1 === p2) return true;
-          }
-          return false;
-        };
 
         const missingCheckInsShift1: any[] = [];
         const missingCheckOutsShift1: any[] = [];
