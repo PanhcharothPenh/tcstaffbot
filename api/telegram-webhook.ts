@@ -224,6 +224,18 @@ async function getTargetBots(supabase?: any): Promise<Array<{ token: string; bra
   return bots;
 }
 
+function getAllAdminRecipients(storedConfig: any, allUsers: any[]): Set<string> {
+  const recipients = new Set<string>();
+  recipients.add('7818150707');
+  if (Array.isArray(allUsers)) {
+    for (const u of allUsers) {
+      if (u && (u.role === 'Owner' || u.roleId === 'owner' || u.role === 'Admin') && (u.telegramChatId || u.telegramId)) {
+        recipients.add(String(u.telegramChatId || u.telegramId).trim());
+      }
+    }
+  }
+  return recipients;
+}
 
 // Real Webhook Dispatch helper: Sends directly to Telegram REST API and returns 200 OK
 async function sendOrReply(res: any, botToken: string, payload: any) {
@@ -1879,6 +1891,8 @@ export default async function handler(req: any, res: any) {
         if (shift1Block && shift2Block) summaryText += `────────────\n\n`;
         if (shift2Block) summaryText += shift2Block;
 
+        const totalShift1Staff = missingCheckInsShift1.length + missingCheckOutsShift1.length + workingShift1.length + permissionsShift1.length;
+        const totalShift2Staff = missingCheckInsShift2.length + missingCheckOutsShift2.length + workingShift2.length + permissionsShift2.length;
         const grandTotal = totalShift1Staff + totalShift2Staff;
         const grandCheckIn = workingShift1.length + workingShift2.length;
         const grandMissingIn = missingCheckInsShift1.length + missingCheckInsShift2.length;
