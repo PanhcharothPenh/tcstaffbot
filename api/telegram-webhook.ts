@@ -100,7 +100,8 @@ async function loadMultipleCollections(supabase: any, ids: string[], ttlMs = 300
 
       if (chosenData !== null && chosenData !== undefined) {
         result[id] = chosenData;
-        MEM_CACHE[id] = { data: chosenData, expires: now + ttlMs };
+        const itemTtl = (id === 'attendance' || id === 'leaveRequests') ? 2000 : ttlMs;
+        MEM_CACHE[id] = { data: chosenData, expires: now + itemTtl };
       }
     }
   } catch (e) {
@@ -515,7 +516,14 @@ export default async function handler(req: any, res: any) {
             userText.includes('ភ្លេច check') ||
             userText.includes('មិនទាន់ check') ||
             userText.includes('មិនទាន់') ||
-            userText.includes('វត្តមានបុគ្គលិកទាំងអស់');
+            userText.includes('របាយការណ៍ Check In') ||
+            userText.includes('របាយការណ៍ check in') ||
+            userText.includes('Check In / Out') ||
+            userText.includes('check in / out') ||
+            userText.includes('Check In/Out') ||
+            userText.includes('check in/out') ||
+            userText.includes('វត្តមានបុគ្គលិកទាំងអស់') ||
+            userText.includes('វត្តមាន');
 
           if (isAttendanceCheckText) {
             delete MEM_CACHE['attendance'];
@@ -1802,7 +1810,13 @@ export default async function handler(req: any, res: any) {
         userText.includes('មិនទាន់ check out') ||
         userText.includes('ភ្លេច check') ||
         userText.includes('មិនទាន់ check') ||
-        userText.includes('មិនទាន់');
+        userText.includes('មិនទាន់') ||
+        userText.includes('របាយការណ៍ Check In') ||
+        userText.includes('របាយការណ៍ check in') ||
+        userText.includes('Check In / Out') ||
+        userText.includes('check in / out') ||
+        userText.includes('Check In/Out') ||
+        userText.includes('check in/out');
 
       if (isMissingAction) {
         const now = new Date();
