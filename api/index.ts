@@ -2003,8 +2003,10 @@ export default async function handler(req: any, res: any) {
         }
       }
 
-      const missingCheckIns: any[] = [];
-      const missingCheckOuts: any[] = [];
+      const missingCheckInsShift1: any[] = [];
+      const missingCheckOutsShift1: any[] = [];
+      const missingCheckInsShift2: any[] = [];
+      const missingCheckOutsShift2: any[] = [];
       const currentlyWorking: any[] = [];
       const permissions: any[] = [];
       const expiredEntries: any[] = [];
@@ -2019,9 +2021,11 @@ export default async function handler(req: any, res: any) {
         const bName = branch?.branchName || (bId === 'b2' ? 'Coffee Corner' : 'Toto By Chi Chi MC Park');
         const isToto = bId === 'b1' || bName.toLowerCase().includes('toto') || bName.toLowerCase().includes('chi');
 
-        const sShift = String(s.shift || '').toLowerCase();
-        const isShift2 = sShift.includes('2') || sShift.includes('afternoon') || sShift.includes('រសៀល');
+        // Identify Shift 1 vs Shift 2 accurately
+        const sShift = String(s.shift || '').toLowerCase().trim();
+        const isShift2 = sShift.includes('2') || sShift.includes('afternoon') || sShift.includes('រសៀល') || sShift.includes('night') || sShift.includes('យប់') || sShift.includes('ល្ងាច');
         const shiftLabel = isShift2 ? 'វេនទី 2' : 'វេនទី 1';
+        const shiftKey = isShift2 ? 'shift2' : 'shift1';
 
         let startMins = 390; // 06:30
         let endMins = 960;   // 16:00
@@ -2072,6 +2076,7 @@ export default async function handler(req: any, res: any) {
           permissions.push({
             staff: s,
             branchName: bName,
+            shiftLabel,
             note: att?.notes || 'ច្បាប់ឈប់សម្រាក'
           });
           continue;
@@ -2080,61 +2085,69 @@ export default async function handler(req: any, res: any) {
         const hasRealIn = att && isRealTime(att.checkIn);
         const hasRealOut = att && isRealTime(att.checkOut);
 
-        const checkInAlertKey = `${todayStr}_${s.id}_in`;
-        const checkOutAlertKey = `${todayStr}_${s.id}_out`;
+        // Shift-isolated unique alert keys
+        const checkInAlertKey = `${todayStr}_${s.id}_${shiftKey}_in`;
+        const checkOutAlertKey = `${todayStr}_${s.id}_${shiftKey}_out`;
+
+        // Strict Shift Time Windows:
+        // Shift 1 check-in alert can only fire around Shift 1 start (07:00 - 08:15 AM). NEVER fires in afternoon!
+        // Shift 2 check-in alert can only fire around Shift 2 start (13:30 - 15:45 PM). NEVER fires in morning!
+        const inAlertWindow = isForce || (curMins >= checkInAlertThreshold && curMins <= checkInAlertThreshold + 75);
+        const outAlertWindow = isForce || (curMins >= checkOutAlertThreshold && curMins <= checkOutAlertThreshold + 75);
 
         if (!hasRealIn) {
-          if (curMins >= checkInAlertThreshold) {
-            const overdueMins = Math.max(0, curMins - startMins);
-            const isAlreadySent = alreadySentAlertKeys.has(checkInAlertKey);
+          const overdueMins = Math.max(0, curMins - startMins);
+          const isAlreadySent = alreadySentAlertKeys.has(checkInAlertKey);
 
-            // Alert ONLY ONCE per staff when threshold is reached (within 90 mins window).
-            // Do NOT alert repeatedly every 30 minutes, and do NOT alert if shift has ended or overdue > 90 mins unless forced.
-            const shouldAlert = isForce || (!isAlreadySent && overdueMins <= 90 && curMins <= endMins + 30);
-
-            if (shouldAlert) {
-              missingCheckIns.push({
-                staff: s,
-                branchName: bName,
-                shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
-                overdueMins,
-                alertKey: checkInAlertKey
-              });
-            } else if (!isAlreadySent && overdueMins > 90) {
-              // Mark as seen so old overdue staff are never re-alerted
-              alreadySentAlertKeys.add(checkInAlertKey);
-              sentAlertKeysMemoryCache.add(checkInAlertKey);
-              expiredEntries.push({ id: checkInAlertKey, date: todayStr, staffId: s.id, type: 'in', sentAt: new Date().toISOString() });
+          if (inAlertWindow && !isAlreadySent) {
+            const item = {
+              staff: s,
+              branchName: bName,
+              shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
+              shiftKey,
+              overdueMins,
+              alertKey: checkInAlertKey
+            };
+            if (isShift2) {
+              missingCheckInsShift2.push(item);
+            } else {
+              missingCheckInsShift1.push(item);
             }
+          } else if (!isAlreadySent && curMins > checkInAlertThreshold + 75) {
+            // Window expired for today: mark as seen so this shift alert never leaks into subsequent shifts
+            alreadySentAlertKeys.add(checkInAlertKey);
+            sentAlertKeysMemoryCache.add(checkInAlertKey);
+            expiredEntries.push({ id: checkInAlertKey, date: todayStr, staffId: s.id, type: `${shiftKey}_in`, sentAt: new Date().toISOString() });
           }
         } else if (hasRealIn && !hasRealOut) {
-          if (curMins >= checkOutAlertThreshold) {
-            const overdueMins = Math.max(0, curMins - endMins);
-            const isAlreadySent = alreadySentAlertKeys.has(checkOutAlertKey);
+          const overdueMins = Math.max(0, curMins - endMins);
+          const isAlreadySent = alreadySentAlertKeys.has(checkOutAlertKey);
 
-            // Alert ONLY ONCE per staff when threshold is reached (within 90 mins window).
-            // Do NOT alert repeatedly every 30 minutes unless forced.
-            const shouldAlert = isForce || (!isAlreadySent && overdueMins <= 90);
-
-            if (shouldAlert) {
-              missingCheckOuts.push({
-                staff: s,
-                branchName: bName,
-                shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
-                checkIn: att.checkIn,
-                overdueMins,
-                alertKey: checkOutAlertKey
-              });
-            } else if (!isAlreadySent && overdueMins > 90) {
-              alreadySentAlertKeys.add(checkOutAlertKey);
-              sentAlertKeysMemoryCache.add(checkOutAlertKey);
-              expiredEntries.push({ id: checkOutAlertKey, date: todayStr, staffId: s.id, type: 'out', sentAt: new Date().toISOString() });
+          if (outAlertWindow && !isAlreadySent) {
+            const item = {
+              staff: s,
+              branchName: bName,
+              shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
+              shiftKey,
+              checkIn: att.checkIn,
+              overdueMins,
+              alertKey: checkOutAlertKey
+            };
+            if (isShift2) {
+              missingCheckOutsShift2.push(item);
+            } else {
+              missingCheckOutsShift1.push(item);
             }
+          } else if (!isAlreadySent && curMins > checkOutAlertThreshold + 75) {
+            alreadySentAlertKeys.add(checkOutAlertKey);
+            sentAlertKeysMemoryCache.add(checkOutAlertKey);
+            expiredEntries.push({ id: checkOutAlertKey, date: todayStr, staffId: s.id, type: `${shiftKey}_out`, sentAt: new Date().toISOString() });
           } else {
             currentlyWorking.push({
               staff: s,
               branchName: bName,
               checkIn: att.checkIn,
+              shiftLabel,
               shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`
             });
           }
@@ -2148,47 +2161,85 @@ export default async function handler(req: any, res: any) {
         } catch (e) {}
       }
 
-      const totalMissing = missingCheckIns.length + missingCheckOuts.length;
+      const allMissingCheckIns = [...missingCheckInsShift1, ...missingCheckInsShift2];
+      const allMissingCheckOuts = [...missingCheckOutsShift1, ...missingCheckOutsShift2];
+      const totalMissing = allMissingCheckIns.length + allMissingCheckOuts.length;
 
       let dispatchedRecipients = 0;
       if (totalMissing > 0 || isForce) {
         const adminChatIds = await getAlertRecipientChatIds();
         const botToken = getBotToken();
 
-        let alertMsg = `⚠️ <b>[របាយការណ៍បុគ្គលិកមិនទាន់ Check In / Out]</b>\n` +
+        const hasShift1 = missingCheckInsShift1.length > 0 || missingCheckOutsShift1.length > 0;
+        const hasShift2 = missingCheckInsShift2.length > 0 || missingCheckOutsShift2.length > 0;
+
+        let shiftBadge = '';
+        if (hasShift1 && !hasShift2) shiftBadge = ' — ☀️ វេនទី 1';
+        else if (!hasShift1 && hasShift2) shiftBadge = ' — 🌙 វេនទី 2';
+        else if (hasShift1 && hasShift2) shiftBadge = ' — ☀️ វេនទី 1 & 🌙 វេនទី 2';
+
+        let alertMsg = `⚠️ <b>[របាយការណ៍បុគ្គលិកមិនទាន់ Check In / Out${shiftBadge}]</b>\n` +
           `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
           `⏰ <b>ម៉ោងពិនិត្យ:</b> <code>${phnomPenhTime}</code>\n\n`;
 
         if (totalMissing === 0) {
-          alertMsg += `🎉 <b>ពុំមានបុគ្គលិកណាខកខាន ឬភ្លេច Check In/Out លើស 30 នាទីឡើយ!</b>\n\n`;
+          alertMsg += `🎉 <b>ពុំមានបុគ្គលិកណាខកខាន ឬភ្លេច Check In/Out ថ្មីដែលត្រូវជូនដំណឹងឡើយ!</b>\n\n`;
         } else {
-          if (missingCheckIns.length > 0) {
-            alertMsg += `🔴 <b>មិនទាន់ Check In (លើសម៉ោងកំណត់ 30នាទី) (${missingCheckIns.length} នាក់)៖</b>\n`;
-            missingCheckIns.forEach((item, idx) => {
-              alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
-                `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-                `   ⏳ យឺត៖ <b>${formatDurationKhmer(item.overdueMins)}</b> ${item.staff.phone ? `| 📞 <code>${item.staff.phone}</code>` : ''}\n`;
-            });
-            alertMsg += `\n`;
+          // ==================== វេនទី 1 (SHIFT 1) ====================
+          if (hasShift1) {
+            alertMsg += `☀️ <b>══════ [ វេនទី 1 (Shift 1) ] ══════</b>\n`;
+            if (missingCheckInsShift1.length > 0) {
+              alertMsg += `🔴 <b>មិនទាន់ Check In (${missingCheckInsShift1.length} នាក់)៖</b>\n`;
+              missingCheckInsShift1.forEach((item, idx) => {
+                alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
+                  `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+                  `   ⏳ យឺត៖ <b>${formatDurationKhmer(item.overdueMins)}</b> ${item.staff.phone ? `| 📞 <code>${item.staff.phone}</code>` : ''}\n`;
+              });
+              alertMsg += `\n`;
+            }
+
+            if (missingCheckOutsShift1.length > 0) {
+              alertMsg += `🟠 <b>មិនទាន់ Check Out (${missingCheckOutsShift1.length} នាក់)៖</b>\n`;
+              missingCheckOutsShift1.forEach((item, idx) => {
+                alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
+                  `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+                  `   🚪 ចូលម៉ោង៖ <code>${item.checkIn}</code> | ⏳ ហួសម៉ោង៖ <b>${formatDurationKhmer(item.overdueMins)}</b>\n`;
+              });
+              alertMsg += `\n`;
+            }
           }
 
-          if (missingCheckOuts.length > 0) {
-            alertMsg += `🟠 <b>មិនទាន់ Check Out (ផុតវេន 30នាទី) (${missingCheckOuts.length} នាក់)៖</b>\n`;
-            missingCheckOuts.forEach((item, idx) => {
-              alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
-                `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-                `   🚪 ចូលម៉ោង៖ <code>${item.checkIn}</code> | ⏳ ហួសម៉ោង៖ <b>${formatDurationKhmer(item.overdueMins)}</b>\n`;
-            });
-            alertMsg += `\n`;
+          // ==================== វេនទី 2 (SHIFT 2) ====================
+          if (hasShift2) {
+            alertMsg += `🌙 <b>══════ [ វេនទី 2 (Shift 2) ] ══════</b>\n`;
+            if (missingCheckInsShift2.length > 0) {
+              alertMsg += `🔴 <b>មិនទាន់ Check In (${missingCheckInsShift2.length} នាក់)៖</b>\n`;
+              missingCheckInsShift2.forEach((item, idx) => {
+                alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
+                  `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+                  `   ⏳ យឺត៖ <b>${formatDurationKhmer(item.overdueMins)}</b> ${item.staff.phone ? `| 📞 <code>${item.staff.phone}</code>` : ''}\n`;
+              });
+              alertMsg += `\n`;
+            }
+
+            if (missingCheckOutsShift2.length > 0) {
+              alertMsg += `🟠 <b>មិនទាន់ Check Out (${missingCheckOutsShift2.length} នាក់)៖</b>\n`;
+              missingCheckOutsShift2.forEach((item, idx) => {
+                alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
+                  `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+                  `   🚪 ចូលម៉ោង៖ <code>${item.checkIn}</code> | ⏳ ហួសម៉ោង៖ <b>${formatDurationKhmer(item.overdueMins)}</b>\n`;
+              });
+              alertMsg += `\n`;
+            }
           }
 
-          alertMsg += `<i>💡 ការជូនដំណឹងនេះលោតតែម្តងគត់ (មិនរំខានរៀងរាល់ 30 នាទីឡើយ)។</i>\n`;
+          alertMsg += `<i>💡 ការជូនដំណឹងនេះលោតតែម្តងគត់ក្នុងមួយវេន (មិនរំខានរៀងរាល់ 30 នាទីឡើយ)។</i>\n`;
         }
 
         if (botToken && adminChatIds.length > 0) {
           for (const cId of adminChatIds) {
             try {
-              await sendTelegramNotification(botToken, cId, `🚨 <b>[ការជូនដំណឹងបន្ទាន់៖ វត្តមានបុគ្គលិក]</b>\n\n${alertMsg.trim()}`);
+              await sendTelegramNotification(botToken, cId, `🚨 <b>[ការជូនដំណឹងបន្ទាន់៖ វត្តមានបុគ្គលិក${shiftBadge}]</b>\n\n${alertMsg.trim()}`);
               dispatchedRecipients++;
             } catch (e) {
               console.warn('Failed to send missing attendance notification to', cId, e);
@@ -2199,16 +2250,16 @@ export default async function handler(req: any, res: any) {
         // Save alerted records to prevent repeated alerts today
         if (dispatchedRecipients > 0 && !isForce) {
           const newEntries: any[] = [];
-          for (const item of missingCheckIns) {
+          for (const item of allMissingCheckIns) {
             if (item.alertKey) {
               sentAlertKeysMemoryCache.add(item.alertKey);
-              newEntries.push({ id: item.alertKey, date: todayStr, staffId: item.staff.id, type: 'in', sentAt: new Date().toISOString() });
+              newEntries.push({ id: item.alertKey, date: todayStr, staffId: item.staff.id, type: `${item.shiftKey}_in`, sentAt: new Date().toISOString() });
             }
           }
-          for (const item of missingCheckOuts) {
+          for (const item of allMissingCheckOuts) {
             if (item.alertKey) {
               sentAlertKeysMemoryCache.add(item.alertKey);
-              newEntries.push({ id: item.alertKey, date: todayStr, staffId: item.staff.id, type: 'out', sentAt: new Date().toISOString() });
+              newEntries.push({ id: item.alertKey, date: todayStr, staffId: item.staff.id, type: `${item.shiftKey}_out`, sentAt: new Date().toISOString() });
             }
           }
 
@@ -2221,10 +2272,12 @@ export default async function handler(req: any, res: any) {
 
       return res.status(200).json({
         success: true,
-        missingCheckInsCount: missingCheckIns.length,
-        missingCheckOutsCount: missingCheckOuts.length,
-        missingCheckIns,
-        missingCheckOuts,
+        missingCheckInsCount: allMissingCheckIns.length,
+        missingCheckOutsCount: allMissingCheckOuts.length,
+        missingCheckInsShift1,
+        missingCheckOutsShift1,
+        missingCheckInsShift2,
+        missingCheckOutsShift2,
         dispatchedRecipients,
         timeChecked: phnomPenhTime,
         message: totalMissing > 0 ? `Sent ${dispatchedRecipients} alert notifications` : 'No new missing attendance to alert (already notified or none missing)'

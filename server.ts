@@ -4964,36 +4964,76 @@ function getMissingAttendanceReportData(targetDateStr?: string) {
 function buildMissingAttendanceTelegramMessage(data: ReturnType<typeof getMissingAttendanceReportData>): string {
   const { todayStr, timeStrPhnomPenh, missingCheckIns, missingCheckOuts, permissions, currentlyWorking } = data;
 
+  const missingCheckInsShift1 = missingCheckIns.filter(i => (i.shiftName || '').includes('វេនទី 1'));
+  const missingCheckOutsShift1 = missingCheckOuts.filter(i => (i.shiftName || '').includes('វេនទី 1'));
+  const missingCheckInsShift2 = missingCheckIns.filter(i => (i.shiftName || '').includes('វេនទី 2'));
+  const missingCheckOutsShift2 = missingCheckOuts.filter(i => (i.shiftName || '').includes('វេនទី 2'));
+
+  const hasShift1 = missingCheckInsShift1.length > 0 || missingCheckOutsShift1.length > 0;
+  const hasShift2 = missingCheckInsShift2.length > 0 || missingCheckOutsShift2.length > 0;
   const totalMissing = missingCheckIns.length + missingCheckOuts.length;
 
-  let msg = `⚠️ <b>[របាយការណ៍បុគ្គលិកមិនទាន់ Check In / Out]</b>\n` +
+  let shiftBadge = '';
+  if (hasShift1 && !hasShift2) shiftBadge = ' — ☀️ វេនទី 1';
+  else if (!hasShift1 && hasShift2) shiftBadge = ' — 🌙 វេនទី 2';
+  else if (hasShift1 && hasShift2) shiftBadge = ' — ☀️ វេនទី 1 & 🌙 វេនទី 2';
+
+  let msg = `⚠️ <b>[របាយការណ៍បុគ្គលិកមិនទាន់ Check In / Out${shiftBadge}]</b>\n` +
     `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
     `⏰ <b>ម៉ោងពិនិត្យ:</b> <code>${timeStrPhnomPenh}</code>\n\n`;
 
   if (totalMissing === 0) {
     msg += `🎉 <b>ពុំមានបុគ្គលិកណាខកខាន ឬភ្លេច Check In/Out លើស 30 នាទីឡើយ!</b>\n\n`;
   } else {
-    if (missingCheckIns.length > 0) {
-      msg += `🔴 <b>មិនទាន់ Check In (លើសម៉ោងកំណត់ 30នាទី) (${missingCheckIns.length} នាក់)៖</b>\n`;
-      missingCheckIns.forEach((item, idx) => {
-        msg += `${idx + 1}. <b>${item.fullName}</b> (${item.position})\n` +
-          `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-          `   ⏳ យឺត៖ <b>${formatMinutesKhmer(item.overdueMinutes)}</b> ${item.phone ? `| 📞 <code>${item.phone}</code>` : ''}\n`;
-      });
-      msg += `\n`;
+    // ==================== វេនទី 1 (Shift 1) ====================
+    if (hasShift1) {
+      msg += `☀️ <b>══════ [ វេនទី 1 (Shift 1) ] ══════</b>\n`;
+      if (missingCheckInsShift1.length > 0) {
+        msg += `🔴 <b>មិនទាន់ Check In (${missingCheckInsShift1.length} នាក់)៖</b>\n`;
+        missingCheckInsShift1.forEach((item, idx) => {
+          msg += `${idx + 1}. <b>${item.fullName}</b> (${item.position})\n` +
+            `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+            `   ⏳ យឺត៖ <b>${formatMinutesKhmer(item.overdueMinutes)}</b> ${item.phone ? `| 📞 <code>${item.phone}</code>` : ''}\n`;
+        });
+        msg += `\n`;
+      }
+
+      if (missingCheckOutsShift1.length > 0) {
+        msg += `🟠 <b>មិនទាន់ Check Out (${missingCheckOutsShift1.length} នាក់)៖</b>\n`;
+        missingCheckOutsShift1.forEach((item, idx) => {
+          msg += `${idx + 1}. <b>${item.fullName}</b> (${item.position})\n` +
+            `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+            `   🚪 ចូលម៉ោង៖ <code>${item.checkInTime}</code> | ⏳ ហួសម៉ោង៖ <b>${formatMinutesKhmer(item.overdueMinutes)}</b>\n`;
+        });
+        msg += `\n`;
+      }
     }
 
-    if (missingCheckOuts.length > 0) {
-      msg += `🟠 <b>មិនទាន់ Check Out (ផុតវេន 30នាទី) (${missingCheckOuts.length} នាក់)៖</b>\n`;
-      missingCheckOuts.forEach((item, idx) => {
-        msg += `${idx + 1}. <b>${item.fullName}</b> (${item.position})\n` +
-          `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-          `   🚪 ចូលម៉ោង៖ <code>${item.checkInTime}</code> | ⏳ ហួសម៉ោង៖ <b>${formatMinutesKhmer(item.overdueMinutes)}</b>\n`;
-      });
-      msg += `\n`;
+    // ==================== វេនទី 2 (Shift 2) ====================
+    if (hasShift2) {
+      msg += `🌙 <b>══════ [ វេនទី 2 (Shift 2) ] ══════</b>\n`;
+      if (missingCheckInsShift2.length > 0) {
+        msg += `🔴 <b>មិនទាន់ Check In (${missingCheckInsShift2.length} នាក់)៖</b>\n`;
+        missingCheckInsShift2.forEach((item, idx) => {
+          msg += `${idx + 1}. <b>${item.fullName}</b> (${item.position})\n` +
+            `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+            `   ⏳ យឺត៖ <b>${formatMinutesKhmer(item.overdueMinutes)}</b> ${item.phone ? `| 📞 <code>${item.phone}</code>` : ''}\n`;
+        });
+        msg += `\n`;
+      }
+
+      if (missingCheckOutsShift2.length > 0) {
+        msg += `🟠 <b>មិនទាន់ Check Out (${missingCheckOutsShift2.length} នាក់)៖</b>\n`;
+        missingCheckOutsShift2.forEach((item, idx) => {
+          msg += `${idx + 1}. <b>${item.fullName}</b> (${item.position})\n` +
+            `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+            `   🚪 ចូលម៉ោង៖ <code>${item.checkInTime}</code> | ⏳ ហួសម៉ោង៖ <b>${formatMinutesKhmer(item.overdueMinutes)}</b>\n`;
+        });
+        msg += `\n`;
+      }
     }
 
-    msg += `<i>💡 ការជូនដំណឹងនេះលោតតែម្តងគត់ (មិនរំខានរៀងរាល់ 30 នាទីឡើយ)។</i>\n\n`;
+    msg += `<i>💡 ការជូនដំណឹងនេះលោតតែម្តងគត់ក្នុងមួយវេន (មិនរំខានរៀងរាល់ 30 នាទីឡើយ)។</i>\n\n`;
   }
 
   if (permissions.length > 0) {

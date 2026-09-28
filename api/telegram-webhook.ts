@@ -1631,8 +1631,10 @@ export default async function handler(req: any, res: any) {
           return `${remainingM} នាទី`;
         };
 
-        const missingCheckIns: any[] = [];
-        const missingCheckOuts: any[] = [];
+        const missingCheckInsShift1: any[] = [];
+        const missingCheckOutsShift1: any[] = [];
+        const missingCheckInsShift2: any[] = [];
+        const missingCheckOutsShift2: any[] = [];
         const currentlyWorking: any[] = [];
         const permissions: any[] = [];
 
@@ -1644,9 +1646,10 @@ export default async function handler(req: any, res: any) {
           const bName = branch?.branchName || (bId === 'b2' ? 'Coffee Corner' : 'Toto By Chi Chi MC Park');
           const isToto = bId === 'b1' || bName.toLowerCase().includes('toto') || bName.toLowerCase().includes('chi');
 
-          const sShift = String(s.shift || '').toLowerCase();
-          const isShift2 = sShift.includes('2') || sShift.includes('afternoon') || sShift.includes('រសៀល');
+          const sShift = String(s.shift || '').toLowerCase().trim();
+          const isShift2 = sShift.includes('2') || sShift.includes('afternoon') || sShift.includes('រសៀល') || sShift.includes('night') || sShift.includes('យប់') || sShift.includes('ល្ងាច');
           const shiftLabel = isShift2 ? 'វេនទី 2' : 'វេនទី 1';
+          const shiftKey = isShift2 ? 'shift2' : 'shift1';
 
           let startMins = 390; // 06:30
           let endMins = 960;   // 16:00
@@ -1697,6 +1700,7 @@ export default async function handler(req: any, res: any) {
             permissions.push({
               staff: s,
               branchName: bName,
+              shiftLabel,
               note: att?.notes || 'ច្បាប់ឈប់សម្រាក'
             });
             continue;
@@ -1708,35 +1712,48 @@ export default async function handler(req: any, res: any) {
           if (!hasRealIn) {
             if (curMins >= checkInAlertThreshold) {
               const overdueMins = Math.max(0, curMins - startMins);
-              missingCheckIns.push({
+              const item = {
                 staff: s,
                 branchName: bName,
                 shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
                 overdueMins
-              });
+              };
+              if (isShift2) {
+                missingCheckInsShift2.push(item);
+              } else {
+                missingCheckInsShift1.push(item);
+              }
             }
           } else if (hasRealIn && !hasRealOut) {
             if (curMins >= checkOutAlertThreshold) {
               const overdueMins = Math.max(0, curMins - endMins);
-              missingCheckOuts.push({
+              const item = {
                 staff: s,
                 branchName: bName,
                 shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
                 checkIn: att.checkIn,
                 overdueMins
-              });
+              };
+              if (isShift2) {
+                missingCheckOutsShift2.push(item);
+              } else {
+                missingCheckOutsShift1.push(item);
+              }
             } else {
               currentlyWorking.push({
                 staff: s,
                 branchName: bName,
                 checkIn: att.checkIn,
+                shiftLabel,
                 shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`
               });
             }
           }
         }
 
-        const totalMissing = missingCheckIns.length + missingCheckOuts.length;
+        const totalMissing = missingCheckInsShift1.length + missingCheckOutsShift1.length + missingCheckInsShift2.length + missingCheckOutsShift2.length;
+        const hasShift1 = missingCheckInsShift1.length > 0 || missingCheckOutsShift1.length > 0;
+        const hasShift2 = missingCheckInsShift2.length > 0 || missingCheckOutsShift2.length > 0;
 
         let summaryText = `⚠️ <b>[របាយការណ៍បុគ្គលិកមិនទាន់ Check In / Out]</b>\n` +
           `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n` +
@@ -1745,24 +1762,52 @@ export default async function handler(req: any, res: any) {
         if (totalMissing === 0) {
           summaryText += `🎉 <b>ពុំមានបុគ្គលិកណាខកខាន ឬភ្លេច Check In/Out លើស 30 នាទីឡើយ!</b>\n\n`;
         } else {
-          if (missingCheckIns.length > 0) {
-            summaryText += `🔴 <b>មិនទាន់ Check In (លើសម៉ោងកំណត់ 30នាទី) (${missingCheckIns.length} នាក់)៖</b>\n`;
-            missingCheckIns.forEach((item, idx) => {
-              summaryText += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
-                `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-                `   ⏳ យឺត៖ <b>${formatMinutesKhmer(item.overdueMins)}</b> ${item.staff.phone ? `| 📞 <code>${item.staff.phone}</code>` : ''}\n`;
-            });
-            summaryText += `\n`;
+          // ==================== វេនទី 1 (Shift 1) ====================
+          if (hasShift1) {
+            summaryText += `☀️ <b>══════ [ វេនទី 1 (Shift 1) ] ══════</b>\n`;
+            if (missingCheckInsShift1.length > 0) {
+              summaryText += `🔴 <b>មិនទាន់ Check In (${missingCheckInsShift1.length} នាក់)៖</b>\n`;
+              missingCheckInsShift1.forEach((item, idx) => {
+                summaryText += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
+                  `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+                  `   ⏳ យឺត៖ <b>${formatMinutesKhmer(item.overdueMins)}</b> ${item.staff.phone ? `| 📞 <code>${item.staff.phone}</code>` : ''}\n`;
+              });
+              summaryText += `\n`;
+            }
+
+            if (missingCheckOutsShift1.length > 0) {
+              summaryText += `🟠 <b>មិនទាន់ Check Out (${missingCheckOutsShift1.length} នាក់)៖</b>\n`;
+              missingCheckOutsShift1.forEach((item, idx) => {
+                summaryText += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
+                  `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+                  `   🚪 ចូលម៉ោង៖ <code>${item.checkIn}</code> | ⏳ ហួសម៉ោង៖ <b>${formatMinutesKhmer(item.overdueMins)}</b>\n`;
+              });
+              summaryText += `\n`;
+            }
           }
 
-          if (missingCheckOuts.length > 0) {
-            summaryText += `🟠 <b>មិនទាន់ Check Out (ផុតវេន 30នាទី) (${missingCheckOuts.length} នាក់)៖</b>\n`;
-            missingCheckOuts.forEach((item, idx) => {
-              summaryText += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
-                `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-                `   🚪 ចូលម៉ោង៖ <code>${item.checkIn}</code> | ⏳ ហួសម៉ោង៖ <b>${formatMinutesKhmer(item.overdueMins)}</b>\n`;
-            });
-            summaryText += `\n`;
+          // ==================== វេនទី 2 (Shift 2) ====================
+          if (hasShift2) {
+            summaryText += `🌙 <b>══════ [ វេនទី 2 (Shift 2) ] ══════</b>\n`;
+            if (missingCheckInsShift2.length > 0) {
+              summaryText += `🔴 <b>មិនទាន់ Check In (${missingCheckInsShift2.length} នាក់)៖</b>\n`;
+              missingCheckInsShift2.forEach((item, idx) => {
+                summaryText += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
+                  `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+                  `   ⏳ យឺត៖ <b>${formatMinutesKhmer(item.overdueMins)}</b> ${item.staff.phone ? `| 📞 <code>${item.staff.phone}</code>` : ''}\n`;
+              });
+              summaryText += `\n`;
+            }
+
+            if (missingCheckOutsShift2.length > 0) {
+              summaryText += `🟠 <b>មិនទាន់ Check Out (${missingCheckOutsShift2.length} នាក់)៖</b>\n`;
+              missingCheckOutsShift2.forEach((item, idx) => {
+                summaryText += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
+                  `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+                  `   🚪 ចូលម៉ោង៖ <code>${item.checkIn}</code> | ⏳ ហួសម៉ោង៖ <b>${formatMinutesKhmer(item.overdueMins)}</b>\n`;
+              });
+              summaryText += `\n`;
+            }
           }
         }
 
