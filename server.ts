@@ -5045,10 +5045,27 @@ function buildMissingAttendanceTelegramMessage(data: ReturnType<typeof getMissin
   }
 
   if (currentlyWorking.length > 0) {
-    msg += `🟢 <b>បុគ្គលិកកំពុងបំពេញការងារ (${currentlyWorking.length} នាក់)៖</b>\n`;
-    currentlyWorking.forEach((w: any, idx: number) => {
-      msg += `${idx + 1}. <b>${w.staff.fullName}</b> (${w.branchName}) — ចូលម៉ោង <code>${w.checkIn}</code>\n`;
-    });
+    msg += `🟢 <b>បុគ្គលិកកំពុងបំពេញការងារ (${currentlyWorking.length} នាក់)</b>\n\n`;
+    const workingByBranch = new Map<string, any[]>();
+    for (const w of currentlyWorking) {
+      const bName = w.branchName || 'ទូទៅ';
+      if (!workingByBranch.has(bName)) workingByBranch.set(bName, []);
+      workingByBranch.get(bName)!.push(w);
+    }
+    if (workingByBranch.size > 1) {
+      for (const [bName, list] of workingByBranch.entries()) {
+        msg += `🏢 <b>${bName} (${list.length} នាក់)៖</b>\n`;
+        list.forEach((w: any, idx: number) => {
+          msg += `${idx + 1}. <b>${w.staff.fullName}</b> — <code>${w.checkIn}</code>\n`;
+        });
+        msg += `\n`;
+      }
+    } else {
+      currentlyWorking.forEach((w: any, idx: number) => {
+        msg += `${idx + 1}. <b>${w.staff.fullName}</b> — <code>${w.checkIn}</code>\n`;
+      });
+      msg += `\n`;
+    }
   }
 
   return msg.trim();
