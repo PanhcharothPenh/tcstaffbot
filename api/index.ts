@@ -1951,6 +1951,203 @@ export default async function handler(req: any, res: any) {
     }
   }
 
+  // 12. CHECK MISSING ATTENDANCE ALERTS (GET/POST /api/attendance/check-missing-alerts)
+  if (path === '/api/attendance/check-missing-alerts' || path === '/api/attendance/check-missing-alerts/') {
+    try {
+      const now = new Date();
+      const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
+      const phnomPenhTime = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Phnom_Penh' });
+      const [hStr, mStr] = phnomPenhTime.split(':');
+      const curMins = parseInt(hStr || '0', 10) * 60 + parseInt(mStr || '0', 10);
+
+      const rawStaff: any[] = (await getCollection('staff')) || [];
+      const allBranches: any[] = (await getCollection('branches')) || [];
+      const allAtt: any[] = (await getCollection('attendance')) || [];
+      const allLeaves: any[] = (await getCollection('leaveRequests')) || [];
+
+      const allStaff = rawStaff.filter((s: any) => 
+        s && 
+        s.status !== 'Inactive' && 
+        s.status !== 'Terminated' && 
+        s.status !== 'Resigned' && 
+        s.status !== 'Suspended' &&
+        s.role !== 'Owner' &&
+        s.roleId !== 'owner' &&
+        !String(s.position || '').toLowerCase().includes('owner') &&
+        s.id !== 'staff_owner_clean24'
+      );
+
+      const todayAtt = allAtt.filter((a: any) => a.date === todayStr);
+      const todayLeaves = allLeaves.filter((l: any) => l.date === todayStr && l.status === 'Approved');
+      const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
+
+      const missingCheckIns: any[] = [];
+      const missingCheckOuts: any[] = [];
+      const currentlyWorking: any[] = [];
+      const permissions: any[] = [];
+
+      for (const s of allStaff) {
+        if (s.shift === 'Day Off') continue;
+
+        const bId = s.branchId || 'b1';
+        const branch = allBranches.find((b: any) => b.id === bId);
+        const bName = branch?.branchName || (bId === 'b2' ? 'Coffee Corner' : 'Toto By Chi Chi MC Park');
+        const isToto = bId === 'b1' || bName.toLowerCase().includes('toto') || bName.toLowerCase().includes('chi');
+
+        const sShift = String(s.shift || '').toLowerCase();
+        const isShift2 = sShift.includes('2') || sShift.includes('afternoon') || sShift.includes('រសៀល');
+        const shiftLabel = isShift2 ? 'វេនទី 2' : 'វេនទី 1';
+
+        let startMins = 390; // 06:30
+        let endMins = 960;   // 16:00
+        let startTimeDisplay = '06:30 AM';
+        let endTimeDisplay = '04:00 PM';
+        let checkInAlertThreshold = 420; // 07:00
+        let checkOutAlertThreshold = 990; // 16:30
+
+        if (isToto) {
+          if (isShift2) {
+            startMins = 13 * 60; // 13:00 (780)
+            endMins = 21 * 60;   // 21:00 (1260)
+            startTimeDisplay = '01:00 PM';
+            endTimeDisplay = '09:00 PM';
+            checkInAlertThreshold = 13 * 60 + 30; // 13:30 (810)
+            checkOutAlertThreshold = 21 * 60 + 30; // 21:30 (1290)
+          } else {
+            startMins = 6 * 60 + 30; // 06:30 (390)
+            endMins = 16 * 60;       // 16:00 (960)
+            startTimeDisplay = '06:30 AM';
+            endTimeDisplay = '04:00 PM';
+            checkInAlertThreshold = 7 * 60; // 07:00 (420)
+            checkOutAlertThreshold = 16 * 60 + 30; // 16:30 (990)
+          }
+        } else {
+          // Coffee Corner
+          if (isShift2) {
+            startMins = 14 * 60; // 14:00 (840)
+            endMins = 21 * 60;   // 21:00 (1260)
+            startTimeDisplay = '02:00 PM';
+            endTimeDisplay = '09:00 PM';
+            checkInAlertThreshold = 14 * 60 + 30; // 14:30 (870)
+            checkOutAlertThreshold = 21 * 60 + 30; // 21:30 (1290)
+          } else {
+            startMins = 6 * 60 + 30; // 06:30 (390)
+            endMins = 14 * 60;       // 14:00 (840)
+            startTimeDisplay = '06:30 AM';
+            endTimeDisplay = '02:00 PM';
+            checkInAlertThreshold = 7 * 60; // 07:00 (420)
+            checkOutAlertThreshold = 14 * 60 + 30; // 14:30 (870)
+          }
+        }
+
+        const att = todayAtt.find((a: any) => a.staffId === s.id);
+        const hasPermission = att?.status === 'Permission' || todayLeaves.some((l: any) => l.staffId === s.id);
+
+        if (hasPermission) {
+          permissions.push({
+            staff: s,
+            branchName: bName,
+            note: att?.notes || 'ច្បាប់ឈប់សម្រាក'
+          });
+          continue;
+        }
+
+        const hasRealIn = att && isRealTime(att.checkIn);
+        const hasRealOut = att && isRealTime(att.checkOut);
+
+        if (!hasRealIn) {
+          if (curMins >= checkInAlertThreshold) {
+            const overdueMins = Math.max(0, curMins - startMins);
+            missingCheckIns.push({
+              staff: s,
+              branchName: bName,
+              shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
+              overdueMins
+            });
+          }
+        } else if (hasRealIn && !hasRealOut) {
+          if (curMins >= checkOutAlertThreshold) {
+            const overdueMins = Math.max(0, curMins - endMins);
+            missingCheckOuts.push({
+              staff: s,
+              branchName: bName,
+              shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
+              checkIn: att.checkIn,
+              overdueMins
+            });
+          } else {
+            currentlyWorking.push({
+              staff: s,
+              branchName: bName,
+              checkIn: att.checkIn,
+              shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`
+            });
+          }
+        }
+      }
+
+      const totalMissing = missingCheckIns.length + missingCheckOuts.length;
+      const isForce = (req.query as any)?.force === 'true' || (req.query as any)?.test === 'true';
+
+      let dispatchedRecipients = 0;
+      if (totalMissing > 0 || isForce) {
+        const adminChatIds = await getAlertRecipientChatIds();
+        const botToken = getBotToken();
+
+        let alertMsg = `⚠️ <b>[របាយការណ៍បុគ្គលិកមិនទាន់ Check In / Out]</b>\n` +
+          `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
+          `⏰ <b>ម៉ោងពិនិត្យ:</b> <code>${phnomPenhTime}</code>\n\n`;
+
+        if (totalMissing === 0) {
+          alertMsg += `🎉 <b>ពុំមានបុគ្គលិកណាខកខាន ឬភ្លេច Check In/Out លើស 30 នាទីឡើយ!</b>\n\n`;
+        } else {
+          if (missingCheckIns.length > 0) {
+            alertMsg += `🔴 <b>មិនទាន់ Check In (លើសម៉ោងកំណត់ 30នាទី) (${missingCheckIns.length} នាក់)៖</b>\n`;
+            missingCheckIns.forEach((item, idx) => {
+              alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
+                `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+                `   ⏳ យឺត៖ <b>${formatDurationKhmer(item.overdueMins)}</b> ${item.staff.phone ? `| 📞 <code>${item.staff.phone}</code>` : ''}\n`;
+            });
+            alertMsg += `\n`;
+          }
+
+          if (missingCheckOuts.length > 0) {
+            alertMsg += `🟠 <b>មិនទាន់ Check Out (ផុតវេន 30នាទី) (${missingCheckOuts.length} នាក់)៖</b>\n`;
+            missingCheckOuts.forEach((item, idx) => {
+              alertMsg += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
+                `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+                `   🚪 ចូលម៉ោង៖ <code>${item.checkIn}</code> | ⏳ ហួសម៉ោង៖ <b>${formatDurationKhmer(item.overdueMins)}</b>\n`;
+            });
+            alertMsg += `\n`;
+          }
+        }
+
+        if (botToken && adminChatIds.length > 0) {
+          for (const cId of adminChatIds) {
+            try {
+              await sendTelegramNotification(botToken, cId, `🚨 <b>[ការជូនដំណឹងបន្ទាន់៖ វត្តមានបុគ្គលិក]</b>\n\n${alertMsg.trim()}`);
+              dispatchedRecipients++;
+            } catch (e) {
+              console.warn('Failed to send missing attendance notification to', cId, e);
+            }
+          }
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        missingCheckInsCount: missingCheckIns.length,
+        missingCheckOutsCount: missingCheckOuts.length,
+        missingCheckIns,
+        missingCheckOuts,
+        dispatchedRecipients,
+        timeChecked: phnomPenhTime
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
   // Fallback
   return res.status(200).json({
     success: true,

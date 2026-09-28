@@ -117,5 +117,11 @@
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/attendance/check-missing-alerts",
+      "schedule": "0,30 * * * *"
+    }
   ]
 }

@@ -13,6 +13,35 @@
     <link rel="dns-prefetch" href="https://telegram.org" />
     <!-- Telegram WebApp JS SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+      // Instantly notify Telegram that webview is ready to dismiss 4-square skeleton placeholder
+      try {
+        if (window.Telegram && window.Telegram.WebApp) {
+          window.Telegram.WebApp.ready();
+          window.Telegram.WebApp.expand();
+          if (window.Telegram.WebApp.enableClosingConfirmation) {
+            window.Telegram.WebApp.enableClosingConfirmation();
+          }
+          if (window.Telegram.WebApp.disableVerticalSwipes) {
+            window.Telegram.WebApp.disableVerticalSwipes();
+          }
+        }
+      } catch (e) {}
+
+      // Handle Vite chunk preload errors when user's Telegram has cached old version
+      window.addEventListener('vite:preloadError', function () {
+        window.location.reload();
+      });
+      window.addEventListener('error', function (event) {
+        if (event && event.message && (
+          event.message.includes('Failed to fetch dynamically imported module') ||
+          event.message.includes('Loading chunk') ||
+          event.message.includes('error loading dynamically imported module')
+        )) {
+          window.location.reload();
+        }
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>

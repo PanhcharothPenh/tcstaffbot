@@ -22,7 +22,9 @@ import {
   ShieldCheck,
   Smartphone,
   Coffee,
-  AlertTriangle
+  AlertTriangle,
+  Navigation,
+  Settings
 } from 'lucide-react';
 
 interface TelegramAttendanceMiniAppProps {
@@ -102,6 +104,120 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   const [isVerifying, setIsVerifying] = useState(false);
   const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [isFetchingGps, setIsFetchingGps] = useState<boolean>(false);
+  const [gpsFeedback, setGpsFeedback] = useState<string | null>(null);
+
+  // Open phone or Telegram GPS permission settings
+  const openGpsSettings = () => {
+    const tg = (window as any).Telegram?.WebApp;
+    if (tg?.LocationManager?.openSettings) {
+      try {
+        tg.LocationManager.openSettings();
+        return;
+      } catch (e) {
+        console.warn('LocationManager.openSettings failed:', e);
+      }
+    }
+    alert('សូមអូសអេក្រង់ទូរស័ព្ទពីលើចុះក្រោម ដើម្បីបើក Location (GPS) ឬចូល Settings > Privacy > Location Services ដើម្បី Allow លើ Telegram។');
+  };
+
+  // Browser fallback for GPS geolocation
+  const fallbackBrowserGeolocation = (
+    onSuccess: (coords: { lat: number; lng: number }) => void,
+    onFail: (msg: string) => void
+  ) => {
+    if (!navigator.geolocation) {
+      onFail('ឧបករណ៍នេះមិនគាំទ្រ GPS ឡើយ');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        onSuccess({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude
+        });
+      },
+      (err) => {
+        console.warn('High accuracy geolocation timed out/failed, trying coarse location:', err.message);
+        navigator.geolocation.getCurrentPosition(
+          (posCoarse) => {
+            onSuccess({
+              lat: posCoarse.coords.latitude,
+              lng: posCoarse.coords.longitude
+            });
+          },
+          (err2) => {
+            onFail(err2.message || 'Geolocation unavailable');
+          },
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+        );
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  };
+
+  // Request GPS coordinates (from Telegram WebApp LocationManager or Browser)
+  const requestDeviceLocation = (interactive = false) => {
+    setIsFetchingGps(true);
+    setGpsFeedback(null);
+
+    const handleSuccess = (coords: { lat: number; lng: number }) => {
+      setLocationCoords(coords);
+      setLocationError(null);
+      setIsFetchingGps(false);
+      try {
+        localStorage.setItem('tc_last_gps_coords', JSON.stringify(coords));
+      } catch {}
+      // Clear GPS error message if active
+      setErrorMessage((prev) => {
+        if (prev && (prev.includes('GPS') || prev.includes('ទីតាំង'))) {
+          return null;
+        }
+        return prev;
+      });
+      if (interactive) {
+        setGpsFeedback('✅ ទទួលបានទីតាំង GPS ជោគជ័យ!');
+        setTimeout(() => setGpsFeedback(null), 3500);
+      }
+    };
+
+    const handleFailure = (errMsg: string) => {
+      setIsFetchingGps(false);
+      setLocationError(errMsg);
+      if (interactive) {
+        setGpsFeedback('⚠️ មិនទាន់អាចទាញយក GPS បានទេ។ សូមបើក Location លើទូរស័ព្ទរបស់អ្នក!');
+        setTimeout(() => setGpsFeedback(null), 4500);
+      }
+    };
+
+    // 1. Try Telegram WebApp LocationManager (supported in Telegram 8.0+)
+    const tg = (window as any).Telegram?.WebApp;
+    if (tg?.LocationManager) {
+      try {
+        tg.LocationManager.init(() => {
+          if (tg.LocationManager.isLocationAvailable) {
+            tg.LocationManager.getLocation((pos: any) => {
+              if (pos && typeof pos.latitude === 'number' && typeof pos.longitude === 'number') {
+                handleSuccess({ lat: pos.latitude, lng: pos.longitude });
+                return;
+              }
+              // Fallback to browser geolocation
+              fallbackBrowserGeolocation(handleSuccess, handleFailure);
+            });
+            return;
+          }
+          fallbackBrowserGeolocation(handleSuccess, handleFailure);
+        });
+        return;
+      } catch (e) {
+        console.warn('Telegram LocationManager exception:', e);
+      }
+    }
+
+    // 2. Fallback to standard navigator.geolocation
+    fallbackBrowserGeolocation(handleSuccess, handleFailure);
+  };
 
   // Auto-detect branch based on real-time device GPS coordinates
   useEffect(() => {
@@ -181,8 +297,13 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   useEffect(() => {
     const creds = extractTelegramCredentials();
     if (creds.tg) {
-      creds.tg.ready?.();
-      creds.tg.expand?.();
+      try {
+        creds.tg.ready?.();
+        creds.tg.expand?.();
+        // Prevent accidental swipe-to-close on Android gesture navigation & pull-down dismiss
+        creds.tg.enableClosingConfirmation?.();
+        creds.tg.disableVerticalSwipes?.();
+      } catch (_) {}
       setIsTelegramWebview(true);
     }
     setInitData(creds.rawInitData);
@@ -216,41 +337,8 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       }
     } catch {}
 
-    // Get fresh device GPS with 2.5s high accuracy timeout and instant coarse fallback
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const coords = {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude
-          };
-          setLocationCoords(coords);
-          try {
-            localStorage.setItem('tc_last_gps_coords', JSON.stringify(coords));
-          } catch {}
-        },
-        (err) => {
-          console.warn('High accuracy geolocation timed out/failed, trying coarse location:', err.message);
-          navigator.geolocation.getCurrentPosition(
-            (posCoarse) => {
-              const coords = {
-                lat: posCoarse.coords.latitude,
-                lng: posCoarse.coords.longitude
-              };
-              setLocationCoords(coords);
-              try {
-                localStorage.setItem('tc_last_gps_coords', JSON.stringify(coords));
-              } catch {}
-            },
-            (err2) => {
-              console.warn('Geolocation unavailable:', err2.message);
-            },
-            { enableHighAccuracy: false, timeout: 2500, maximumAge: 300000 }
-          );
-        },
-        { enableHighAccuracy: true, timeout: 2500, maximumAge: 120000 }
-      );
-    }
+    // Get fresh device GPS (via Telegram LocationManager or browser)
+    requestDeviceLocation(false);
 
     return () => clearInterval(pollTimer);
   }, []);
@@ -259,7 +347,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   useEffect(() => {
     if (!authError && !errorMessage && activeView === 'action' && !resultData && !capturedImage && !isCameraActive) {
       const timer = setTimeout(() => {
-        startCamera();
+        startCamera(false);
       }, 50);
       return () => clearTimeout(timer);
     }
@@ -346,14 +434,33 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   };
 
   // 2. Camera Functions
-  const startCamera = async () => {
-    setErrorMessage(null);
+  const startCamera = async (isUserInitiated = true) => {
+    if (isUserInitiated) setErrorMessage(null);
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('WebRTC getUserMedia not supported');
       }
 
-      // Stop any prior tracks before requesting a new stream
+      // If existing stream is already live, keep and re-attach without triggering re-prompts on Android
+      if (streamRef.current && streamRef.current.active && streamRef.current.getVideoTracks().some(t => t.readyState === 'live')) {
+        setIsCameraActive(true);
+        const v = videoRef.current;
+        if (v) {
+          try {
+            v.playsInline = true;
+            v.muted = true;
+            (v as any).setAttribute('playsinline', 'true');
+            (v as any).setAttribute('webkit-playsinline', 'true');
+            if (v.srcObject !== streamRef.current) {
+              v.srcObject = streamRef.current;
+            }
+            v.play().catch(() => {});
+          } catch {}
+        }
+        return;
+      }
+
+      // Stop any prior dead tracks before requesting a new stream
       if (streamRef.current) {
         try {
           streamRef.current.getTracks().forEach(t => t.stop());
@@ -362,28 +469,32 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       }
 
       let stream: MediaStream | null = null;
-      // Multi-tier fallback for maximum mobile device compatibility
+
+      // Tier 1: Front camera (most compatible with Android / Google Pixel camera drivers)
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'user',
-            width: { ideal: 480 },
-            height: { ideal: 480 },
-            frameRate: { ideal: 24, max: 30 }
-          },
+          video: { facingMode: 'user' },
           audio: false
         });
       } catch (err1) {
+        console.warn('Tier 1 camera facingMode user failed, trying ideal:', err1);
         try {
+          // Tier 2: facingMode with ideal constraint
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'user' },
+            video: { facingMode: { ideal: 'user' } },
             audio: false
           });
         } catch (err2) {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false
-          });
+          console.warn('Tier 2 camera ideal user failed, trying generic video:', err2);
+          try {
+            // Tier 3: standard video true fallback
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: false
+            });
+          } catch (err3) {
+            console.warn('All WebRTC video constraints failed:', err3);
+          }
         }
       }
 
@@ -395,12 +506,20 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       setIsCameraActive(true);
 
       const attachStream = () => {
-        if (videoRef.current && streamRef.current) {
+        const v = videoRef.current;
+        if (v && streamRef.current) {
           try {
-            (videoRef.current as any).setAttribute('playsinline', 'true');
-            (videoRef.current as any).setAttribute('webkit-playsinline', 'true');
-            videoRef.current.srcObject = streamRef.current;
-            videoRef.current.play().catch(e => console.warn('Video play error:', e));
+            v.playsInline = true;
+            v.muted = true;
+            (v as any).setAttribute('playsinline', 'true');
+            (v as any).setAttribute('webkit-playsinline', 'true');
+            if (v.srcObject !== streamRef.current) {
+              v.srcObject = streamRef.current;
+            }
+            v.onloadedmetadata = () => {
+              v.play().catch(e => console.warn('Video onloadedmetadata play error:', e));
+            };
+            v.play().catch(e => console.warn('Video direct play error:', e));
           } catch (e) {
             console.warn('Video attach error:', e);
           }
@@ -408,12 +527,14 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
       };
 
       attachStream();
-      setTimeout(attachStream, 80);
-      setTimeout(attachStream, 250);
+      setTimeout(attachStream, 60);
+      setTimeout(attachStream, 200);
     } catch (err: any) {
       console.warn('Camera access error:', err);
       setIsCameraActive(false);
-      setErrorMessage('មិនអាចបើក Camera បានទេ! សូមពិនិត្យមើលការអនុញ្ញាត Camera (Permission) លើទូរស័ព្ទ។');
+      if (isUserInitiated) {
+        setErrorMessage('មិនអាចបើក Camera ក្នុង Bot បានទេ! សូមពិនិត្យមើលសិទ្ធិ Camera លើ Telegram (Settings > Apps > Telegram > Permissions > Camera > Allow) រួចចុចព្យាយាមម្តងទៀត។');
+      }
     }
   };
 
@@ -596,6 +717,23 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   const capturePhoto = () => {
     if (!videoRef.current) return;
 
+    const activeBranch = availableBranches.find(b => b.id === (selectedBranchId || branchInfo?.id)) || branchInfo;
+    if (activeBranch?.locationVerificationEnabled && !locationCoords) {
+      let resolvedGps = null;
+      try {
+        const saved = localStorage.getItem('tc_last_gps_coords');
+        if (saved) resolvedGps = JSON.parse(saved);
+      } catch {}
+
+      if (resolvedGps && resolvedGps.lat && resolvedGps.lng) {
+        setLocationCoords(resolvedGps);
+      } else {
+        setErrorMessage('⚠️ មិនទាន់ទទួលបានទីតាំង GPS ទេ! សូមចុចប៊ូតុង "បើក / ភ្ជាប់ GPS" ជាមុនសិន។');
+        requestDeviceLocation(true);
+        return;
+      }
+    }
+
     const shiftInfo = getShiftScheduleInfo();
     if (currentAction === 'checkin' && shiftInfo.isLate && !lateReason.trim()) {
       setErrorMessage('⚠️ អ្នកមកយឺតលើសពី ១០ នាទី! សូមបញ្ចូលមូលហេតុនៃការមកយឺតមុនពេលថតរូបចុះវត្តមានចូល។');
@@ -647,6 +785,23 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const activeBranch = availableBranches.find(b => b.id === (selectedBranchId || branchInfo?.id)) || branchInfo;
+    if (activeBranch?.locationVerificationEnabled && !locationCoords) {
+      let resolvedGps = null;
+      try {
+        const saved = localStorage.getItem('tc_last_gps_coords');
+        if (saved) resolvedGps = JSON.parse(saved);
+      } catch {}
+
+      if (resolvedGps && resolvedGps.lat && resolvedGps.lng) {
+        setLocationCoords(resolvedGps);
+      } else {
+        setErrorMessage('⚠️ មិនទាន់ទទួលបានទីតាំង GPS ទេ! សូមចុចប៊ូតុង "បើក / ភ្ជាប់ GPS" ជាមុនសិន។');
+        requestDeviceLocation(true);
+        return;
+      }
+    }
+
     const shiftInfo = getShiftScheduleInfo();
     if (currentAction === 'checkin' && shiftInfo.isLate && !lateReason.trim()) {
       setErrorMessage('⚠️ អ្នកមកយឺតលើសពី ១០ នាទី! សូមបញ្ចូលមូលហេតុនៃការមកយឺតមុនពេលថតរូបចុះវត្តមានចូល។');
@@ -686,6 +841,21 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     setErrorMessage(null);
     setResultData(null);
 
+    let latToSend = locationCoords?.lat;
+    let lngToSend = locationCoords?.lng;
+    if (latToSend === undefined || lngToSend === undefined) {
+      try {
+        const saved = localStorage.getItem('tc_last_gps_coords');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.lat && parsed.lng) {
+            latToSend = parsed.lat;
+            lngToSend = parsed.lng;
+          }
+        }
+      } catch {}
+    }
+
     const shiftInfo = getShiftScheduleInfo();
     const endpoint = currentAction === 'checkin' ? '/api/attendance/check-in' : '/api/attendance/check-out';
     const deviceInfo = detectDeviceInfo();
@@ -702,8 +872,8 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
           telegramUsername: detectedTgUser?.username || undefined,
           faceDescriptor: vector,
           photo,
-          latitude: locationCoords?.lat,
-          longitude: locationCoords?.lng,
+          latitude: latToSend,
+          longitude: lngToSend,
           device: deviceInfo.device,
           platform: deviceInfo.platform,
           isLate: currentAction === 'checkin' ? shiftInfo.isLate : false,
@@ -965,6 +1135,85 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                 </div>
               </div>
 
+              {/* GPS Status & Manual Connect / Refresh Button */}
+              {(() => {
+                const activeBranch = availableBranches.find(b => b.id === (selectedBranchId || branchInfo?.id)) || branchInfo;
+                const distanceToActiveBranch = (locationCoords && activeBranch?.latitude && activeBranch?.longitude)
+                  ? calculateDistance(locationCoords.lat, locationCoords.lng, activeBranch.latitude, activeBranch.longitude)
+                  : null;
+
+                return (
+                  <div className="pt-2 border-t border-slate-100">
+                    {locationCoords ? (
+                      <div className="flex items-center justify-between bg-emerald-50/90 border border-emerald-200 rounded-xl px-3 py-2 text-xs">
+                        <div className="flex items-center gap-1.5 text-emerald-800 min-w-0">
+                          <MapPin size={14} className="text-emerald-600 shrink-0" />
+                          <div className="truncate">
+                            <span className="font-bold">GPS: ភ្ជាប់ជោគជ័យ</span>
+                            {distanceToActiveBranch !== null ? (
+                              <span className="text-[11px] text-emerald-700 ml-1 font-mono font-semibold">
+                                (~{distanceToActiveBranch} ម៉ែត្រ)
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => requestDeviceLocation(true)}
+                          disabled={isFetchingGps}
+                          className="px-2.5 py-1 bg-white hover:bg-emerald-100 active:scale-95 text-emerald-700 border border-emerald-300 rounded-lg text-[10.5px] font-bold flex items-center gap-1 transition cursor-pointer shrink-0 shadow-2xs"
+                          title="ទាញយកទីតាំងថ្មីឡើងវិញ"
+                        >
+                          <RefreshCw size={11} className={isFetchingGps ? 'animate-spin' : ''} />
+                          <span>{isFetchingGps ? 'កំពុងស្វែងរក...' : 'ផ្ទុកឡើងវិញ'}</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="bg-amber-50/90 border border-amber-300 rounded-xl p-2.5 text-xs space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 text-amber-900 font-bold">
+                            <MapPin size={15} className="text-amber-600 shrink-0 animate-bounce" />
+                            <span>មិនទាន់ទទួលបានទីតាំង GPS ទេ</span>
+                          </div>
+                          <span className="text-[10px] font-bold bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded">
+                            ត្រូវការ GPS
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-amber-900 leading-tight">
+                          សូមចុចប៊ូតុងខាងក្រោមដើម្បីបើក ឬទាញយកទីតាំង GPS នៅលើទូរស័ព្ទរបស់អ្នក៖
+                        </p>
+                        <div className="flex items-center gap-1.5 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => requestDeviceLocation(true)}
+                            disabled={isFetchingGps}
+                            className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
+                          >
+                            <Navigation size={13} className={isFetchingGps ? 'animate-spin' : ''} />
+                            <span>{isFetchingGps ? 'កំពុងស្វែងរក GPS...' : '📍 ចុចដើម្បីបើក / ភ្ជាប់ GPS'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={openGpsSettings}
+                            className="py-2 px-2.5 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer border border-amber-200 shadow-2xs shrink-0"
+                            title="បើកការកំណត់ទីតាំង"
+                          >
+                            <Settings size={13} />
+                            <span>Settings</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {gpsFeedback && (
+                      <div className="mt-1.5 text-center text-[11px] font-bold text-blue-700 animate-in fade-in">
+                        {gpsFeedback}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Permission Banner if Staff has approved leave today */}
               {todayAttendance?.status === 'Permission' && (
                 <div className="mt-3 bg-amber-50/90 border border-amber-200/90 rounded-2xl p-3 text-left">
@@ -1134,9 +1383,49 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
                 {/* Error Banner */}
                 {errorMessage && (
-                  <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs p-3 rounded-2xl flex items-start gap-2 text-left">
-                    <AlertCircle size={16} className="shrink-0 text-rose-500 mt-0.5" />
-                    <span className="font-medium leading-relaxed">{errorMessage}</span>
+                  <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs p-3.5 rounded-2xl space-y-2 text-left animate-in fade-in">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle size={16} className="shrink-0 text-rose-500 mt-0.5" />
+                      <span className="font-medium leading-relaxed">{errorMessage}</span>
+                    </div>
+
+                    {/* Quick GPS recovery action buttons inside the error alert */}
+                    {(!locationCoords || errorMessage.includes('GPS') || errorMessage.includes('ទីតាំង')) && (
+                      <div className="pt-2 border-t border-rose-200/80 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => requestDeviceLocation(true)}
+                          disabled={isFetchingGps}
+                          className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
+                        >
+                          <Navigation size={13} className={isFetchingGps ? 'animate-spin' : ''} />
+                          <span>{isFetchingGps ? 'កំពុងស្វែងរក...' : '📍 បើក / ភ្ជាប់ GPS ឡើងវិញ'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={openGpsSettings}
+                          className="py-2 px-2.5 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer border border-rose-200 shadow-2xs shrink-0"
+                          title="បើកការកំណត់ទូរស័ព្ទ"
+                        >
+                          <Settings size={13} />
+                          <span>Settings</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Quick Camera retry inside Bot */}
+                    {errorMessage.includes('Camera') && (
+                      <div className="pt-2 border-t border-rose-200/80 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => startCamera(true)}
+                          className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
+                        >
+                          <Camera size={14} />
+                          <span>🔄 ចុចដើម្បីបើក Camera ក្នុង Bot ម្តងទៀត</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1262,12 +1551,12 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     />
                   ) : (
                     <div 
-                      onClick={startCamera}
+                      onClick={() => startCamera(true)}
                       className="text-slate-400 space-y-2 p-4 cursor-pointer hover:text-white transition flex flex-col items-center justify-center select-none"
                     >
                       <Camera size={48} className="mx-auto text-blue-400 animate-pulse" />
                       <p className="text-xs font-bold text-slate-300">
-                        {currentAction === 'checkin' ? 'ចុចទីនេះដើម្បីថតរូបចូល' : 'ចុចទីនេះដើម្បីថតរូបចេញ'}
+                        {currentAction === 'checkin' ? 'ចុចទីនេះដើម្បីបើក Camera ក្នុង Bot' : 'ចុចទីនេះដើម្បីបើក Camera ក្នុង Bot'}
                       </p>
                     </div>
                   )}
@@ -1307,7 +1596,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                   <div className="space-y-2">
                     <button
                       type="button"
-                      onClick={startCamera}
+                      onClick={() => startCamera(true)}
                       disabled={isVerifying}
                       className={`w-full py-3.5 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-md ${
                         currentAction === 'checkin'
@@ -1316,18 +1605,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                       }`}
                     >
                       <Camera size={16} />
-                      <span>{currentAction === 'checkin' ? 'បើក Camera ចុះវត្តមានចូល' : 'បើក Camera ចុះវត្តមានចេញ'}</span>
-                    </button>
-
-                    {/* Native Camera / File Picker Fallback */}
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isVerifying}
-                      className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 border border-slate-200"
-                    >
-                      <Smartphone size={14} className="text-slate-500" />
-                      <span>ថតរូបតាមទូរស័ព្ទផ្ទាល់ (Native Camera)</span>
+                      <span>{currentAction === 'checkin' ? '📸 បើក Camera ថតរូបក្នុង Bot' : '📸 បើក Camera ថតរូបក្នុង Bot'}</span>
                     </button>
                     <input 
                       ref={fileInputRef} 

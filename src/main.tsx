@@ -9,11 +9,21 @@ const isMiniAppSession = typeof window !== 'undefined' && (
   window.location.pathname.startsWith('/mini') ||
   window.location.pathname.startsWith('/app') ||
   Boolean((window as any).Telegram?.WebApp?.initData) ||
+  Boolean((window as any).Telegram?.WebApp?.platform) ||
   window.location.hash.includes('tgWebAppData') ||
   window.location.search.includes('tgWebAppData') ||
   window.location.search.includes('tgWebAppPlatform') ||
-  (window.location.search.includes('action=') && (window.location.search.includes('checkin') || window.location.search.includes('checkout') || window.location.search.includes('history')))
+  (window.location.search.includes('action=') && (window.location.search.includes('checkin') || window.location.search.includes('checkout') || window.location.search.includes('history'))) ||
+  Boolean(navigator.userAgent && navigator.userAgent.includes('Telegram'))
 );
+
+// Call ready and expand immediately in main.tsx as well
+try {
+  if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
+    (window as any).Telegram.WebApp.ready();
+    (window as any).Telegram.WebApp.expand();
+  }
+} catch (_) {}
 
 // Code-split: mobile users NEVER download desktop ERP code or initialize ERP database
 const TelegramAttendanceMiniApp = isMiniAppSession ? lazy(() => import('./components/TelegramAttendanceMiniApp')) : null;

@@ -923,13 +923,14 @@ export default async function handler(req: any, res: any) {
           ],
           [
             { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
-            { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
+            { text: '⚠️ មិនទាន់ Check In/Out' }
           ],
           [
-            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
-            { text: '📝 សុំច្បាប់' }
+            { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' },
+            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
           ],
           [
+            { text: '📝 សុំច្បាប់' },
             { text: '👤 ព័ត៌មានគណនី' },
             { text: '❓ របៀបប្រើប្រាស់' }
           ]
@@ -944,13 +945,14 @@ export default async function handler(req: any, res: any) {
           ],
           [
             { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
-            { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
+            { text: '⚠️ មិនទាន់ Check In/Out' }
           ],
           [
-            { text: '📊 មើលប្រវត្តិវត្តមាន' },
-            { text: '📝 សុំច្បាប់' }
+            { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' },
+            { text: '📊 មើលប្រវត្តិវត្តមាន' }
           ],
           [
+            { text: '📝 សុំច្បាប់' },
             { text: '👤 ព័ត៌មានគណនី' },
             { text: '❓ របៀបប្រើប្រាស់' }
           ]
@@ -1131,6 +1133,8 @@ export default async function handler(req: any, res: any) {
           userText.includes('វត្តមានបុគ្គលិកទាំងអស់') || 
           userText.includes('ពាក្យសុំច្បាប់ទាំងអស់') ||
           userText.includes('មើលប្រវត្តិវត្តមាន') ||
+          userText.includes('មិនទាន់') ||
+          userText.toLowerCase().includes('missing') ||
           userText === '📝 សុំច្បាប់' ||
           userText === 'សុំច្បាប់';
 
@@ -1585,6 +1589,200 @@ export default async function handler(req: any, res: any) {
         return sendOrReply(res, botToken, {
           chat_id: chatId,
           text: summaryText,
+          parse_mode: 'HTML',
+          reply_markup: persistentReplyKeyboard
+        });
+      }
+
+      // =================================================================================
+      // ACTION: ⚠️ របាយការណ៍មិនទាន់ CHECK IN / CHECK OUT (MISSING ATTENDANCE TODAY)
+      // =================================================================================
+      const isMissingAction = 
+        userText.toLowerCase().startsWith('/missing') ||
+        userText.toLowerCase().includes('missing') ||
+        userText.includes('មិនទាន់ Check In/Out') ||
+        userText.includes('មិនទាន់ Check In') ||
+        userText.includes('មិនទាន់ Check Out') ||
+        userText.includes('មិនទាន់ check in') ||
+        userText.includes('មិនទាន់ check out') ||
+        userText.includes('ភ្លេច check') ||
+        userText.includes('មិនទាន់ check') ||
+        userText.includes('មិនទាន់');
+
+      if (isMissingAction) {
+        const now = new Date();
+        const phnomPenhTime = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Phnom_Penh' });
+        const [hStr, mStr] = phnomPenhTime.split(':');
+        const curMins = parseInt(hStr || '0', 10) * 60 + parseInt(mStr || '0', 10);
+
+        const todayRecords = allAtt.filter((a: any) => a.date === phnomPenhDateStr);
+        const allLeaveRequests = Array.isArray(batch?.['leaveRequests']) ? batch['leaveRequests'] : [];
+        const todayLeaves = allLeaveRequests.filter((l: any) => l.date === phnomPenhDateStr && l.status === 'Approved');
+
+        const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
+
+        const formatMinutesKhmer = (mins: number): string => {
+          const m = Math.max(0, Math.round(mins));
+          const h = Math.floor(m / 60);
+          const remainingM = m % 60;
+          if (h > 0 && remainingM > 0) return `${h} ម៉ោង ${remainingM} នាទី`;
+          if (h > 0) return `${h} ម៉ោង`;
+          return `${remainingM} នាទី`;
+        };
+
+        const missingCheckIns: any[] = [];
+        const missingCheckOuts: any[] = [];
+        const currentlyWorking: any[] = [];
+        const permissions: any[] = [];
+
+        for (const s of allStaff) {
+          if (s.shift === 'Day Off') continue;
+
+          const bId = s.branchId || 'b1';
+          const branch = allBranches.find((b: any) => b.id === bId);
+          const bName = branch?.branchName || (bId === 'b2' ? 'Coffee Corner' : 'Toto By Chi Chi MC Park');
+          const isToto = bId === 'b1' || bName.toLowerCase().includes('toto') || bName.toLowerCase().includes('chi');
+
+          const sShift = String(s.shift || '').toLowerCase();
+          const isShift2 = sShift.includes('2') || sShift.includes('afternoon') || sShift.includes('រសៀល');
+          const shiftLabel = isShift2 ? 'វេនទី 2' : 'វេនទី 1';
+
+          let startMins = 390; // 06:30
+          let endMins = 960;   // 16:00
+          let startTimeDisplay = '06:30 AM';
+          let endTimeDisplay = '04:00 PM';
+          let checkInAlertThreshold = 420; // 07:00
+          let checkOutAlertThreshold = 990; // 16:30
+
+          if (isToto) {
+            if (isShift2) {
+              startMins = 13 * 60; // 13:00 (780)
+              endMins = 21 * 60;   // 21:00 (1260)
+              startTimeDisplay = '01:00 PM';
+              endTimeDisplay = '09:00 PM';
+              checkInAlertThreshold = 13 * 60 + 30; // 13:30 (810)
+              checkOutAlertThreshold = 21 * 60 + 30; // 21:30 (1290)
+            } else {
+              startMins = 6 * 60 + 30; // 06:30 (390)
+              endMins = 16 * 60;       // 16:00 (960)
+              startTimeDisplay = '06:30 AM';
+              endTimeDisplay = '04:00 PM';
+              checkInAlertThreshold = 7 * 60; // 07:00 (420)
+              checkOutAlertThreshold = 16 * 60 + 30; // 16:30 (990)
+            }
+          } else {
+            // Coffee Corner
+            if (isShift2) {
+              startMins = 14 * 60; // 14:00 (840)
+              endMins = 21 * 60;   // 21:00 (1260)
+              startTimeDisplay = '02:00 PM';
+              endTimeDisplay = '09:00 PM';
+              checkInAlertThreshold = 14 * 60 + 30; // 14:30 (870)
+              checkOutAlertThreshold = 21 * 60 + 30; // 21:30 (1290)
+            } else {
+              startMins = 6 * 60 + 30; // 06:30 (390)
+              endMins = 14 * 60;       // 14:00 (840)
+              startTimeDisplay = '06:30 AM';
+              endTimeDisplay = '02:00 PM';
+              checkInAlertThreshold = 7 * 60; // 07:00 (420)
+              checkOutAlertThreshold = 14 * 60 + 30; // 14:30 (870)
+            }
+          }
+
+          const att = todayRecords.find((a: any) => a.staffId === s.id);
+          const hasPermission = att?.status === 'Permission' || todayLeaves.some((l: any) => l.staffId === s.id);
+
+          if (hasPermission) {
+            permissions.push({
+              staff: s,
+              branchName: bName,
+              note: att?.notes || 'ច្បាប់ឈប់សម្រាក'
+            });
+            continue;
+          }
+
+          const hasRealIn = att && isRealTime(att.checkIn);
+          const hasRealOut = att && isRealTime(att.checkOut);
+
+          if (!hasRealIn) {
+            if (curMins >= checkInAlertThreshold) {
+              const overdueMins = Math.max(0, curMins - startMins);
+              missingCheckIns.push({
+                staff: s,
+                branchName: bName,
+                shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
+                overdueMins
+              });
+            }
+          } else if (hasRealIn && !hasRealOut) {
+            if (curMins >= checkOutAlertThreshold) {
+              const overdueMins = Math.max(0, curMins - endMins);
+              missingCheckOuts.push({
+                staff: s,
+                branchName: bName,
+                shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
+                checkIn: att.checkIn,
+                overdueMins
+              });
+            } else {
+              currentlyWorking.push({
+                staff: s,
+                branchName: bName,
+                checkIn: att.checkIn,
+                shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`
+              });
+            }
+          }
+        }
+
+        const totalMissing = missingCheckIns.length + missingCheckOuts.length;
+
+        let summaryText = `⚠️ <b>[របាយការណ៍បុគ្គលិកមិនទាន់ Check In / Out]</b>\n` +
+          `📅 <b>កាលបរិច្ឆេទ:</b> <code>${phnomPenhDateStr}</code>\n` +
+          `⏰ <b>ម៉ោងពិនិត្យ:</b> <code>${phnomPenhTime}</code>\n\n`;
+
+        if (totalMissing === 0) {
+          summaryText += `🎉 <b>ពុំមានបុគ្គលិកណាខកខាន ឬភ្លេច Check In/Out លើស 30 នាទីឡើយ!</b>\n\n`;
+        } else {
+          if (missingCheckIns.length > 0) {
+            summaryText += `🔴 <b>មិនទាន់ Check In (លើសម៉ោងកំណត់ 30នាទី) (${missingCheckIns.length} នាក់)៖</b>\n`;
+            missingCheckIns.forEach((item, idx) => {
+              summaryText += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
+                `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+                `   ⏳ យឺត៖ <b>${formatMinutesKhmer(item.overdueMins)}</b> ${item.staff.phone ? `| 📞 <code>${item.staff.phone}</code>` : ''}\n`;
+            });
+            summaryText += `\n`;
+          }
+
+          if (missingCheckOuts.length > 0) {
+            summaryText += `🟠 <b>មិនទាន់ Check Out (ផុតវេន 30នាទី) (${missingCheckOuts.length} នាក់)៖</b>\n`;
+            missingCheckOuts.forEach((item, idx) => {
+              summaryText += `${idx + 1}. <b>${item.staff.fullName}</b> (${item.staff.position || 'Staff'})\n` +
+                `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+                `   🚪 ចូលម៉ោង៖ <code>${item.checkIn}</code> | ⏳ ហួសម៉ោង៖ <b>${formatMinutesKhmer(item.overdueMins)}</b>\n`;
+            });
+            summaryText += `\n`;
+          }
+        }
+
+        if (permissions.length > 0) {
+          summaryText += `🏖️ <b>ច្បាប់ឈប់សម្រាក (${permissions.length} នាក់)៖</b>\n`;
+          permissions.forEach((p: any) => {
+            summaryText += `- <b>${p.staff.fullName}</b> (${p.branchName}): ${p.note}\n`;
+          });
+          summaryText += `\n`;
+        }
+
+        if (currentlyWorking.length > 0) {
+          summaryText += `🟢 <b>បុគ្គលិកកំពុងបំពេញការងារ (${currentlyWorking.length} នាក់)៖</b>\n`;
+          currentlyWorking.forEach((w: any, idx: number) => {
+            summaryText += `${idx + 1}. <b>${w.staff.fullName}</b> (${w.branchName}) — ចូលម៉ោង <code>${w.checkIn}</code>\n`;
+          });
+        }
+
+        return sendOrReply(res, botToken, {
+          chat_id: chatId,
+          text: summaryText.trim(),
           parse_mode: 'HTML',
           reply_markup: persistentReplyKeyboard
         });

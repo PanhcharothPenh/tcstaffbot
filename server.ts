@@ -71,6 +71,12 @@ function getClientIp(req: any): string {
 
 app.use(cors());
 
+// Ensure Android WebView and iOS Safari grant full Camera and Geolocation access inside Telegram Mini App
+app.use((_req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=*, microphone=*, geolocation=*');
+  next();
+});
+
 let isDbPulled = false;
 
 // Request-level Supabase database pull middleware
@@ -4740,6 +4746,354 @@ async function dispatchSingleAlert(alert: { shopName: string; branchName: string
   saveLocalDb();
 }
 
+// ─── MISSING ATTENDANCE (CHECK IN / CHECK OUT) MONITORING & AUTOMATION ──────
+
+interface MissingStaffInfo {
+  staffId: string;
+  fullName: string;
+  phone?: string;
+  position?: string;
+  branchId: string;
+  branchName: string;
+  shiftName: string;
+  scheduledTime: string;
+  overdueMinutes: number;
+  checkInTime?: string;
+  checkOutTime?: string;
+  status: 'missing_checkin' | 'missing_checkout';
+}
+
+function formatMinutesKhmer(mins: number): string {
+  const m = Math.max(0, Math.round(mins));
+  const h = Math.floor(m / 60);
+  const remainingM = m % 60;
+  if (h > 0 && remainingM > 0) return `${h} ម៉ោង ${remainingM} នាទី`;
+  if (h > 0) return `${h} ម៉ោង`;
+  return `${remainingM} នាទី`;
+}
+
+function getAdminTelegramChatIds(): string[] {
+  const ids = new Set<string>();
+  const config = getTelegramConfig();
+  if (config.chatIds?.owner) ids.add(String(config.chatIds.owner).trim());
+  if (config.chatIds?.admin) ids.add(String(config.chatIds.admin).trim());
+  if (process.env.TELEGRAM_CHAT_ID) ids.add(process.env.TELEGRAM_CHAT_ID.trim());
+
+  (localDb.users || []).forEach((u: any) => {
+    const r = String(u.role || u.roleId || '').toLowerCase();
+    if (r === 'owner' || r === 'admin' || u.id === 'usr_owner' || u.username === 'millerppc' || u.username === 'roth') {
+      const cId = u.telegramChatId || u.telegramId;
+      if (cId) ids.add(String(cId).trim());
+    }
+  });
+
+  (localDb.telegramRecipients || []).forEach((rec: any) => {
+    const r = String(rec.role || rec.group || '').toLowerCase();
+    if (rec.isActive !== false && (r.includes('admin') || r.includes('owner'))) {
+      if (rec.chatId) ids.add(String(rec.chatId).trim());
+    }
+  });
+
+  ids.add('7818150707'); // Roth Owner fallback
+  return Array.from(ids).filter(id => /^-?\d+$/.test(id));
+}
+
+function getMissingAttendanceReportData(targetDateStr?: string) {
+  const now = new Date();
+  const todayStr = targetDateStr || now.toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
+  const timeStrPhnomPenh = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Phnom_Penh' });
+  const [hStr, mStr] = timeStrPhnomPenh.split(':');
+  const curMins = parseInt(hStr || '0', 10) * 60 + parseInt(mStr || '0', 10);
+
+  const allStaff = (localDb.staff || []).filter((s: any) => 
+    s.status !== 'Inactive' && 
+    s.status !== 'Terminated' && 
+    s.status !== 'Resigned' && 
+    s.status !== 'Suspended' &&
+    s.role !== 'Owner' &&
+    s.roleId !== 'owner' &&
+    !String(s.position || '').toLowerCase().includes('owner') &&
+    s.id !== 'staff_owner_clean24'
+  );
+
+  const allBranches = localDb.branches || [];
+  const todayAtt = (localDb.attendance || []).filter((a: any) => a.date === todayStr);
+  const todayLeaves = (localDb.leaveRequests || []).filter((l: any) => l.date === todayStr && l.status === 'Approved');
+
+  const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
+
+  const missingCheckIns: MissingStaffInfo[] = [];
+  const missingCheckOuts: MissingStaffInfo[] = [];
+  const currentlyWorking: any[] = [];
+  const permissions: any[] = [];
+  const completedToday: any[] = [];
+
+  for (const s of allStaff) {
+    if (s.shift === 'Day Off') continue;
+
+    const bId = s.branchId || 'b1';
+    const branch = allBranches.find((b: any) => b.id === bId);
+    const bName = branch?.branchName || (bId === 'b2' ? 'Coffee Corner' : 'Toto By Chi Chi MC Park');
+    const isToto = bId === 'b1' || bName.toLowerCase().includes('toto') || bName.toLowerCase().includes('chi');
+
+    const sShift = String(s.shift || '').toLowerCase();
+    const isShift2 = sShift.includes('2') || sShift.includes('afternoon') || sShift.includes('រសៀល');
+    const shiftLabel = isShift2 ? 'វេនទី 2' : 'វេនទី 1';
+
+    let startMins = 390; // 06:30
+    let endMins = 960;   // 16:00
+    let startTimeDisplay = '06:30 AM';
+    let endTimeDisplay = '04:00 PM';
+    let checkInAlertThreshold = 420; // 07:00
+    let checkOutAlertThreshold = 990; // 16:30
+
+    if (isToto) {
+      if (isShift2) {
+        startMins = 13 * 60; // 13:00 (780)
+        endMins = 21 * 60;   // 21:00 (1260)
+        startTimeDisplay = '01:00 PM';
+        endTimeDisplay = '09:00 PM';
+        checkInAlertThreshold = 13 * 60 + 30; // 13:30 (810)
+        checkOutAlertThreshold = 21 * 60 + 30; // 21:30 (1290)
+      } else {
+        startMins = 6 * 60 + 30; // 06:30 (390)
+        endMins = 16 * 60;       // 16:00 (960)
+        startTimeDisplay = '06:30 AM';
+        endTimeDisplay = '04:00 PM';
+        checkInAlertThreshold = 7 * 60; // 07:00 (420)
+        checkOutAlertThreshold = 16 * 60 + 30; // 16:30 (990)
+      }
+    } else {
+      // Coffee Corner
+      if (isShift2) {
+        startMins = 14 * 60; // 14:00 (840)
+        endMins = 21 * 60;   // 21:00 (1260)
+        startTimeDisplay = '02:00 PM';
+        endTimeDisplay = '09:00 PM';
+        checkInAlertThreshold = 14 * 60 + 30; // 14:30 (870)
+        checkOutAlertThreshold = 21 * 60 + 30; // 21:30 (1290)
+      } else {
+        startMins = 6 * 60 + 30; // 06:30 (390)
+        endMins = 14 * 60;       // 14:00 (840)
+        startTimeDisplay = '06:30 AM';
+        endTimeDisplay = '02:00 PM';
+        checkInAlertThreshold = 7 * 60; // 07:00 (420)
+        checkOutAlertThreshold = 14 * 60 + 30; // 14:30 (870)
+      }
+    }
+
+    const att = todayAtt.find((a: any) => a.staffId === s.id);
+    const hasPermission = att?.status === 'Permission' || todayLeaves.some((l: any) => l.staffId === s.id);
+
+    if (hasPermission) {
+      permissions.push({
+        staff: s,
+        branchName: bName,
+        note: att?.notes || 'ច្បាប់ឈប់សម្រាក'
+      });
+      continue;
+    }
+
+    const hasRealIn = att && isRealTime(att.checkIn);
+    const hasRealOut = att && isRealTime(att.checkOut);
+
+    if (!hasRealIn) {
+      // Staff hasn't checked in yet
+      if (curMins >= checkInAlertThreshold) {
+        const overdueMins = Math.max(0, curMins - startMins);
+        missingCheckIns.push({
+          staffId: s.id,
+          fullName: s.fullName,
+          phone: s.phone || '',
+          position: s.position || 'Staff',
+          branchId: bId,
+          branchName: bName,
+          shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
+          scheduledTime: startTimeDisplay,
+          overdueMinutes: overdueMins,
+          status: 'missing_checkin'
+        });
+      }
+    } else if (hasRealIn && !hasRealOut) {
+      // Staff checked in, but hasn't checked out
+      if (curMins >= checkOutAlertThreshold) {
+        const overdueMins = Math.max(0, curMins - endMins);
+        missingCheckOuts.push({
+          staffId: s.id,
+          fullName: s.fullName,
+          phone: s.phone || '',
+          position: s.position || 'Staff',
+          branchId: bId,
+          branchName: bName,
+          shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
+          scheduledTime: endTimeDisplay,
+          overdueMinutes: overdueMins,
+          checkInTime: att.checkIn,
+          status: 'missing_checkout'
+        });
+      } else {
+        currentlyWorking.push({
+          staff: s,
+          branchName: bName,
+          checkIn: att.checkIn,
+          shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`
+        });
+      }
+    } else if (hasRealIn && hasRealOut) {
+      completedToday.push({
+        staff: s,
+        branchName: bName,
+        checkIn: att.checkIn,
+        checkOut: att.checkOut
+      });
+    }
+  }
+
+  return {
+    todayStr,
+    timeStrPhnomPenh,
+    curMins,
+    missingCheckIns,
+    missingCheckOuts,
+    permissions,
+    currentlyWorking,
+    completedToday
+  };
+}
+
+function buildMissingAttendanceTelegramMessage(data: ReturnType<typeof getMissingAttendanceReportData>): string {
+  const { todayStr, timeStrPhnomPenh, missingCheckIns, missingCheckOuts, permissions, currentlyWorking } = data;
+
+  const totalMissing = missingCheckIns.length + missingCheckOuts.length;
+
+  let msg = `⚠️ <b>[របាយការណ៍បុគ្គលិកមិនទាន់ Check In / Out]</b>\n` +
+    `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
+    `⏰ <b>ម៉ោងពិនិត្យ:</b> <code>${timeStrPhnomPenh}</code>\n\n`;
+
+  if (totalMissing === 0) {
+    msg += `🎉 <b>ពុំមានបុគ្គលិកណាខកខាន ឬភ្លេច Check In/Out លើស 30 នាទីឡើយ!</b>\n\n`;
+  } else {
+    if (missingCheckIns.length > 0) {
+      msg += `🔴 <b>មិនទាន់ Check In (លើសម៉ោងកំណត់ 30នាទី) (${missingCheckIns.length} នាក់)៖</b>\n`;
+      missingCheckIns.forEach((item, idx) => {
+        msg += `${idx + 1}. <b>${item.fullName}</b> (${item.position})\n` +
+          `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+          `   ⏳ យឺត៖ <b>${formatMinutesKhmer(item.overdueMinutes)}</b> ${item.phone ? `| 📞 <code>${item.phone}</code>` : ''}\n`;
+      });
+      msg += `\n`;
+    }
+
+    if (missingCheckOuts.length > 0) {
+      msg += `🟠 <b>មិនទាន់ Check Out (ផុតវេន 30នាទី) (${missingCheckOuts.length} នាក់)៖</b>\n`;
+      missingCheckOuts.forEach((item, idx) => {
+        msg += `${idx + 1}. <b>${item.fullName}</b> (${item.position})\n` +
+          `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
+          `   🚪 ចូលម៉ោង៖ <code>${item.checkInTime}</code> | ⏳ ហួសម៉ោង៖ <b>${formatMinutesKhmer(item.overdueMinutes)}</b>\n`;
+      });
+      msg += `\n`;
+    }
+  }
+
+  if (permissions.length > 0) {
+    msg += `🏖️ <b>ច្បាប់ឈប់សម្រាក (${permissions.length} នាក់)៖</b>\n`;
+    permissions.forEach((p: any) => {
+      msg += `- <b>${p.staff.fullName}</b> (${p.branchName}): ${p.note}\n`;
+    });
+    msg += `\n`;
+  }
+
+  if (currentlyWorking.length > 0) {
+    msg += `🟢 <b>បុគ្គលិកកំពុងបំពេញការងារ (${currentlyWorking.length} នាក់)៖</b>\n`;
+    currentlyWorking.forEach((w: any, idx: number) => {
+      msg += `${idx + 1}. <b>${w.staff.fullName}</b> (${w.branchName}) — ចូលម៉ោង <code>${w.checkIn}</code>\n`;
+    });
+  }
+
+  return msg.trim();
+}
+
+const sentMissingSlotAlerts: Record<string, boolean> = {};
+
+async function checkAndSendMissingAttendanceAlerts(force: boolean = false): Promise<{ sent: boolean; slot?: string; recipientsCount?: number }> {
+  const data = getMissingAttendanceReportData();
+  const { todayStr, curMins, missingCheckIns, missingCheckOuts } = data;
+
+  // Shift Timing Slot Windows (5 slots per day):
+  // 1. 07:00 (420 - 435m): Shift 1 Check-In (Toto & Coffee Corner)
+  // 2. 13:30 (810 - 825m): Shift 2 Check-In (Toto)
+  // 3. 14:30 (870 - 885m): Shift 1 Check-Out (Coffee Corner) & Shift 2 Check-In (Coffee Corner)
+  // 4. 16:30 (990 - 1005m): Shift 1 Check-Out (Toto)
+  // 5. 21:30 (1290 - 1305m): Shift 2 Check-Out (Toto & Coffee Corner)
+  let activeSlot = '';
+  if (curMins >= 420 && curMins < 435) activeSlot = '07:00_shift1_in';
+  else if (curMins >= 810 && curMins < 825) activeSlot = '13:30_toto_shift2_in';
+  else if (curMins >= 870 && curMins < 885) activeSlot = '14:30_coffee_shift1_out_shift2_in';
+  else if (curMins >= 990 && curMins < 1005) activeSlot = '16:30_toto_shift1_out';
+  else if (curMins >= 1290 && curMins < 1305) activeSlot = '21:30_shift2_out';
+
+  if (!force && !activeSlot) {
+    return { sent: false };
+  }
+
+  const slotKey = `${todayStr}_${activeSlot || 'manual'}`;
+  if (!force && sentMissingSlotAlerts[slotKey]) {
+    return { sent: false };
+  }
+
+  const hasMissing = missingCheckIns.length > 0 || missingCheckOuts.length > 0;
+  if (!hasMissing && !force) {
+    sentMissingSlotAlerts[slotKey] = true;
+    return { sent: false };
+  }
+
+  const adminChatIds = getAdminTelegramChatIds();
+  const alertText = buildMissingAttendanceTelegramMessage(data);
+  const botToken = resolveTelegramBotToken();
+
+  let sentCount = 0;
+  if (botToken && adminChatIds.length > 0) {
+    for (const cId of adminChatIds) {
+      try {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: cId,
+            text: `🚨 <b>[ការជូនដំណឹងបន្ទាន់៖ វត្តមានបុគ្គលិក]</b>\n\n${alertText}`,
+            parse_mode: 'HTML'
+          })
+        });
+        sentCount++;
+      } catch (err) {
+        console.error(`Failed to dispatch missing attendance alert to ${cId}:`, err);
+      }
+    }
+  }
+
+  sentMissingSlotAlerts[slotKey] = true;
+  return { sent: sentCount > 0, slot: activeSlot, recipientsCount: sentCount };
+}
+
+// Route to manually check or trigger automated missing attendance alerts
+app.all(['/api/attendance/check-missing-alerts', '/api/attendance/check-missing-alerts/'], async (req, res) => {
+  try {
+    const force = req.query?.force === 'true' || req.query?.test === 'true' || req.body?.force === true;
+    const result = await checkAndSendMissingAttendanceAlerts(force);
+    const data = getMissingAttendanceReportData();
+    res.json({
+      success: true,
+      ...result,
+      missingCheckInsCount: data.missingCheckIns.length,
+      missingCheckOutsCount: data.missingCheckOuts.length,
+      missingCheckIns: data.missingCheckIns,
+      missingCheckOuts: data.missingCheckOuts,
+      timeChecked: data.timeStrPhnomPenh
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ─── TELEGRAM BOT ATTENDANCE WEBHOOK & MINI APP APIS ─────────────────────────
 
 // 1. Telegram Bot Webhook (Handles /start and /attendance)
@@ -4854,10 +5208,13 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
         ],
         [
           { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
-          { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
+          { text: '⚠️ មិនទាន់ Check In/Out' }
         ],
         [
-          { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+          { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' },
+          { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } }
+        ],
+        [
           { text: '👤 ព័ត៌មានគណនី' },
           { text: '❓ របៀបប្រើប្រាស់' }
         ]
@@ -4867,6 +5224,37 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
     };
 
     const persistentKb = isOwnerRole ? ownerReplyKeyboard : staffReplyKeyboard;
+
+    // Handle Missing Attendance (មិនទាន់ Check In / មិនទាន់ Check Out)
+    const isMissingAttendanceAction =
+      text.toLowerCase().startsWith('/missing') ||
+      text.toLowerCase().includes('missing') ||
+      text.includes('មិនទាន់ Check In/Out') ||
+      text.includes('មិនទាន់ Check In') ||
+      text.includes('មិនទាន់ Check Out') ||
+      text.includes('មិនទាន់ check in') ||
+      text.includes('មិនទាន់ check out') ||
+      text.includes('ភ្លេច check') ||
+      text.includes('មិនទាន់ check') ||
+      text.includes('មិនទាន់');
+
+    if (isMissingAttendanceAction) {
+      const repData = getMissingAttendanceReportData();
+      const repMsg = buildMissingAttendanceTelegramMessage(repData);
+      if (botToken) {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: repMsg,
+            parse_mode: 'HTML',
+            reply_markup: persistentKb
+          })
+        });
+      }
+      return res.json({ ok: true });
+    }
 
     // Handle All Staff Attendance (វត្តមានបុគ្គលិកទាំងអស់)
     if (text.includes('វត្តមានបុគ្គលិកទាំងអស់') || text === '/all_attendance') {
@@ -5214,10 +5602,13 @@ async function pollTelegramAttendanceBot() {
             ],
             [
               { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
-              { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
+              { text: '⚠️ មិនទាន់ Check In/Out' }
             ],
             [
-              { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+              { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' },
+              { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } }
+            ],
+            [
               { text: '👤 ព័ត៌មានគណនី' },
               { text: '❓ របៀបប្រើប្រាស់' }
             ]
@@ -5229,6 +5620,34 @@ async function pollTelegramAttendanceBot() {
         const persistentKb = isOwnerRole ? ownerReplyKeyboard : staffReplyKeyboard;
 
         const baseUrl = 'https://p2bkh.tech';
+
+        const isMissingAttendanceAction =
+          text.toLowerCase().startsWith('/missing') ||
+          text.toLowerCase().includes('missing') ||
+          text.includes('មិនទាន់ Check In/Out') ||
+          text.includes('មិនទាន់ Check In') ||
+          text.includes('មិនទាន់ Check Out') ||
+          text.includes('មិនទាន់ check in') ||
+          text.includes('មិនទាន់ check out') ||
+          text.includes('ភ្លេច check') ||
+          text.includes('មិនទាន់ check') ||
+          text.includes('មិនទាន់');
+
+        if (isMissingAttendanceAction) {
+          const repData = getMissingAttendanceReportData();
+          const repMsg = buildMissingAttendanceTelegramMessage(repData);
+          await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: chatId,
+              text: repMsg,
+              parse_mode: 'HTML',
+              reply_markup: persistentKb
+            })
+          }).catch(() => {});
+          continue;
+        }
 
         if (matchedStaff) {
           if (!matchedStaff.telegramId) {
@@ -5277,6 +5696,11 @@ async function pollTelegramAttendanceBot() {
 
 if (!process.env.VERCEL) {
   setInterval(pollTelegramAttendanceBot, 4000);
+  setInterval(() => {
+    checkAndSendMissingAttendanceAlerts(false).catch(err => {
+      console.warn('[TC Staff Server] Missing attendance automated alert interval error:', err.message);
+    });
+  }, 60000);
 }
 
 // 2. Validate Telegram Mini App Session
