@@ -504,7 +504,25 @@ export default async function handler(req: any, res: any) {
 
       if (supabase) {
         try {
-          // Ultra-Fast Targeted Loading with 30s cache to guarantee lightning-fast bot responses
+          const isAttendanceCheckText = 
+            userText.toLowerCase().startsWith('/missing') ||
+            userText.toLowerCase().includes('missing') ||
+            userText.includes('មិនទាន់ Check In/Out') ||
+            userText.includes('មិនទាន់ Check In') ||
+            userText.includes('មិនទាន់ Check Out') ||
+            userText.includes('មិនទាន់ check in') ||
+            userText.includes('មិនទាន់ check out') ||
+            userText.includes('ភ្លេច check') ||
+            userText.includes('មិនទាន់ check') ||
+            userText.includes('មិនទាន់') ||
+            userText.includes('វត្តមានបុគ្គលិកទាំងអស់');
+
+          if (isAttendanceCheckText) {
+            delete MEM_CACHE['attendance'];
+            delete MEM_CACHE['leaveRequests'];
+          }
+
+          // Ultra-Fast Targeted Loading with single batch query
           const neededIds = ['staff', 'branches', 'users', 'telegramConfig', 'telegramRecipients', 'attendance', 'leaveRequests', 'telegram_chat_registry'];
           const batch = await loadMultipleCollections(supabase, neededIds, 30000);
 
@@ -1628,24 +1646,6 @@ export default async function handler(req: any, res: any) {
         userText.includes('មិនទាន់');
 
       if (isMissingAction) {
-        // ALWAYS fetch fresh attendance & leave requests from Supabase on manual check so recent check-ins appear immediately
-        if (supabase) {
-          try {
-            const freshAtt = await loadDbCollection(supabase, 'attendance');
-            if (Array.isArray(freshAtt)) {
-              allAtt = freshAtt;
-              updateMemCache('attendance', freshAtt, 5000);
-            }
-            const freshLeaves = await loadDbCollection(supabase, 'leaveRequests');
-            if (Array.isArray(freshLeaves)) {
-              allLeaveRequests = freshLeaves;
-              updateMemCache('leaveRequests', freshLeaves, 5000);
-            }
-          } catch (e) {
-            // fallback to batch loaded allAtt
-          }
-        }
-
         const now = new Date();
         const phnomPenhTime = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Phnom_Penh' });
         const [hStr, mStr] = phnomPenhTime.split(':');
@@ -1657,6 +1657,21 @@ export default async function handler(req: any, res: any) {
             const r = String(recordDate).trim();
             if (r === phnomPenhDateStr || r.startsWith(phnomPenhDateStr)) return true;
             if (r === `${d}-${m}-${y}` || r === `${d}/${m}/${y}`) return true;
+            const cleanR = r.replace(/[\/\.]/g, '-');
+            const parts = cleanR.split('-');
+            if (parts.length === 3) {
+              if (parts[0].length === 4) {
+                const py = parseInt(parts[0], 10);
+                const pm = parseInt(parts[1], 10);
+                const pd = parseInt(parts[2], 10);
+                if (py === curYear && pm === curMonth && pd === parseInt(d, 10)) return true;
+              } else {
+                const pd = parseInt(parts[0], 10);
+                const pm = parseInt(parts[1], 10);
+                const py = parseInt(parts[2], 10);
+                if (py === curYear && pm === curMonth && pd === parseInt(d, 10)) return true;
+              }
+            }
           }
           if (recordCreatedAt) {
             try {
@@ -1682,26 +1697,57 @@ export default async function handler(req: any, res: any) {
         };
 
         const normalizeStaffId = (id: any) => String(id || '').replace(/^staff_usr_/, '').replace(/^staff_/, '').replace(/^usr_/, '').toLowerCase().trim();
-        const cleanStaffName = (name: any) => String(name || '').toLowerCase().replace(/\s*\([^)]*\)/g, '').replace(/[\s\-_]/g, '').trim();
+        const cleanStaffName = (name: any) => {
+          if (!name) return '';
+          return String(name)
+            .replace(/\s*\([^)]*\)/g, '')
+            .replace(/\s*（[^）]*）/g, '')
+            .replace(/\u17bc\u17c9/g, '\u17c9\u17bc') // normalize mobile keyboard inverted Khmer diacritic order
+            .replace(/\u17bc\u17ca/g, '\u17ca\u17bc')
+            .replace(/[\s\-_]/g, '')
+            .toLowerCase()
+            .trim();
+        };
         const cleanPhone = (p: any) => String(p || '').replace(/\D/g, '');
+
+        const isNameMatch = (n1: any, n2: any): boolean => {
+          const c1 = cleanStaffName(n1);
+          const c2 = cleanStaffName(n2);
+          if (!c1 || !c2) return false;
+          if (c1 === c2 || c1.includes(c2) || c2.includes(c1)) return true;
+          // Diacritic-stripped phonetic matching (handles typing variations)
+          const s1 = c1.replace(/[\u17c6-\u17d3]/g, '');
+          const s2 = c2.replace(/[\u17c6-\u17d3]/g, '');
+          if (s1.length >= 3 && s2.length >= 3 && (s1 === s2 || s1.includes(s2) || s2.includes(s1))) {
+            return true;
+          }
+          // Romanized comparison if English letters present
+          const r1 = c1.replace(/[^a-z0-9]/g, '');
+          const r2 = c2.replace(/[^a-z0-9]/g, '');
+          if (r1 && r2 && (r1 === r2 || r1.includes(r2) || r2.includes(r1))) {
+            return true;
+          }
+          return false;
+        };
 
         const isRecordForStaff = (a: any, s: any): boolean => {
           if (!a || !s) return false;
           // 1. Direct or normalized staffId match
-          const aId = String(a.staffId || '').trim();
-          const sId = String(s.id || '').trim();
+          const aId = String(a.staffId || a.employeeId || a.id || '').trim();
+          const sId = String(s.id || s.staffId || '').trim();
           if (aId && sId) {
             if (aId === sId) return true;
             if (normalizeStaffId(aId) === normalizeStaffId(sId)) return true;
           }
           // 2. Telegram ID match
           if (s.telegramId && a.telegramId && String(s.telegramId).trim() === String(a.telegramId).trim()) return true;
-          // 3. Name match (handles "(Corner B)", "(ToTo A)", extra spaces)
-          const aName = cleanStaffName(a.staffName || a.name);
-          const sName = cleanStaffName(s.fullName || s.name);
-          if (aName && sName) {
-            if (aName === sName) return true;
-            if (aName.length >= 3 && sName.length >= 3 && (aName.includes(sName) || sName.includes(aName))) return true;
+          // 3. Name match across all possible name fields
+          const aNames = [a.staffName, a.name, a.fullName, a.employeeName].filter(Boolean);
+          const sNames = [s.fullName, s.name, s.staffName].filter(Boolean);
+          for (const an of aNames) {
+            for (const sn of sNames) {
+              if (isNameMatch(an, sn)) return true;
+            }
           }
           // 4. Phone match
           if (s.phone && a.phone) {
@@ -1725,13 +1771,22 @@ export default async function handler(req: any, res: any) {
         for (const s of allStaff) {
           if (s.shift === 'Day Off') continue;
 
-          const bId = s.branchId || 'b1';
-          const branch = allBranches.find((b: any) => b.id === bId);
-          const bName = branch?.branchName || (bId === 'b2' ? 'Coffee Corner' : 'Toto By Chi Chi MC Park');
-          const isToto = bId === 'b1' || bName.toLowerCase().includes('toto') || bName.toLowerCase().includes('chi');
+          // 1. Robust attendance lookup first
+          const matchingStaffRecords = todayRecords.filter((a: any) => isRecordForStaff(a, s));
+          const att = matchingStaffRecords.find((a: any) => isCheckedIn(a)) || matchingStaffRecords[matchingStaffRecords.length - 1] || null;
 
-          const sShift = String(s.shift || '').toLowerCase().trim();
+          // 2. Accurate branch detection
           const sFullName = String(s.fullName || '').toLowerCase().trim();
+          const bId = att?.branchId || s.branchId || (sFullName.includes('corner') ? 'b2' : 'b1');
+          const branch = allBranches.find((b: any) => b.id === bId);
+          let bName = branch?.branchName || (bId === 'b2' ? 'Coffee Corner' : 'Toto By Chi Chi MC Park');
+          if (sFullName.includes('corner')) bName = 'Coffee Corner';
+          else if (sFullName.includes('toto')) bName = 'Toto By Chi Chi MC Park';
+          const isToto = !bName.toLowerCase().includes('corner') && (bId === 'b1' || bName.toLowerCase().includes('toto') || bName.toLowerCase().includes('chi'));
+
+          // 3. Accurate shift detection
+          const sShift = String(s.shift || '').toLowerCase().trim();
+          const attShift = String(att?.shiftType || att?.shift || '').toLowerCase().trim();
           const isShift2 = sShift.includes('2') || 
             sShift.includes('b') || 
             sShift.includes('afternoon') || 
@@ -1742,7 +1797,10 @@ export default async function handler(req: any, res: any) {
             sFullName.includes(' b)') ||
             sFullName.includes('b)') ||
             sFullName.includes('(toto b') ||
-            sFullName.includes('(corner b');
+            sFullName.includes('(corner b') ||
+            attShift.includes('2') ||
+            attShift.includes('b') ||
+            attShift.includes('afternoon');
           const shiftLabel = isShift2 ? 'វេនទី 2' : 'វេនទី 1';
 
           let startMins = 390; // 06:30
@@ -1786,10 +1844,6 @@ export default async function handler(req: any, res: any) {
               checkOutAlertThreshold = 14 * 60 + 30; // 14:30 (870)
             }
           }
-
-          // Robust lookup: search all matching records and prioritize the one where staff checked in
-          const matchingStaffRecords = todayRecords.filter((a: any) => isRecordForStaff(a, s));
-          const att = matchingStaffRecords.find((a: any) => isCheckedIn(a)) || matchingStaffRecords[matchingStaffRecords.length - 1] || null;
 
           const hasRealIn = isCheckedIn(att);
           const hasRealOut = att && isRealTime(att.checkOut);
