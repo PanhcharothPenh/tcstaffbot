@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
+// In-memory cache to prevent duplicate Telegram alerts across invocations
+const sentAlertKeysMemoryCache = new Set<string>();
+
 function getSupabase() {
   const url = (process.env.SUPABASE_URL || '').replace(/['"]/g, '').trim();
   const key = (process.env.SUPABASE_ANON_KEY || '').replace(/['"]/g, '').trim();
@@ -1981,10 +1984,32 @@ export default async function handler(req: any, res: any) {
       const todayLeaves = allLeaves.filter((l: any) => l.date === todayStr && l.status === 'Approved');
       const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
 
+      // Persistent alert logs from Supabase to guarantee only ONE alert per staff per missing event
+      const alertLogsRaw: any[] = (await getCollection('missing_attendance_alert_logs')) || [];
+      const cutoffDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
+      const validAlertLogs = (Array.isArray(alertLogsRaw) ? alertLogsRaw : []).filter((entry: any) => {
+        const d = typeof entry === 'string' ? entry.split('_')[0] : entry?.date;
+        return d && d >= cutoffDate;
+      });
+
+      const alreadySentAlertKeys = new Set<string>();
+      for (const entry of validAlertLogs) {
+        const k = typeof entry === 'string' ? entry : entry?.id;
+        if (k) alreadySentAlertKeys.add(k);
+      }
+      for (const k of sentAlertKeysMemoryCache) {
+        if (k.startsWith(todayStr)) {
+          alreadySentAlertKeys.add(k);
+        }
+      }
+
       const missingCheckIns: any[] = [];
       const missingCheckOuts: any[] = [];
       const currentlyWorking: any[] = [];
       const permissions: any[] = [];
+      const expiredEntries: any[] = [];
+
+      const isForce = (req.query as any)?.force === 'true' || (req.query as any)?.test === 'true';
 
       for (const s of allStaff) {
         if (s.shift === 'Day Off') continue;
@@ -2055,26 +2080,56 @@ export default async function handler(req: any, res: any) {
         const hasRealIn = att && isRealTime(att.checkIn);
         const hasRealOut = att && isRealTime(att.checkOut);
 
+        const checkInAlertKey = `${todayStr}_${s.id}_in`;
+        const checkOutAlertKey = `${todayStr}_${s.id}_out`;
+
         if (!hasRealIn) {
           if (curMins >= checkInAlertThreshold) {
             const overdueMins = Math.max(0, curMins - startMins);
-            missingCheckIns.push({
-              staff: s,
-              branchName: bName,
-              shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
-              overdueMins
-            });
+            const isAlreadySent = alreadySentAlertKeys.has(checkInAlertKey);
+
+            // Alert ONLY ONCE per staff when threshold is reached (within 90 mins window).
+            // Do NOT alert repeatedly every 30 minutes, and do NOT alert if shift has ended or overdue > 90 mins unless forced.
+            const shouldAlert = isForce || (!isAlreadySent && overdueMins <= 90 && curMins <= endMins + 30);
+
+            if (shouldAlert) {
+              missingCheckIns.push({
+                staff: s,
+                branchName: bName,
+                shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
+                overdueMins,
+                alertKey: checkInAlertKey
+              });
+            } else if (!isAlreadySent && overdueMins > 90) {
+              // Mark as seen so old overdue staff are never re-alerted
+              alreadySentAlertKeys.add(checkInAlertKey);
+              sentAlertKeysMemoryCache.add(checkInAlertKey);
+              expiredEntries.push({ id: checkInAlertKey, date: todayStr, staffId: s.id, type: 'in', sentAt: new Date().toISOString() });
+            }
           }
         } else if (hasRealIn && !hasRealOut) {
           if (curMins >= checkOutAlertThreshold) {
             const overdueMins = Math.max(0, curMins - endMins);
-            missingCheckOuts.push({
-              staff: s,
-              branchName: bName,
-              shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
-              checkIn: att.checkIn,
-              overdueMins
-            });
+            const isAlreadySent = alreadySentAlertKeys.has(checkOutAlertKey);
+
+            // Alert ONLY ONCE per staff when threshold is reached (within 90 mins window).
+            // Do NOT alert repeatedly every 30 minutes unless forced.
+            const shouldAlert = isForce || (!isAlreadySent && overdueMins <= 90);
+
+            if (shouldAlert) {
+              missingCheckOuts.push({
+                staff: s,
+                branchName: bName,
+                shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
+                checkIn: att.checkIn,
+                overdueMins,
+                alertKey: checkOutAlertKey
+              });
+            } else if (!isAlreadySent && overdueMins > 90) {
+              alreadySentAlertKeys.add(checkOutAlertKey);
+              sentAlertKeysMemoryCache.add(checkOutAlertKey);
+              expiredEntries.push({ id: checkOutAlertKey, date: todayStr, staffId: s.id, type: 'out', sentAt: new Date().toISOString() });
+            }
           } else {
             currentlyWorking.push({
               staff: s,
@@ -2086,8 +2141,14 @@ export default async function handler(req: any, res: any) {
         }
       }
 
+      if (expiredEntries.length > 0) {
+        try {
+          const mergedLogs = [...validAlertLogs, ...expiredEntries];
+          await saveCollection('missing_attendance_alert_logs', mergedLogs);
+        } catch (e) {}
+      }
+
       const totalMissing = missingCheckIns.length + missingCheckOuts.length;
-      const isForce = (req.query as any)?.force === 'true' || (req.query as any)?.test === 'true';
 
       let dispatchedRecipients = 0;
       if (totalMissing > 0 || isForce) {
@@ -2120,6 +2181,8 @@ export default async function handler(req: any, res: any) {
             });
             alertMsg += `\n`;
           }
+
+          alertMsg += `<i>💡 ការជូនដំណឹងនេះលោតតែម្តងគត់ (មិនរំខានរៀងរាល់ 30 នាទីឡើយ)។</i>\n`;
         }
 
         if (botToken && adminChatIds.length > 0) {
@@ -2132,6 +2195,28 @@ export default async function handler(req: any, res: any) {
             }
           }
         }
+
+        // Save alerted records to prevent repeated alerts today
+        if (dispatchedRecipients > 0 && !isForce) {
+          const newEntries: any[] = [];
+          for (const item of missingCheckIns) {
+            if (item.alertKey) {
+              sentAlertKeysMemoryCache.add(item.alertKey);
+              newEntries.push({ id: item.alertKey, date: todayStr, staffId: item.staff.id, type: 'in', sentAt: new Date().toISOString() });
+            }
+          }
+          for (const item of missingCheckOuts) {
+            if (item.alertKey) {
+              sentAlertKeysMemoryCache.add(item.alertKey);
+              newEntries.push({ id: item.alertKey, date: todayStr, staffId: item.staff.id, type: 'out', sentAt: new Date().toISOString() });
+            }
+          }
+
+          if (newEntries.length > 0) {
+            const updatedLogs = [...validAlertLogs, ...newEntries];
+            await saveCollection('missing_attendance_alert_logs', updatedLogs);
+          }
+        }
       }
 
       return res.status(200).json({
@@ -2141,7 +2226,8 @@ export default async function handler(req: any, res: any) {
         missingCheckIns,
         missingCheckOuts,
         dispatchedRecipients,
-        timeChecked: phnomPenhTime
+        timeChecked: phnomPenhTime,
+        message: totalMissing > 0 ? `Sent ${dispatchedRecipients} alert notifications` : 'No new missing attendance to alert (already notified or none missing)'
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });

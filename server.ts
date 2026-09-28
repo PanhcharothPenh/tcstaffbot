@@ -4992,6 +4992,8 @@ function buildMissingAttendanceTelegramMessage(data: ReturnType<typeof getMissin
       });
       msg += `\n`;
     }
+
+    msg += `<i>💡 ការជូនដំណឹងនេះលោតតែម្តងគត់ (មិនរំខានរៀងរាល់ 30 នាទីឡើយ)។</i>\n\n`;
   }
 
   if (permissions.length > 0) {
