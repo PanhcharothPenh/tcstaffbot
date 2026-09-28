@@ -2013,7 +2013,9 @@ export default async function handler(req: any, res: any) {
       const [hStr, mStr] = phnomPenhTime.split(':');
       const curMins = parseInt(hStr || '0', 10) * 60 + parseInt(mStr || '0', 10);
 
-      // Ultra-fast single roundtrip load of all collections needed
+      // Ultra-fast load of collections, bypassing stale attendance cache for alerts
+      delete INDEX_MEM_CACHE['attendance'];
+      delete INDEX_MEM_CACHE['leaveRequests'];
       const collections = await getMultipleCollections([
         'staff',
         'branches',
@@ -2023,7 +2025,7 @@ export default async function handler(req: any, res: any) {
         'users',
         'telegramConfig',
         'telegram_chat_registry'
-      ]);
+      ], 5000);
 
       const rawStaff: any[] = collections['staff'] || [];
       const allBranches: any[] = collections['branches'] || [];
@@ -2042,9 +2044,60 @@ export default async function handler(req: any, res: any) {
         s.id !== 'staff_owner_clean24'
       );
 
-      const todayAtt = allAtt.filter((a: any) => a.date === todayStr);
-      const todayLeaves = allLeaves.filter((l: any) => l.date === todayStr && l.status === 'Approved');
+      const isTodayDateMatch = (recordDate?: string, recordCreatedAt?: string): boolean => {
+        if (!recordDate && !recordCreatedAt) return false;
+        if (recordDate) {
+          const r = String(recordDate).trim();
+          if (r === todayStr || r.startsWith(todayStr)) return true;
+        }
+        if (recordCreatedAt) {
+          try {
+            const cDate = new Date(recordCreatedAt).toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
+            if (cDate === todayStr) return true;
+          } catch (_) {}
+        }
+        return false;
+      };
+
+      const todayAtt = allAtt.filter((a: any) => isTodayDateMatch(a.date, a.createdAt));
+      const todayLeaves = allLeaves.filter((l: any) => isTodayDateMatch(l.date, l.createdAt) && l.status === 'Approved');
       const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
+
+      const isCheckedIn = (record?: any): boolean => {
+        if (!record) return false;
+        if (isRealTime(record.checkIn)) return true;
+        const st = String(record.status || '').toLowerCase().trim();
+        if (st === 'working' || st === 'late' || st === 'present' || st === 'normal' || st === 'completed') return true;
+        if (record.checkIn && record.checkIn !== '--' && record.checkIn.toLowerCase() !== 'absent') return true;
+        return false;
+      };
+
+      const normalizeStaffId = (id: any) => String(id || '').replace(/^staff_usr_/, '').replace(/^staff_/, '').replace(/^usr_/, '').toLowerCase().trim();
+      const cleanStaffName = (name: any) => String(name || '').toLowerCase().replace(/\s*\([^)]*\)/g, '').replace(/[\s\-_]/g, '').trim();
+      const cleanPhone = (p: any) => String(p || '').replace(/\D/g, '');
+
+      const isRecordForStaff = (a: any, s: any): boolean => {
+        if (!a || !s) return false;
+        const aId = String(a.staffId || '').trim();
+        const sId = String(s.id || '').trim();
+        if (aId && sId) {
+          if (aId === sId) return true;
+          if (normalizeStaffId(aId) === normalizeStaffId(sId)) return true;
+        }
+        if (s.telegramId && a.telegramId && String(s.telegramId).trim() === String(a.telegramId).trim()) return true;
+        const aName = cleanStaffName(a.staffName || a.name);
+        const sName = cleanStaffName(s.fullName || s.name);
+        if (aName && sName) {
+          if (aName === sName) return true;
+          if (aName.length >= 3 && sName.length >= 3 && (aName.includes(sName) || sName.includes(aName))) return true;
+        }
+        if (s.phone && a.phone) {
+          const p1 = cleanPhone(s.phone);
+          const p2 = cleanPhone(a.phone);
+          if (p1 && p2 && p1 === p2) return true;
+        }
+        return false;
+      };
 
       // Persistent alert logs from Supabase to guarantee only ONE alert per staff per missing event
       const alertLogsRaw: any[] = collections['missing_attendance_alert_logs'] || [];
@@ -2146,8 +2199,13 @@ export default async function handler(req: any, res: any) {
           }
         }
 
-        const att = todayAtt.find((a: any) => a.staffId === s.id);
-        const hasPermission = att?.status === 'Permission' || todayLeaves.some((l: any) => l.staffId === s.id);
+        // Robust matching: find all records for staff and prioritize checked in
+        const matchingStaffRecords = todayAtt.filter((a: any) => isRecordForStaff(a, s));
+        const att = matchingStaffRecords.find((a: any) => isCheckedIn(a)) || matchingStaffRecords[matchingStaffRecords.length - 1] || null;
+
+        const hasRealIn = isCheckedIn(att);
+        const hasRealOut = att && isRealTime(att.checkOut);
+        const hasPermission = !hasRealIn && (att?.status === 'Permission' || todayLeaves.some((l: any) => isRecordForStaff(l, s)));
 
         if (hasPermission) {
           const pItem = {
@@ -2161,8 +2219,18 @@ export default async function handler(req: any, res: any) {
           continue;
         }
 
-        const hasRealIn = att && isRealTime(att.checkIn);
-        const hasRealOut = att && isRealTime(att.checkOut);
+        let displayCheckIn = att?.checkIn;
+        if (!displayCheckIn || displayCheckIn === '--' || displayCheckIn === 'Late' || displayCheckIn === 'Working') {
+          if (att?.createdAt) {
+            try {
+              displayCheckIn = new Date(att.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Phnom_Penh' });
+            } catch (_) {
+              displayCheckIn = 'បាន Check In';
+            }
+          } else {
+            displayCheckIn = 'បាន Check In';
+          }
+        }
 
         // Shift-isolated unique alert keys
         const checkInAlertKey = `${todayStr}_${s.id}_${shiftKey}_in`;
@@ -2209,7 +2277,7 @@ export default async function handler(req: any, res: any) {
               shiftLabel,
               shiftRange: `${startTimeDisplay} - ${endTimeDisplay}`,
               shiftKey,
-              checkIn: att.checkIn,
+              checkIn: displayCheckIn,
               overdueMins,
               alertKey: checkOutAlertKey
             };
@@ -2226,7 +2294,7 @@ export default async function handler(req: any, res: any) {
             const item = {
               staff: s,
               branchName: bName,
-              checkIn: att.checkIn,
+              checkIn: displayCheckIn,
               shiftLabel,
               shiftRange: `${startTimeDisplay} - ${endTimeDisplay}`
             };
@@ -2237,7 +2305,7 @@ export default async function handler(req: any, res: any) {
           const item = {
             staff: s,
             branchName: bName,
-            checkIn: att.checkIn,
+            checkIn: displayCheckIn,
             checkOut: att.checkOut,
             shiftLabel,
             shiftRange: `${startTimeDisplay} - ${endTimeDisplay}`

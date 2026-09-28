@@ -4836,8 +4836,19 @@ function getMissingAttendanceReportData(targetDateStr?: string) {
     const bName = branch?.branchName || (bId === 'b2' ? 'Coffee Corner' : 'Toto By Chi Chi MC Park');
     const isToto = bId === 'b1' || bName.toLowerCase().includes('toto') || bName.toLowerCase().includes('chi');
 
-    const sShift = String(s.shift || '').toLowerCase();
-    const isShift2 = sShift.includes('2') || sShift.includes('afternoon') || sShift.includes('រសៀល');
+    const sShift = String(s.shift || '').toLowerCase().trim();
+    const sFullName = String(s.fullName || '').toLowerCase().trim();
+    const isShift2 = sShift.includes('2') || 
+      sShift.includes('b') || 
+      sShift.includes('afternoon') || 
+      sShift.includes('រសៀល') || 
+      sShift.includes('night') || 
+      sShift.includes('យប់') || 
+      sShift.includes('ល្ងាច') ||
+      sFullName.includes(' b)') ||
+      sFullName.includes('b)') ||
+      sFullName.includes('(toto b') ||
+      sFullName.includes('(corner b');
     const shiftLabel = isShift2 ? 'វេនទី 2' : 'វេនទី 1';
 
     let startMins = 390; // 06:30
@@ -4882,8 +4893,48 @@ function getMissingAttendanceReportData(targetDateStr?: string) {
       }
     }
 
-    const att = todayAtt.find((a: any) => a.staffId === s.id);
-    const hasPermission = att?.status === 'Permission' || todayLeaves.some((l: any) => l.staffId === s.id);
+    const isCheckedIn = (record?: any): boolean => {
+      if (!record) return false;
+      if (isRealTime(record.checkIn)) return true;
+      const st = String(record.status || '').toLowerCase().trim();
+      if (st === 'working' || st === 'late' || st === 'present' || st === 'normal' || st === 'completed') return true;
+      if (record.checkIn && record.checkIn !== '--' && record.checkIn.toLowerCase() !== 'absent') return true;
+      return false;
+    };
+
+    const normalizeStaffId = (id: any) => String(id || '').replace(/^staff_usr_/, '').replace(/^staff_/, '').replace(/^usr_/, '').toLowerCase().trim();
+    const cleanStaffName = (name: any) => String(name || '').toLowerCase().replace(/\s*\([^)]*\)/g, '').replace(/[\s\-_]/g, '').trim();
+    const cleanPhone = (p: any) => String(p || '').replace(/\D/g, '');
+
+    const isRecordForStaff = (a: any, st: any): boolean => {
+      if (!a || !st) return false;
+      const aId = String(a.staffId || '').trim();
+      const sId = String(st.id || '').trim();
+      if (aId && sId) {
+        if (aId === sId) return true;
+        if (normalizeStaffId(aId) === normalizeStaffId(sId)) return true;
+      }
+      if (st.telegramId && a.telegramId && String(st.telegramId).trim() === String(a.telegramId).trim()) return true;
+      const aName = cleanStaffName(a.staffName || a.name);
+      const stName = cleanStaffName(st.fullName || st.name);
+      if (aName && stName) {
+        if (aName === stName) return true;
+        if (aName.length >= 3 && stName.length >= 3 && (aName.includes(stName) || stName.includes(aName))) return true;
+      }
+      if (st.phone && a.phone) {
+        const p1 = cleanPhone(st.phone);
+        const p2 = cleanPhone(a.phone);
+        if (p1 && p2 && p1 === p2) return true;
+      }
+      return false;
+    };
+
+    const matchingStaffRecords = todayAtt.filter((a: any) => isRecordForStaff(a, s));
+    const att = matchingStaffRecords.find((a: any) => isCheckedIn(a)) || matchingStaffRecords[matchingStaffRecords.length - 1] || null;
+
+    const hasRealIn = isCheckedIn(att);
+    const hasRealOut = att && isRealTime(att.checkOut);
+    const hasPermission = !hasRealIn && (att?.status === 'Permission' || todayLeaves.some((l: any) => isRecordForStaff(l, s)));
 
     if (hasPermission) {
       permissions.push({
@@ -4894,8 +4945,18 @@ function getMissingAttendanceReportData(targetDateStr?: string) {
       continue;
     }
 
-    const hasRealIn = att && isRealTime(att.checkIn);
-    const hasRealOut = att && isRealTime(att.checkOut);
+    let displayCheckIn = att?.checkIn;
+    if (!displayCheckIn || displayCheckIn === '--' || displayCheckIn === 'Late' || displayCheckIn === 'Working') {
+      if (att?.createdAt) {
+        try {
+          displayCheckIn = new Date(att.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Phnom_Penh' });
+        } catch (_) {
+          displayCheckIn = 'បាន Check In';
+        }
+      } else {
+        displayCheckIn = 'បាន Check In';
+      }
+    }
 
     if (!hasRealIn) {
       // Staff hasn't checked in yet
@@ -4928,7 +4989,7 @@ function getMissingAttendanceReportData(targetDateStr?: string) {
           shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`,
           scheduledTime: endTimeDisplay,
           overdueMinutes: overdueMins,
-          checkInTime: att.checkIn,
+          checkInTime: displayCheckIn,
           status: 'missing_checkout'
         });
       } else {
@@ -5638,6 +5699,8 @@ async function pollTelegramAttendanceBot() {
           ))
         );
 
+        const baseUrl = 'https://p2bkh.tech';
+
         const staffReplyKeyboard = {
           keyboard: [
             [
@@ -5677,8 +5740,6 @@ async function pollTelegramAttendanceBot() {
         };
 
         const persistentKb = isOwnerRole ? ownerReplyKeyboard : staffReplyKeyboard;
-
-        const baseUrl = 'https://p2bkh.tech';
 
         const isMissingAttendanceAction =
           text.toLowerCase().startsWith('/missing') ||
