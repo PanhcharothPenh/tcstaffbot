@@ -7005,7 +7005,37 @@ app.get('/api/attendance/history', (req, res) => {
   }
 });
 
-// 8. Admin Attendance Correction with Audit Trail
+// 8a. Admin Manual Attendance Creation
+app.post('/api/admin/attendance', async (req, res) => {
+  try {
+    const record = req.body;
+    if (!record || !record.staffId || !record.date) {
+      return res.status(400).json({ success: false, error: 'staffId and date are required' });
+    }
+
+    if (!Array.isArray(localDb.attendance)) localDb.attendance = [];
+    const idx = localDb.attendance.findIndex((a: any) => a.id === record.id || (a.staffId === record.staffId && a.date === record.date));
+    if (idx >= 0) {
+      localDb.attendance[idx] = { ...localDb.attendance[idx], ...record };
+    } else {
+      localDb.attendance.unshift(record);
+    }
+
+    if (supabase) {
+      try {
+        await supabase.from('tc_collections').upsert({ id: 'attendance', data: localDb.attendance, updated_at: new Date().toISOString() });
+      } catch (sbErr) {
+        console.warn('Failed to upsert attendance into Supabase:', sbErr);
+      }
+    }
+
+    return res.status(200).json({ success: true, message: 'Attendance recorded', attendance: localDb.attendance });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 8b. Admin Attendance Correction with Audit Trail
 app.patch('/api/admin/attendance/:id', (req, res) => {
   try {
     const { id } = req.params;

@@ -1570,7 +1570,35 @@ export default async function handler(req: any, res: any) {
     }
   }
 
-  // 7b. ADMIN ATTENDANCE CORRECTION (PATCH /api/admin/attendance/:id)
+  // 7b. ADMIN MANUAL ATTENDANCE CREATION (POST /api/admin/attendance)
+  if ((path === '/api/admin/attendance' || path === '/api/admin/attendance/') && req.method === 'POST') {
+    try {
+      const record = req.body;
+      if (!record || !record.staffId || !record.date) {
+        return res.status(400).json({ success: false, error: 'staffId and date are required' });
+      }
+
+      delete INDEX_MEM_CACHE['attendance'];
+      const allAtt = await getCollection('attendance');
+      const idx = allAtt.findIndex((a: any) => a.id === record.id || (a.staffId === record.staffId && a.date === record.date));
+      if (idx >= 0) {
+        allAtt[idx] = { ...allAtt[idx], ...record };
+      } else {
+        allAtt.unshift(record);
+      }
+
+      await saveCollection('attendance', allAtt);
+      return res.status(200).json({
+        success: true,
+        message: 'Attendance record created/updated successfully',
+        attendance: allAtt
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  }
+
+  // 7c. ADMIN ATTENDANCE CORRECTION (PATCH /api/admin/attendance/:id)
   if (path.startsWith('/api/admin/attendance') && req.method === 'PATCH') {
     try {
       const parts = path.split('/').filter(Boolean);

@@ -525,9 +525,12 @@ export default function AttendanceView({
   };
 
   // Save Manual Entry
-  const handleSaveAdd = (e: React.FormEvent) => {
+  const handleSaveAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addStaffId) return;
+    if (!addStaffId) {
+      alert(lang === 'kh' ? 'សូមជ្រើសរើសបុគ្គលិក!' : 'Please select a staff member!');
+      return;
+    }
 
     const staff = staffList.find(s => s.id === addStaffId);
     if (!staff) return;
@@ -540,9 +543,12 @@ export default function AttendanceView({
       ? (isExcusedAdd ? `មកយឺតអនុគ្រោះ (មិនកាត់ប្រាក់) - ${addReason.trim()}` : `មកយឺត (កាត់ប្រាក់ $${lateDeductAmt}) - ${addReason.trim()}`)
       : (addReason.trim() || undefined);
 
+    const sFullName = String(staff.fullName || '').toLowerCase();
+    const effectiveBranchId = staff.branchId || (sFullName.includes('corner') ? 'b2' : 'b1');
+
     const newAtt: Attendance = {
       id: 'att_' + Date.now(),
-      branchId: staff.branchId,
+      branchId: effectiveBranchId,
       staffId: staff.id,
       staffName: staff.fullName,
       date: addDate,
@@ -570,10 +576,32 @@ export default function AttendanceView({
       updatedAt: nowIso
     };
 
-    setAttendance(prev => [newAtt, ...prev.filter(a => !(a.staffId === staff.id && a.date === addDate))]);
+    const currentList = Array.isArray(attendance) ? attendance : [];
+    const updatedList = [newAtt, ...currentList.filter(a => !(a.staffId === staff.id && a.date === addDate))];
+    setAttendance(updatedList);
+    db.saveAttendance(updatedList);
+
+    // Auto-align view filters so the newly created manual record is immediately visible on screen
+    setSelectedDate(addDate);
+    setFilterBranchId(prev => (prev === 'all' || prev === effectiveBranchId ? prev : 'all'));
+    setFilterStaffId('all');
+    setFilterStatus('all');
+    setSearchQuery('');
+
     onAddLog(`Manually recorded attendance for ${staff.fullName} on ${addDate}`);
     setShowAddModal(false);
     setAddStaffId('');
+
+    // Immediate asynchronous push to cloud server & Supabase
+    try {
+      await fetch('/api/admin/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAtt)
+      });
+    } catch (err) {
+      console.warn('Backend manual attendance sync warning:', err);
+    }
   };
 
   // Matching records for the PDF report
@@ -1140,7 +1168,10 @@ export default function AttendanceView({
                 </button>
                 {isAuthorized && (
                   <button
-                    onClick={() => setShowAddModal(true)}
+                    onClick={() => {
+                      setAddDate(selectedDate || getPhnomPenhDateStr());
+                      setShowAddModal(true);
+                    }}
                     className="px-3.5 py-2 bg-[#003D9B] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs"
                   >
                     <Plus size={14} />
@@ -2702,7 +2733,34 @@ export default function AttendanceView({
               <label className="text-[11px] font-bold text-slate-600 mb-1 block">ជ្រើសរើសបុគ្គលិក *</label>
               <select
                 value={addStaffId}
-                onChange={e => setAddStaffId(e.target.value)}
+                onChange={e => {
+                  const sId = e.target.value;
+                  setAddStaffId(sId);
+                  const st = staffList.find(s => s.id === sId);
+                  if (st) {
+                    const sShift = String(st.shift || '').toLowerCase();
+                    const sName = String(st.fullName || '').toLowerCase();
+                    const isCorner = sName.includes('corner') || st.branchId === 'b2';
+                    const isShift2 = sShift.includes('2') || sShift.includes('b') || sShift.includes('afternoon') || sName.includes(' b)') || sName.includes('(toto b') || sName.includes('(corner b');
+                    if (isCorner) {
+                      if (isShift2) {
+                        setAddCheckIn('02:00 PM');
+                        setAddCheckOut('09:00 PM');
+                      } else {
+                        setAddCheckIn('06:30 AM');
+                        setAddCheckOut('02:00 PM');
+                      }
+                    } else {
+                      if (isShift2) {
+                        setAddCheckIn('01:00 PM');
+                        setAddCheckOut('09:00 PM');
+                      } else {
+                        setAddCheckIn('06:30 AM');
+                        setAddCheckOut('04:00 PM');
+                      }
+                    }
+                  }
+                }}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                 required
               >
