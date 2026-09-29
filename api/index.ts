@@ -1603,21 +1603,38 @@ export default async function handler(req: any, res: any) {
     try {
       const parts = path.split('/').filter(Boolean);
       const id = parts[parts.length - 1];
-      const { checkIn, checkOut, status, reason, changedBy } = req.body || {};
+      const { checkIn, checkOut, status, reason, changedBy, staffId, date, staffName } = req.body || {};
 
-      if (!reason || !reason.trim()) {
-        return res.status(400).json({ success: false, error: 'សូមបញ្ជាក់មូលហេតុនៃការកែប្រែ (Reason is required)!' });
-      }
+      const finalReason = (reason && String(reason).trim()) ? String(reason).trim() : 'កែប្រែទិន្នន័យដោយ Admin';
 
       const allAtt = await getCollection('attendance');
-      const record = allAtt.find((a: any) => a.id === id);
+      let record = allAtt.find((a: any) => 
+        (a.id && a.id === id) || 
+        (staffId && date && a.staffId === staffId && a.date === date) ||
+        (date && a.date === date && (a.staffId === id || a.staffName === staffName))
+      );
+
+      const nowIso = new Date().toISOString();
+      const adminName = changedBy || 'Admin';
+
       if (!record) {
-        return res.status(404).json({ success: false, error: 'Attendance record not found' });
+        // Create new record if none exists for this staff & date
+        record = {
+          id: id || `att_manual_${Date.now()}`,
+          staffId: staffId || id,
+          staffName: staffName || 'Staff',
+          date: date || nowIso.slice(0, 10),
+          checkIn: checkIn || '--',
+          checkOut: checkOut || '--',
+          status: status || 'Present',
+          auditHistory: [],
+          createdAt: nowIso,
+          updatedAt: nowIso
+        };
+        allAtt.push(record);
       }
 
       if (!record.auditHistory) record.auditHistory = [];
-      const nowIso = new Date().toISOString();
-      const adminName = changedBy || 'Admin';
 
       if (checkIn !== undefined && checkIn !== record.checkIn) {
         record.auditHistory.push({
@@ -1626,7 +1643,7 @@ export default async function handler(req: any, res: any) {
           newValue: checkIn,
           changedBy: adminName,
           changedAt: nowIso,
-          reason: reason.trim()
+          reason: finalReason
         });
         record.checkIn = checkIn;
       }
@@ -1638,7 +1655,7 @@ export default async function handler(req: any, res: any) {
           newValue: checkOut,
           changedBy: adminName,
           changedAt: nowIso,
-          reason: reason.trim()
+          reason: finalReason
         });
         record.checkOut = checkOut;
       }
@@ -1650,17 +1667,19 @@ export default async function handler(req: any, res: any) {
           newValue: status,
           changedBy: adminName,
           changedAt: nowIso,
-          reason: reason.trim()
+          reason: finalReason
         });
         record.status = status;
       }
 
+      record.updatedAt = nowIso;
       await saveCollection('attendance', allAtt);
 
       return res.status(200).json({
         success: true,
         message: 'Attendance record corrected successfully',
-        record
+        record,
+        attendance: record
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });

@@ -7171,21 +7171,38 @@ app.post('/api/admin/attendance', async (req, res) => {
 app.patch('/api/admin/attendance/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const { checkIn, checkOut, status, reason, changedBy } = req.body;
+    const { checkIn, checkOut, status, reason, changedBy, staffId, date, staffName } = req.body || {};
 
-    if (!reason || !reason.trim()) {
-      return res.status(400).json({ success: false, error: 'សូមបញ្ជាក់មូលហេតុនៃការកែប្រែ (Reason is required)!' });
-    }
+    const finalReason = (reason && String(reason).trim()) ? String(reason).trim() : 'កែប្រែទិន្នន័យដោយ Admin';
 
-    const record = (localDb.attendance || []).find(a => a.id === id);
-    if (!record) {
-      return res.status(404).json({ success: false, error: 'Attendance record not found' });
-    }
+    if (!localDb.attendance) localDb.attendance = [];
 
-    if (!record.auditHistory) record.auditHistory = [];
+    let record = (localDb.attendance || []).find(a => 
+      (a.id && a.id === id) || 
+      (staffId && date && a.staffId === staffId && a.date === date) ||
+      (date && a.date === date && (a.staffId === id || a.staffName === staffName))
+    );
 
     const nowIso = new Date().toISOString();
     const adminName = changedBy || 'Admin';
+
+    if (!record) {
+      record = {
+        id: id || `att_manual_${Date.now()}`,
+        staffId: staffId || id,
+        staffName: staffName || 'Staff',
+        date: date || nowIso.slice(0, 10),
+        checkIn: checkIn || '--',
+        checkOut: checkOut || '--',
+        status: status || 'Present',
+        auditHistory: [],
+        createdAt: nowIso,
+        updatedAt: nowIso
+      };
+      localDb.attendance.unshift(record);
+    }
+
+    if (!record.auditHistory) record.auditHistory = [];
 
     if (checkIn !== undefined && checkIn !== record.checkIn) {
       record.auditHistory.push({
@@ -7194,7 +7211,7 @@ app.patch('/api/admin/attendance/:id', (req, res) => {
         newValue: checkIn,
         changedBy: adminName,
         changedAt: nowIso,
-        reason: reason.trim()
+        reason: finalReason
       });
       record.checkIn = checkIn;
     }
@@ -7206,7 +7223,7 @@ app.patch('/api/admin/attendance/:id', (req, res) => {
         newValue: checkOut,
         changedBy: adminName,
         changedAt: nowIso,
-        reason: reason.trim()
+        reason: finalReason
       });
       record.checkOut = checkOut;
     }
@@ -7218,7 +7235,7 @@ app.patch('/api/admin/attendance/:id', (req, res) => {
         newValue: status,
         changedBy: adminName,
         changedAt: nowIso,
-        reason: reason.trim()
+        reason: finalReason
       });
       record.status = status;
     }
@@ -7226,10 +7243,15 @@ app.patch('/api/admin/attendance/:id', (req, res) => {
     record.updatedAt = nowIso;
     saveLocalDb();
 
+    if (supabase) {
+      pushCollectionToSupabase('attendance').catch(() => {});
+    }
+
     return res.json({
       success: true,
       message: 'បានកែប្រែវត្តមាន និងកត់ត្រា Audit Log ដោយជោគជ័យ!',
-      attendance: record
+      attendance: record,
+      record
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });

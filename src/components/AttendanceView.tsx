@@ -479,11 +479,9 @@ export default function AttendanceView({
   // Save Edit with Audit Trail
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingRecord || !editReason.trim()) {
-      alert(lang === 'kh' ? 'សូមបញ្ជាក់មូលហេតុនៃការកែប្រែ!' : 'Please specify modification reason!');
-      return;
-    }
+    if (!editingRecord) return;
 
+    const finalReason = editReason.trim() || 'កែប្រែដោយ Admin';
     setIsSavingEdit(true);
     try {
       const res = await fetch(`/api/admin/attendance/${editingRecord.id}`, {
@@ -493,18 +491,26 @@ export default function AttendanceView({
           checkIn: editCheckIn,
           checkOut: editCheckOut,
           status: editStatus,
-          reason: editReason.trim(),
-          changedBy: currentRole
+          reason: finalReason,
+          changedBy: currentRole,
+          staffId: editingRecord.staffId,
+          staffName: editingRecord.staffName,
+          date: editingRecord.date
         })
       });
 
       const data = await res.json();
-      if (data.success && data.attendance) {
-        setAttendance(prev => prev.map(a => a.id === data.attendance.id ? data.attendance : a));
-        onAddLog(`Edited attendance for ${editingRecord.staffName} on ${editingRecord.date}: ${editReason}`);
+      const savedRecord = data?.attendance || data?.record;
+      if (data.success && savedRecord) {
+        setAttendance(prev => {
+          const updated = prev.map(a => (a.id === savedRecord.id || (a.staffId === savedRecord.staffId && a.date === savedRecord.date)) ? savedRecord : a);
+          try { db.saveAttendance(updated); } catch {}
+          return updated;
+        });
+        onAddLog(`Edited attendance for ${editingRecord.staffName} on ${editingRecord.date}: ${finalReason}`);
         setEditingRecord(null);
       } else {
-        // Local fallback if offline
+        // Local fallback if offline or unexpected payload
         const nowIso = new Date().toISOString();
         const updatedRecord: Attendance = {
           ...editingRecord,
@@ -519,17 +525,59 @@ export default function AttendanceView({
               newValue: `${editCheckIn} - ${editCheckOut} (${editStatus})`,
               changedBy: currentRole,
               changedAt: nowIso,
-              reason: editReason.trim()
+              reason: finalReason
             }
           ],
           updatedAt: nowIso
         };
-        setAttendance(prev => prev.map(a => a.id === updatedRecord.id ? updatedRecord : a));
-        onAddLog(`Edited attendance for ${editingRecord.staffName}: ${editReason}`);
+        setAttendance(prev => {
+          const updated = prev.map(a => a.id === updatedRecord.id ? updatedRecord : a);
+          try { db.saveAttendance(updated); } catch {}
+          return updated;
+        });
+        // Push to /api/sync-data as well so server immediately receives it
+        fetch('/api/sync-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ attendance: [updatedRecord] })
+        }).catch(() => {});
+
+        onAddLog(`Edited attendance for ${editingRecord.staffName}: ${finalReason}`);
         setEditingRecord(null);
       }
     } catch (err: any) {
-      alert('Error updating attendance: ' + err.message);
+      console.warn('Direct PATCH error, saving via smart-sync:', err.message);
+      const nowIso = new Date().toISOString();
+      const updatedRecord: Attendance = {
+        ...editingRecord,
+        checkIn: editCheckIn,
+        checkOut: editCheckOut,
+        status: editStatus,
+        auditHistory: [
+          ...(editingRecord.auditHistory || []),
+          {
+            field: 'Manual Adjustment',
+            oldValue: `${editingRecord.checkIn} - ${editingRecord.checkOut} (${editingRecord.status})`,
+            newValue: `${editCheckIn} - ${editCheckOut} (${editStatus})`,
+            changedBy: currentRole,
+            changedAt: nowIso,
+            reason: finalReason
+          }
+        ],
+        updatedAt: nowIso
+      };
+      setAttendance(prev => {
+        const updated = prev.map(a => a.id === updatedRecord.id ? updatedRecord : a);
+        try { db.saveAttendance(updated); } catch {}
+        return updated;
+      });
+      fetch('/api/sync-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attendance: [updatedRecord] })
+      }).catch(() => {});
+      onAddLog(`Edited attendance for ${editingRecord.staffName}: ${finalReason}`);
+      setEditingRecord(null);
     } finally {
       setIsSavingEdit(false);
     }
@@ -2690,15 +2738,14 @@ export default function AttendanceView({
 
             <div className="text-xs">
               <label className="text-[11px] font-bold text-slate-600 mb-1 block">
-                មូលហេតុនៃការកែប្រែ (Audit Reason) *
+                មូលហេតុនៃការកែប្រែ (Audit Reason)
               </label>
               <textarea
                 rows={2}
-                placeholder="ឧ. បុគ្គលិកភ្លេច Check-in តាមទូរស័ព្ទ..."
+                placeholder="ឧ. បុគ្គលិកភ្លេច Check-in តាមទូរស័ព្ទ... (មិនបង្ខំ)"
                 value={editReason}
                 onChange={e => setEditReason(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
-                required
               />
             </div>
 
