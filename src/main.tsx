@@ -6,7 +6,7 @@ import './index.css';
 const isMiniAppSession = typeof window !== 'undefined' && (
   window.location.pathname.startsWith('/attendance-app') ||
   window.location.pathname === '/attendance-app' ||
-  (Boolean((window as any).Telegram?.WebApp?.initData) && (window as any).Telegram?.WebApp?.initData.length > 0) ||
+  (typeof (window as any).Telegram?.WebApp?.initData === 'string' && (window as any).Telegram.WebApp.initData.length > 0) ||
   window.location.hash.includes('tgWebAppData') ||
   window.location.search.includes('tgWebAppData') ||
   window.location.search.includes('tgWebAppPlatform') ||
@@ -22,8 +22,8 @@ try {
 } catch (_) {}
 
 // Code-split: mobile users NEVER download desktop ERP code or initialize ERP database
-const TelegramAttendanceMiniApp = isMiniAppSession ? lazy(() => import('./components/TelegramAttendanceMiniApp')) : null;
-const App = !isMiniAppSession ? lazy(() => import('./App.tsx')) : null;
+const TelegramAttendanceMiniApp = lazy(() => import('./components/TelegramAttendanceMiniApp'));
+const App = lazy(() => import('./App'));
 
 // Global Fetch Interceptor to attach Authorization Bearer Header automatically for /api requests
 const originalFetch = window.fetch.bind(window);
@@ -146,11 +146,11 @@ createRoot(document.getElementById('root')!).render(
           <p className="text-xs text-slate-400 font-bold">TC Staff Loading...</p>
         </div>
       }>
-        {isMiniAppSession && TelegramAttendanceMiniApp ? (
+        {isMiniAppSession ? (
           <TelegramAttendanceMiniApp />
-        ) : App ? (
+        ) : (
           <App />
-        ) : null}
+        )}
       </Suspense>
     </RootErrorBoundary>
   </StrictMode>,

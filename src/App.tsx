@@ -1128,9 +1128,7 @@ export default function App() {
   const isMiniAppRoute = typeof window !== 'undefined' && (
     window.location.pathname.startsWith('/attendance-app') ||
     window.location.pathname === '/attendance-app' ||
-    window.location.pathname.startsWith('/mini') ||
-    window.location.pathname.startsWith('/app') ||
-    Boolean((window as any).Telegram?.WebApp?.initData) ||
+    (typeof (window as any).Telegram?.WebApp?.initData === 'string' && (window as any).Telegram.WebApp.initData.length > 0) ||
     window.location.hash.includes('tgWebAppData') ||
     window.location.search.includes('tgWebAppData') ||
     window.location.search.includes('tgWebAppPlatform') ||
