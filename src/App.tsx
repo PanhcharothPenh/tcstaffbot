@@ -410,12 +410,16 @@ export default function App() {
     // Cross-tab immediate synchronization
     const handleStorageEvent = () => {
       setBranches(db.getBranches());
-      setStaff(db.getStaff());
+      setStaff(cleanStaffRoster(db.getStaff()));
       setSalaries(db.getSalaries());
+      setSalarySchedules(db.getSalarySchedules());
+      setSalaryAdvances(db.getSalaryAdvances());
+      setAttendance(db.getAttendance());
       setIncomes(db.getIncomes());
       setExpenses(db.getExpenses());
       setInventory(db.getInventory());
       setMachines(db.getMachines());
+      setUsers(db.getUsers());
       setCoinTransactions(db.getCoinTransactions());
       setRevenueRecords(db.getRevenueRecords());
       setGasRecords(db.getGasRecords());
@@ -428,6 +432,9 @@ export default function App() {
       setCashDrawers(db.getCashDrawers());
       setCashDrawerTransactions(db.getCashDrawerTransactions());
       setMonthClosings(db.getMonthClosings());
+      setExtraShifts(db.getExtraShifts());
+      setTempShiftCovers(db.getTempShiftCovers());
+      setStaffExpenses(db.getStaffExpenses());
     };
     window.addEventListener('storage', handleStorageEvent);
 
