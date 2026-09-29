@@ -535,6 +535,12 @@ export default function App() {
   useEffect(() => {
     const handleBeforeUnloadFlush = () => {
       try {
+        // Critical safeguard: never flush if data has not finished loading from server or sync is in progress
+        if (!isLoadedFromServer || isPullingRef.current) return;
+        
+        // Never flush if branches and staff are completely uninitialized
+        if ((!staff || staff.length === 0) && (!branches || branches.length === 0)) return;
+
         const payload = {
           branches,
           staff,
@@ -587,6 +593,7 @@ export default function App() {
       window.removeEventListener('pagehide', handleBeforeUnloadFlush);
     };
   }, [
+    isLoadedFromServer,
     branches, staff, users, salaries, salarySchedules, salaryAdvances,
     attendance, incomes, expenses, inventory, machines,
     coinTransactions, revenueRecords, gasRecords, detergentRecords,

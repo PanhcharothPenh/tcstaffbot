@@ -120,16 +120,17 @@ export default async function handler(req: any, res: any) {
         let tcRows: any[] = [];
         let c24Rows: any[] = [];
         try {
-          const [{ data: tcData, error: tcErr }, { data: c24Data }] = await Promise.all([
-            supabase.from('tc_collections').select('*'),
-            supabase.from('clean24_collections').select('*').catch(() => ({ data: [] }))
-          ]);
+          const { data: tcData, error: tcErr } = await supabase.from('tc_collections').select('*');
           if (tcErr) {
             lastError = tcErr.message;
             console.error('[sync-data] Supabase select error:', tcErr);
           }
           if (Array.isArray(tcData)) tcRows = tcData;
-          if (Array.isArray(c24Data)) c24Rows = c24Data;
+
+          try {
+            const { data: c24Data, error: c24Err } = await supabase.from('clean24_collections').select('*');
+            if (!c24Err && Array.isArray(c24Data)) c24Rows = c24Data;
+          } catch (e) {}
         } catch (e: any) {
           lastError = e.message;
         }
@@ -307,11 +308,17 @@ export default async function handler(req: any, res: any) {
         for (const [collectionId, collectionData] of entries) {
           let finalData = collectionData;
 
-          // Guard: Never wipe an existing populated collection with an empty array unless explicitly deleting
+          // Guard: Never wipe an existing populated collection with an empty array or empty object unless explicitly deleting
           if (Array.isArray(collectionData) && collectionData.length === 0) {
             const serverItems = existingMap[collectionId];
             if (Array.isArray(serverItems) && serverItems.length > 0) {
               console.warn(`[sync-data] WIPE GUARD: Blocked overwriting collection "${collectionId}" (${serverItems.length} items) with empty array.`);
+              continue;
+            }
+          } else if (collectionData && typeof collectionData === 'object' && !Array.isArray(collectionData) && Object.keys(collectionData).length === 0) {
+            const serverObj = existingMap[collectionId];
+            if (serverObj && typeof serverObj === 'object' && !Array.isArray(serverObj) && Object.keys(serverObj).length > 0) {
+              console.warn(`[sync-data] WIPE GUARD: Blocked overwriting collection "${collectionId}" with empty object.`);
               continue;
             }
           }

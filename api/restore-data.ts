@@ -21,14 +21,21 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    // 1. Fetch all rows from clean24_collections and tc_collections
-    const [{ data: c24Rows, error: c24Err }, { data: tcRows, error: tcErr }] = await Promise.all([
-      supabase.from('clean24_collections').select('*'),
-      supabase.from('tc_collections').select('*')
-    ]);
+    // 1. Fetch rows from tc_collections
+    const { data: tcRows, error: tcErr } = await supabase.from('tc_collections').select('*');
+    if (tcErr) {
+      return res.status(500).json({ error: 'Failed to read tc_collections: ' + tcErr.message });
+    }
 
+    // 2. Fetch rows from clean24_collections (if table exists)
+    const { data: c24Rows, error: c24Err } = await supabase.from('clean24_collections').select('*');
     if (c24Err) {
-      return res.status(500).json({ error: 'Failed to read clean24_collections: ' + c24Err.message });
+      return res.status(200).json({
+        success: true,
+        message: 'Your active database is already using tc_collections. No legacy clean24_collections table was detected.',
+        restoredCollectionsCount: 0,
+        details: []
+      });
     }
 
     const tcMap: Record<string, any> = {};
