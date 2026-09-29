@@ -2429,20 +2429,67 @@ app.get('/api/login-history', (req, res) => {
   res.json({ success: true, logs: localDb.loginHistory || [] });
 });
 
-app.get('/api/sync-data', (req, res) => {
+app.get('/api/sync-data', async (req, res) => {
   try {
-    res.json({ success: true, data: localDb });
+    if (supabase) {
+      try {
+        const { data: attRow } = await supabase.from('tc_collections').select('data').eq('id', 'attendance').maybeSingle();
+        if (attRow && Array.isArray(attRow.data) && attRow.data.length > 0) {
+          const mergedMap = new Map<string, any>();
+          for (const a of (localDb.attendance || [])) if (a && a.id) mergedMap.set(String(a.id), a);
+          for (const a of attRow.data) if (a && a.id) mergedMap.set(String(a.id), a);
+          localDb.attendance = Array.from(mergedMap.values());
+        }
+      } catch (_) {}
+    }
+    res.json({ success: true, data: localDb, db: localDb });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-app.post('/api/sync-data', (req, res) => {
+app.post('/api/sync-data', async (req, res) => {
   try {
     const payload = req.body as Partial<SyncPayload>;
+    
+    // Smart merge attendance so mobile scan check-ins are not wiped out
+    if (payload.attendance && Array.isArray(payload.attendance)) {
+      const existingAtt = Array.isArray(localDb.attendance) ? localDb.attendance : [];
+      const mergedMap = new Map<string, any>();
+      for (const item of existingAtt) {
+        if (item && item.id) mergedMap.set(String(item.id), item);
+        else if (item && item.staffId && item.date) mergedMap.set(`${item.staffId}_${item.date}`, item);
+      }
+      for (const clientItem of payload.attendance) {
+        if (!clientItem) continue;
+        const key = clientItem.id ? String(clientItem.id) : `${clientItem.staffId}_${clientItem.date}`;
+        const existingItem = mergedMap.get(key);
+        if (!existingItem) {
+          mergedMap.set(key, clientItem);
+        } else {
+          const clientTime = new Date(clientItem.updatedAt || 0).getTime();
+          const serverTime = new Date(existingItem.updatedAt || 0).getTime();
+          if (clientTime >= serverTime) {
+            mergedMap.set(key, { ...existingItem, ...clientItem });
+          } else {
+            mergedMap.set(key, { ...clientItem, ...existingItem });
+          }
+        }
+      }
+      payload.attendance = Array.from(mergedMap.values());
+    }
+
     localDb = { ...localDb, ...payload };
     saveLocalDb();
-    res.json({ success: true, message: 'Server-side data synchronized successfully' });
+
+    if (supabase) {
+      if (payload.attendance) pushCollectionToSupabase('attendance').catch(() => {});
+      if (payload.staff) pushCollectionToSupabase('staff').catch(() => {});
+      if (payload.branches) pushCollectionToSupabase('branches').catch(() => {});
+      if (payload.users) pushCollectionToSupabase('users').catch(() => {});
+    }
+
+    res.json({ success: true, message: 'Server-side data synchronized successfully', data: localDb });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -6676,6 +6723,9 @@ app.post('/api/attendance/check-in', async (req, res) => {
     }
 
     saveLocalDb();
+    if (supabase) {
+      pushCollectionToSupabase('attendance').catch(e => console.warn('Check-in Supabase sync warning:', e));
+    }
 
     return res.json({
       success: true,
@@ -6957,6 +7007,9 @@ app.post('/api/attendance/check-out', async (req, res) => {
       attRecord.updatedAt = now.toISOString();
 
       saveLocalDb();
+      if (supabase) {
+        pushCollectionToSupabase('attendance').catch(e => console.warn('Check-out Supabase sync warning:', e));
+      }
 
       return res.json({
         success: true,

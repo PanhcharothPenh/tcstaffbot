@@ -135,11 +135,7 @@ export default function AttendanceView({
     }
   };
 
-  useEffect(() => {
-    fetchLeaveRequests();
-  }, []);
-
-  const handleManualSync = async () => {
+  const handleManualSync = async (showLog = true) => {
     setIsRefreshing(true);
     try {
       fetchLeaveRequests().catch(() => {});
@@ -149,7 +145,10 @@ export default function AttendanceView({
         const s = json?.data || json?.db;
         if (s?.attendance && Array.isArray(s.attendance)) {
           setAttendance(s.attendance);
-          onAddLog(lang === 'en' ? 'Refreshed latest attendance records' : 'បានទាញយកកំណត់ត្រាវត្តមានចុងក្រោយជោគជ័យ');
+          try { db.saveAttendance(s.attendance); } catch {}
+          if (showLog) {
+            onAddLog(lang === 'en' ? 'Refreshed latest attendance records' : 'បានទាញយកកំណត់ត្រាវត្តមានចុងក្រោយជោគជ័យ');
+          }
         }
         if (s?.leaveRequests && Array.isArray(s.leaveRequests)) {
           setLeaveRequests(s.leaveRequests);
@@ -162,6 +161,18 @@ export default function AttendanceView({
       setIsRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    fetchLeaveRequests();
+    handleManualSync(false);
+
+    // Silent live poll every 10 seconds while viewing attendance page so new mobile scans show up in real time
+    const pollTimer = setInterval(() => {
+      handleManualSync(false);
+    }, 10000);
+
+    return () => clearInterval(pollTimer);
+  }, []);
 
   const handleApproveLeave = async (leave: any, forcedDeductionType?: 'no_deduct' | 'with_deduct', forcedAmount?: number) => {
     const isLate = 

@@ -239,10 +239,62 @@ export default async function handler(req: any, res: any) {
         const rows: any[] = [];
 
         for (const [collectionId, collectionData] of entries) {
-          // Empty arrays are fully allowed (e.g. deleting staff, debts, etc down to 0)
+          let finalData = collectionData;
+
+          // Smart-merge attendance: Never erase live scan records created via mobile/Telegram/Face
+          if (collectionId === 'attendance' && Array.isArray(collectionData)) {
+            const serverAtt = Array.isArray(existingMap['attendance']) ? existingMap['attendance'] : [];
+            const mergedMap = new Map<string, any>();
+
+            for (const item of serverAtt) {
+              if (item && item.id) {
+                mergedMap.set(String(item.id), item);
+              } else if (item && item.staffId && item.date) {
+                mergedMap.set(`${item.staffId}_${item.date}`, item);
+              }
+            }
+
+            for (const clientItem of collectionData) {
+              if (!clientItem) continue;
+              const key = clientItem.id ? String(clientItem.id) : `${clientItem.staffId}_${clientItem.date}`;
+              const existingItem = mergedMap.get(key);
+              if (!existingItem) {
+                mergedMap.set(key, clientItem);
+              } else {
+                const clientTime = new Date(clientItem.updatedAt || 0).getTime();
+                const serverTime = new Date(existingItem.updatedAt || 0).getTime();
+                if (clientTime >= serverTime) {
+                  mergedMap.set(key, { ...existingItem, ...clientItem });
+                } else {
+                  mergedMap.set(key, { ...clientItem, ...existingItem });
+                }
+              }
+            }
+
+            finalData = Array.from(mergedMap.values());
+          }
+
+          // Smart-merge leaveRequests
+          if (collectionId === 'leaveRequests' && Array.isArray(collectionData)) {
+            const serverLeaves = Array.isArray(existingMap['leaveRequests']) ? existingMap['leaveRequests'] : [];
+            const mergedMap = new Map<string, any>();
+            for (const item of serverLeaves) {
+              if (item && item.id) mergedMap.set(String(item.id), item);
+            }
+            for (const clientItem of collectionData) {
+              if (clientItem && clientItem.id) {
+                const exist = mergedMap.get(String(clientItem.id));
+                if (!exist || new Date(clientItem.updatedAt || 0).getTime() >= new Date(exist.updatedAt || 0).getTime()) {
+                  mergedMap.set(String(clientItem.id), { ...(exist || {}), ...clientItem });
+                }
+              }
+            }
+            finalData = Array.from(mergedMap.values());
+          }
+
           rows.push({
             id: collectionId,
-            data: collectionData,
+            data: finalData,
             updated_at: nowIso
           });
         }
