@@ -32,13 +32,6 @@ async function loadUsers(): Promise<any[]> {
       if (!error && data && Array.isArray(data.data) && data.data.length > 0) {
         return data.data;
       }
-      // Check clean24_collections if tc_collections is empty
-      const { data: c24Row } = await supabase.from('clean24_collections').select('data').eq('id', 'users').maybeSingle();
-      if (c24Row && Array.isArray(c24Row.data) && c24Row.data.length > 0) {
-        // Auto-heal into tc_collections
-        await supabase.from('tc_collections').upsert({ id: 'users', data: c24Row.data, updated_at: new Date().toISOString() }, { onConflict: 'id' });
-        return c24Row.data;
-      }
     } catch (e) {
       lastUsersErrorTime = Date.now();
     }

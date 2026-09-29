@@ -114,97 +114,23 @@ export default async function handler(req: any, res: any) {
   const supabase = await getSupabaseClient();
 
   if (req.method === 'GET') {
+    res.setHeader('Cache-Control', 'public, s-maxage=2, stale-while-revalidate=15');
     let lastError = null;
     try {
       if (supabase) {
-        let tcRows: any[] = [];
-        let c24Rows: any[] = [];
-        try {
-          const { data: tcData, error: tcErr } = await supabase.from('tc_collections').select('*');
-          if (tcErr) {
-            lastError = tcErr.message;
-            console.error('[sync-data] Supabase select error:', tcErr);
-          }
-          if (Array.isArray(tcData)) tcRows = tcData;
-
-          try {
-            const { data: c24Data, error: c24Err } = await supabase.from('clean24_collections').select('*');
-            if (!c24Err && Array.isArray(c24Data)) c24Rows = c24Data;
-          } catch (e) {}
-        } catch (e: any) {
-          lastError = e.message;
+        const { data: tcRows, error: tcErr } = await supabase.from('tc_collections').select('id, data');
+        if (tcErr) {
+          lastError = tcErr.message;
+          console.error('[sync-data] Supabase select error:', tcErr);
         }
 
-        const tcMap: Record<string, any> = {};
-        for (const r of tcRows) {
-          if (r && r.id && r.data !== undefined) tcMap[r.id] = r;
-        }
-
-        const c24Map: Record<string, any> = {};
-        for (const r of c24Rows) {
-          if (r && r.id && r.data !== undefined) c24Map[r.id] = r;
-        }
-
-        const allIds = Array.from(new Set([...Object.keys(tcMap), ...Object.keys(c24Map)]));
         const db: Record<string, any> = { ...DEFAULT_PAYLOAD };
-        const rowsToSelfHeal: any[] = [];
-
-        for (const id of allIds) {
-          const tc = tcMap[id];
-          const c24 = c24Map[id];
-
-          const tcVal = tc?.data;
-          const c24Val = c24?.data;
-
-          const hasTc = Array.isArray(tcVal) ? tcVal.length > 0 : Boolean(tcVal && (typeof tcVal === 'object' ? Object.keys(tcVal).length > 0 : true));
-          const hasC24 = Array.isArray(c24Val) ? c24Val.length > 0 : Boolean(c24Val && (typeof c24Val === 'object' ? Object.keys(c24Val).length > 0 : true));
-
-          let chosenData = null;
-          let needsSelfHeal = false;
-
-          if (hasTc && !hasC24) {
-            chosenData = tcVal;
-          } else if (hasC24 && !hasTc) {
-            chosenData = c24Val;
-            needsSelfHeal = true;
-          } else if (hasTc && hasC24) {
-            if (Array.isArray(tcVal) && Array.isArray(c24Val)) {
-              if (c24Val.length > tcVal.length) {
-                chosenData = c24Val;
-                needsSelfHeal = true;
-              } else {
-                chosenData = tcVal;
-              }
-            } else {
-              const tcTime = tc?.updated_at ? new Date(tc.updated_at).getTime() : 0;
-              const c24Time = c24?.updated_at ? new Date(c24.updated_at).getTime() : 0;
-              chosenData = tcTime >= c24Time ? tcVal : c24Val;
-              if (chosenData === c24Val && JSON.stringify(tcVal) !== JSON.stringify(c24Val)) {
-                needsSelfHeal = true;
-              }
-            }
-          } else {
-            chosenData = tcVal ?? c24Val ?? null;
-          }
-
-          if (chosenData !== null && chosenData !== undefined) {
-            db[id] = chosenData;
-            if (needsSelfHeal) {
-              rowsToSelfHeal.push({
-                id,
-                data: chosenData,
-                updated_at: new Date().toISOString()
-              });
+        if (Array.isArray(tcRows)) {
+          for (const r of tcRows) {
+            if (r && r.id && r.data !== undefined) {
+              db[r.id] = r.data;
             }
           }
-        }
-
-        // Auto-heal / restore into tc_collections immediately so tc_collections is 100% complete
-        if (rowsToSelfHeal.length > 0) {
-          supabase.from('tc_collections').upsert(rowsToSelfHeal, { onConflict: 'id' }).then(({ error: healErr }: any) => {
-            if (healErr) console.warn('[sync-data] Auto-heal upsert warning:', healErr.message);
-            else console.log(`[sync-data] Auto-healed ${rowsToSelfHeal.length} collections into tc_collections successfully!`);
-          }).catch((e: any) => console.warn('[sync-data] Auto-heal exception:', e?.message));
         }
 
         const keys = Object.keys(db);
@@ -214,8 +140,7 @@ export default async function handler(req: any, res: any) {
             data: db,
             db,
             source: 'supabase',
-            collectionsCount: keys.length,
-            autoHealedCount: rowsToSelfHeal.length
+            collectionsCount: keys.length
           });
         }
       }
