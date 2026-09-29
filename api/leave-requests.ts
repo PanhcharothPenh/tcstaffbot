@@ -31,11 +31,12 @@ export default async function handler(req: any, res: any) {
   const loadCollection = async (id: string): Promise<any[]> => {
     if (!supabase) return [];
     try {
-      const { data: tcRow, error } = await supabase.from('tc_collections').select('data, updated_at').eq('id', id).maybeSingle();
-      if (error) {
-        console.warn(`[leave-requests] Error loading ${id}:`, error.message);
-        return [];
-      }
+      const { data: tcRow } = await supabase.from('tc_collections').select('data, updated_at').eq('id', id).maybeSingle();
+      if (Array.isArray(tcRow?.data) && tcRow.data.length > 0) return tcRow.data;
+      
+      const { data: c24Row } = await supabase.from('clean24_collections').select('data, updated_at').eq('id', id).maybeSingle();
+      if (Array.isArray(c24Row?.data) && c24Row.data.length > 0) return c24Row.data;
+
       return Array.isArray(tcRow?.data) ? tcRow.data : [];
     } catch (err: any) {
       console.error(`[leave-requests] Exception loading ${id}:`, err?.message);

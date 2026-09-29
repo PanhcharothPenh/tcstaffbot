@@ -118,37 +118,103 @@ export default async function handler(req: any, res: any) {
     try {
       if (supabase) {
         let tcRows: any[] = [];
+        let c24Rows: any[] = [];
         try {
-          const { data, error } = await supabase.from('tc_collections').select('*');
-          if (error) {
-            lastError = error.message;
-            console.error('[sync-data] Supabase select error:', error);
-          } else if (Array.isArray(data)) {
-            tcRows = data;
+          const [{ data: tcData, error: tcErr }, { data: c24Data }] = await Promise.all([
+            supabase.from('tc_collections').select('*'),
+            supabase.from('clean24_collections').select('*').catch(() => ({ data: [] }))
+          ]);
+          if (tcErr) {
+            lastError = tcErr.message;
+            console.error('[sync-data] Supabase select error:', tcErr);
           }
+          if (Array.isArray(tcData)) tcRows = tcData;
+          if (Array.isArray(c24Data)) c24Rows = c24Data;
         } catch (e: any) {
           lastError = e.message;
         }
 
-        const collectionMap: Record<string, any> = {};
+        const tcMap: Record<string, any> = {};
         for (const r of tcRows) {
-          if (r && r.id && r.data !== undefined) {
-            collectionMap[r.id] = r;
+          if (r && r.id && r.data !== undefined) tcMap[r.id] = r;
+        }
+
+        const c24Map: Record<string, any> = {};
+        for (const r of c24Rows) {
+          if (r && r.id && r.data !== undefined) c24Map[r.id] = r;
+        }
+
+        const allIds = Array.from(new Set([...Object.keys(tcMap), ...Object.keys(c24Map)]));
+        const db: Record<string, any> = { ...DEFAULT_PAYLOAD };
+        const rowsToSelfHeal: any[] = [];
+
+        for (const id of allIds) {
+          const tc = tcMap[id];
+          const c24 = c24Map[id];
+
+          const tcVal = tc?.data;
+          const c24Val = c24?.data;
+
+          const hasTc = Array.isArray(tcVal) ? tcVal.length > 0 : Boolean(tcVal && (typeof tcVal === 'object' ? Object.keys(tcVal).length > 0 : true));
+          const hasC24 = Array.isArray(c24Val) ? c24Val.length > 0 : Boolean(c24Val && (typeof c24Val === 'object' ? Object.keys(c24Val).length > 0 : true));
+
+          let chosenData = null;
+          let needsSelfHeal = false;
+
+          if (hasTc && !hasC24) {
+            chosenData = tcVal;
+          } else if (hasC24 && !hasTc) {
+            chosenData = c24Val;
+            needsSelfHeal = true;
+          } else if (hasTc && hasC24) {
+            if (Array.isArray(tcVal) && Array.isArray(c24Val)) {
+              if (c24Val.length > tcVal.length) {
+                chosenData = c24Val;
+                needsSelfHeal = true;
+              } else {
+                chosenData = tcVal;
+              }
+            } else {
+              const tcTime = tc?.updated_at ? new Date(tc.updated_at).getTime() : 0;
+              const c24Time = c24?.updated_at ? new Date(c24.updated_at).getTime() : 0;
+              chosenData = tcTime >= c24Time ? tcVal : c24Val;
+              if (chosenData === c24Val && JSON.stringify(tcVal) !== JSON.stringify(c24Val)) {
+                needsSelfHeal = true;
+              }
+            }
+          } else {
+            chosenData = tcVal ?? c24Val ?? null;
+          }
+
+          if (chosenData !== null && chosenData !== undefined) {
+            db[id] = chosenData;
+            if (needsSelfHeal) {
+              rowsToSelfHeal.push({
+                id,
+                data: chosenData,
+                updated_at: new Date().toISOString()
+              });
+            }
           }
         }
 
-        const keys = Object.keys(collectionMap);
+        // Auto-heal / restore into tc_collections immediately so tc_collections is 100% complete
+        if (rowsToSelfHeal.length > 0) {
+          supabase.from('tc_collections').upsert(rowsToSelfHeal, { onConflict: 'id' }).then(({ error: healErr }: any) => {
+            if (healErr) console.warn('[sync-data] Auto-heal upsert warning:', healErr.message);
+            else console.log(`[sync-data] Auto-healed ${rowsToSelfHeal.length} collections into tc_collections successfully!`);
+          }).catch((e: any) => console.warn('[sync-data] Auto-heal exception:', e?.message));
+        }
+
+        const keys = Object.keys(db);
         if (keys.length > 0) {
-          const db: Record<string, any> = { ...DEFAULT_PAYLOAD };
-          for (const key of keys) {
-            db[key] = collectionMap[key].data;
-          }
           return res.status(200).json({
             success: true,
             data: db,
             db,
             source: 'supabase',
-            collectionsCount: keys.length
+            collectionsCount: keys.length,
+            autoHealedCount: rowsToSelfHeal.length
           });
         }
       }
@@ -240,6 +306,15 @@ export default async function handler(req: any, res: any) {
 
         for (const [collectionId, collectionData] of entries) {
           let finalData = collectionData;
+
+          // Guard: Never wipe an existing populated collection with an empty array unless explicitly deleting
+          if (Array.isArray(collectionData) && collectionData.length === 0) {
+            const serverItems = existingMap[collectionId];
+            if (Array.isArray(serverItems) && serverItems.length > 0) {
+              console.warn(`[sync-data] WIPE GUARD: Blocked overwriting collection "${collectionId}" (${serverItems.length} items) with empty array.`);
+              continue;
+            }
+          }
 
           // Smart-merge attendance: Never erase live scan records created via mobile/Telegram/Face
           if (collectionId === 'attendance' && Array.isArray(collectionData)) {

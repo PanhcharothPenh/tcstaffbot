@@ -148,19 +148,77 @@ if (supabase) {
 async function pullCollectionsFromSupabase() {
   if (!supabase) return;
   try {
-    let { data, error } = await supabase.from('tc_collections').select('*');
-    if (error) throw error;
+    const [{ data: tcData, error: tcErr }, { data: c24Data }] = await Promise.all([
+      supabase.from('tc_collections').select('*'),
+      supabase.from('clean24_collections').select('*').catch(() => ({ data: [] }))
+    ]);
+    if (tcErr) throw tcErr;
     
+    const tcMap: Record<string, any> = {};
+    if (Array.isArray(tcData)) {
+      for (const r of tcData) if (r && r.id) tcMap[r.id] = r;
+    }
+    const c24Map: Record<string, any> = {};
+    if (Array.isArray(c24Data)) {
+      for (const r of c24Data) if (r && r.id) c24Map[r.id] = r;
+    }
+
+    const allIds = Array.from(new Set([...Object.keys(tcMap), ...Object.keys(c24Map)]));
     const existingIds = new Set();
-    if (data && data.length > 0) {
-      data.forEach(row => {
-        localDb[row.id] = row.data;
-        lastPushedDbJson[row.id] = JSON.stringify(row.data);
-        existingIds.add(row.id);
+    const rowsToUpsert: any[] = [];
+
+    for (const id of allIds) {
+      const tc = tcMap[id];
+      const c24 = c24Map[id];
+
+      const tcVal = tc?.data;
+      const c24Val = c24?.data;
+
+      const hasTc = Array.isArray(tcVal) ? tcVal.length > 0 : Boolean(tcVal && (typeof tcVal === 'object' ? Object.keys(tcVal).length > 0 : true));
+      const hasC24 = Array.isArray(c24Val) ? c24Val.length > 0 : Boolean(c24Val && (typeof c24Val === 'object' ? Object.keys(c24Val).length > 0 : true));
+
+      let chosen = null;
+      let needsHeal = false;
+
+      if (hasTc && !hasC24) {
+        chosen = tcVal;
+      } else if (hasC24 && !hasTc) {
+        chosen = c24Val;
+        needsHeal = true;
+      } else if (hasTc && hasC24) {
+        if (Array.isArray(tcVal) && Array.isArray(c24Val)) {
+          if (c24Val.length > tcVal.length) {
+            chosen = c24Val;
+            needsHeal = true;
+          } else {
+            chosen = tcVal;
+          }
+        } else {
+          chosen = tcVal;
+        }
+      } else {
+        chosen = tcVal ?? c24Val ?? null;
+      }
+
+      if (chosen !== null && chosen !== undefined) {
+        localDb[id] = chosen;
+        lastPushedDbJson[id] = JSON.stringify(chosen);
+        existingIds.add(id);
+        if (needsHeal) {
+          rowsToUpsert.push({ id, data: chosen, updated_at: new Date().toISOString() });
+        }
+      }
+    }
+
+    if (rowsToUpsert.length > 0) {
+      supabase.from('tc_collections').upsert(rowsToUpsert, { onConflict: 'id' }).catch((e: any) => {
+        console.warn('[TC Staff Server] Auto-heal push error:', e?.message);
       });
-      console.log('[TC Staff Server] Database successfully synchronized from Supabase!');
+    }
+
+    if (existingIds.size > 0) {
+      console.log(`[TC Staff Server] Database successfully synchronized (${existingIds.size} collections, ${rowsToUpsert.length} auto-healed)!`);
     } else {
-      // Supabase is empty (first run). Trigger seedUsersAndRoles to populate
       console.log('[TC Staff Server] Supabase database is empty. Triggering self-healing database seeding...');
       seedUsersAndRoles();
     }
