@@ -1830,11 +1830,13 @@ export default async function handler(req: any, res: any) {
         const missingCheckInsShift1: any[] = [];
         const missingCheckOutsShift1: any[] = [];
         const workingShift1: any[] = [];
+        const completedShift1: any[] = [];
         const permissionsShift1: any[] = [];
 
         const missingCheckInsShift2: any[] = [];
         const missingCheckOutsShift2: any[] = [];
         const workingShift2: any[] = [];
+        const completedShift2: any[] = [];
         const permissionsShift2: any[] = [];
 
         for (const s of allStaff) {
@@ -1986,8 +1988,8 @@ export default async function handler(req: any, res: any) {
               checkOut: att.checkOut,
               shiftRange: `${startTimeDisplay} - ${endTimeDisplay}`
             };
-            if (isShift2) workingShift2.push(item);
-            else workingShift1.push(item);
+            if (isShift2) completedShift2.push(item);
+            else completedShift1.push(item);
           }
         }
 
@@ -2019,9 +2021,10 @@ export default async function handler(req: any, res: any) {
           missingIn: any[],
           missingOut: any[],
           working: any[],
+          completed: any[],
           perms: any[]
         ): string => {
-          const totalStaff = missingIn.length + missingOut.length + working.length + perms.length;
+          const totalStaff = missingIn.length + missingOut.length + working.length + completed.length + perms.length;
           if (totalStaff === 0) return '';
 
           let out = `<b>${shiftTitle}</b>\n\n`;
@@ -2040,7 +2043,7 @@ export default async function handler(req: any, res: any) {
             out += `\n`;
           }
 
-          // 2. មិនទាន់ Check Out
+          // 2. មិនទាន់ Check Out (ហួសម៉ោងចេញ)
           if (missingOut.length > 0) {
             out += `🟠 <b>មិនទាន់ Check Out</b>\n`;
             missingOut.forEach((item) => {
@@ -2050,9 +2053,9 @@ export default async function handler(req: any, res: any) {
             out += `\n`;
           }
 
-          // 3. បាន Check In
+          // 3. កំពុងបំពេញការងារ
           if (working.length > 0) {
-            out += `🟢 <b>បាន Check In</b>\n`;
+            out += `🟢 <b>កំពុងបំពេញការងារ</b>\n`;
             const branchMap = new Map<string, any[]>();
             for (const w of working) {
               const bName = getShortBranchName(w.branchName);
@@ -2076,7 +2079,33 @@ export default async function handler(req: any, res: any) {
             }
           }
 
-          // 4. ច្បាប់ឈប់សម្រាក
+          // 4. បាន Check Out រួចរាល់
+          if (completed.length > 0) {
+            out += `🔵 <b>បាន Check Out</b>\n`;
+            const branchMap = new Map<string, any[]>();
+            for (const c of completed) {
+              const bName = getShortBranchName(c.branchName);
+              if (!branchMap.has(bName)) branchMap.set(bName, []);
+              branchMap.get(bName)!.push(c);
+            }
+
+            if (branchMap.size > 1) {
+              for (const [bName, list] of branchMap.entries()) {
+                out += `<b>${bName}</b>\n`;
+                list.forEach((c) => {
+                  out += `• ${c.staff.fullName} — ចូល <code>${c.checkIn}</code> ➔ ចេញ <code>${c.checkOut}</code>\n`;
+                });
+                out += `\n`;
+              }
+            } else {
+              completed.forEach((c) => {
+                out += `• ${c.staff.fullName} — ចូល <code>${c.checkIn}</code> ➔ ចេញ <code>${c.checkOut}</code>\n`;
+              });
+              out += `\n`;
+            }
+          }
+
+          // 5. ច្បាប់ឈប់សម្រាក
           if (perms.length > 0) {
             out += `🏖️ <b>ច្បាប់ឈប់សម្រាក</b>\n`;
             perms.forEach((p) => {
@@ -2085,8 +2114,11 @@ export default async function handler(req: any, res: any) {
             out += `\n`;
           }
 
-          // 5. សរុបវេន
-          out += `<b>សរុប៖ ${totalStaff} នាក់ | 🟢 ${working.length} | 🔴 ${missingIn.length}</b>`;
+          // 6. សរុបវេន
+          out += `<b>សរុប៖ ${totalStaff} នាក់</b>`;
+          if (working.length > 0) out += ` | 🟢 ${working.length}`;
+          if (completed.length > 0) out += ` | 🔵 ${completed.length}`;
+          if (missingIn.length > 0) out += ` | 🔴 ${missingIn.length}`;
           if (missingOut.length > 0) out += ` | 🟠 ${missingOut.length}`;
           if (perms.length > 0) out += ` | 🏖️ ${perms.length}`;
           out += `\n\n`;
@@ -2094,26 +2126,28 @@ export default async function handler(req: any, res: any) {
           return out;
         };
 
-        const shift1Block = buildShiftSection('☀️ វេនទី 1', missingCheckInsShift1, missingCheckOutsShift1, workingShift1, permissionsShift1);
-        const shift2Block = buildShiftSection('🌙 វេនទី 2', missingCheckInsShift2, missingCheckOutsShift2, workingShift2, permissionsShift2);
+        const shift1Block = buildShiftSection('☀️ វេនទី 1', missingCheckInsShift1, missingCheckOutsShift1, workingShift1, completedShift1, permissionsShift1);
+        const shift2Block = buildShiftSection('🌙 វេនទី 2', missingCheckInsShift2, missingCheckOutsShift2, workingShift2, completedShift2, permissionsShift2);
 
         if (shift1Block) summaryText += shift1Block;
         if (shift1Block && shift2Block) summaryText += `────────────\n\n`;
         if (shift2Block) summaryText += shift2Block;
 
-        const totalShift1Staff = missingCheckInsShift1.length + missingCheckOutsShift1.length + workingShift1.length + permissionsShift1.length;
-        const totalShift2Staff = missingCheckInsShift2.length + missingCheckOutsShift2.length + workingShift2.length + permissionsShift2.length;
+        const totalShift1Staff = missingCheckInsShift1.length + missingCheckOutsShift1.length + workingShift1.length + completedShift1.length + permissionsShift1.length;
+        const totalShift2Staff = missingCheckInsShift2.length + missingCheckOutsShift2.length + workingShift2.length + completedShift2.length + permissionsShift2.length;
         const grandTotal = totalShift1Staff + totalShift2Staff;
-        const grandCheckIn = workingShift1.length + workingShift2.length;
+        const grandWorking = workingShift1.length + workingShift2.length;
+        const grandCompleted = completedShift1.length + completedShift2.length;
         const grandMissingIn = missingCheckInsShift1.length + missingCheckInsShift2.length;
         const grandMissingOut = missingCheckOutsShift1.length + missingCheckOutsShift2.length;
         const grandPerms = permissionsShift1.length + permissionsShift2.length;
 
         if (grandTotal > 0) {
           summaryText += `────────────\n\n` +
-            `📊 <b>សរុបទាំងអស់៖ ${grandTotal} នាក់</b>\n` +
-            `🟢 បាន Check In៖ <b>${grandCheckIn}</b>\n` +
-            `🔴 មិនទាន់ Check In៖ <b>${grandMissingIn}</b>\n`;
+            `📊 <b>សរុបទាំងអស់៖ ${grandTotal} នាក់</b>\n`;
+          if (grandWorking > 0) summaryText += `🟢 កំពុងបំពេញការងារ៖ <b>${grandWorking}</b>\n`;
+          if (grandCompleted > 0) summaryText += `🔵 បាន Check Out៖ <b>${grandCompleted}</b>\n`;
+          if (grandMissingIn > 0) summaryText += `🔴 មិនទាន់ Check In៖ <b>${grandMissingIn}</b>\n`;
           if (grandMissingOut > 0) summaryText += `🟠 មិនទាន់ Check Out៖ <b>${grandMissingOut}</b>\n`;
           if (grandPerms > 0) summaryText += `🏖️ ច្បាប់៖ <b>${grandPerms}</b>\n`;
         }
