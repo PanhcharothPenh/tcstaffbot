@@ -400,6 +400,36 @@ export default function AttendanceView({
     );
   }
 
+  const normalizeDateStr = (d?: any): string => {
+    if (!d) return '';
+    const s = String(d).trim();
+    if (s.includes('T')) return s.split('T')[0];
+    const parts = s.replace(/[\/\.]/g, '-').split('-');
+    if (parts.length === 3) {
+      if (parts[0].length === 4) {
+        const y = parts[0];
+        const m = parts[1].padStart(2, '0');
+        const day = parts[2].padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      } else if (parts[2].length === 4) {
+        const day = parts[0].padStart(2, '0');
+        const m = parts[1].padStart(2, '0');
+        const y = parts[2];
+        return `${y}-${m}-${day}`;
+      }
+    }
+    return s;
+  };
+
+  const isDateMatching = (recordDate?: string, targetDate?: string): boolean => {
+    if (!targetDate || targetDate === 'all' || !targetDate.trim()) return true;
+    if (!recordDate) return false;
+    const n1 = normalizeDateStr(recordDate);
+    const n2 = normalizeDateStr(targetDate);
+    if (n1 && n2 && n1 === n2) return true;
+    return recordDate === targetDate || recordDate.startsWith(targetDate) || targetDate.startsWith(recordDate);
+  };
+
   // Filtered List
   const filteredRecords = useMemo(() => {
     let list = Array.isArray(attendance) ? attendance : [];
@@ -418,7 +448,7 @@ export default function AttendanceView({
     }
 
     if (selectedDate && selectedDate !== 'all') {
-      list = list.filter(a => a.date === selectedDate);
+      list = list.filter(a => isDateMatching(a.date, selectedDate));
     }
 
     if (filterStaffId !== 'all') {
@@ -449,7 +479,7 @@ export default function AttendanceView({
       const st = staffList.find(s => s.id === a.staffId);
       if (st && (st.role === 'Owner' || st.roleId === 'owner' || String(st.position || '').toLowerCase().includes('owner'))) return false;
       const matchesBranch = filterBranchId === 'all' || a.branchId === filterBranchId;
-      return matchesBranch && a.date === todayTarget;
+      return matchesBranch && isDateMatching(a.date, todayTarget);
     });
 
     const totalToday = todayList.length;
@@ -1648,7 +1678,7 @@ export default function AttendanceView({
                       <tr key={rec.id} className={`transition-colors ${
                         rec.status === 'Permission'
                           ? 'bg-rose-50/70 border-l-4 border-l-rose-500 hover:bg-rose-100/60'
-                          : rec.date === todayPhnomPenh
+                          : isDateMatching(rec.date, todayPhnomPenh)
                           ? 'bg-blue-50/30 hover:bg-blue-50/50'
                           : 'hover:bg-slate-50/60'
                       }`}>
@@ -1678,7 +1708,7 @@ export default function AttendanceView({
                                 <span>ចេញមុន {rec.earlyMinutes}mn (~${Number(rec.indicativeEarlyAmount || 0).toFixed(2)})</span>
                               </span>
                             ) : null}
-                            {rec.date === todayPhnomPenh && rec.status !== 'Permission' && rec.status !== 'Late' && (
+                            {isDateMatching(rec.date, todayPhnomPenh) && rec.status !== 'Permission' && rec.status !== 'Late' && (
                               <span className="px-1.5 py-0.2 rounded-md text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
                                 ថ្ងៃនេះ
                               </span>
