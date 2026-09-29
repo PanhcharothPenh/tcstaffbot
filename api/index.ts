@@ -2227,12 +2227,25 @@ export default async function handler(req: any, res: any) {
           }
         }
 
-        // Robust matching: find all records for staff and prioritize checked in
+        // Robust matching: find all records for staff and prioritize completed checkout, then checked in
         const matchingStaffRecords = todayAtt.filter((a: any) => isRecordForStaff(a, s));
-        const att = matchingStaffRecords.find((a: any) => isCheckedIn(a)) || matchingStaffRecords[matchingStaffRecords.length - 1] || null;
+        const attCompleted = matchingStaffRecords.find((a: any) => 
+          isRealTime(a.checkOut) || 
+          String(a.status || '').toLowerCase() === 'completed' || 
+          String(a.status || '').toLowerCase() === 'checkedout'
+        );
+        const attCheckedIn = matchingStaffRecords.find((a: any) => isCheckedIn(a));
+        const att = attCompleted || attCheckedIn || matchingStaffRecords[matchingStaffRecords.length - 1] || null;
 
         const hasRealIn = isCheckedIn(att);
-        const hasRealOut = att && isRealTime(att.checkOut);
+        const hasRealOut = Boolean(
+          att && (
+            isRealTime(att.checkOut) ||
+            String(att.status || '').toLowerCase() === 'completed' ||
+            String(att.status || '').toLowerCase() === 'checkedout' ||
+            (att.checkOut && att.checkOut !== '--' && !['working', 'late', 'absent', 'present', 'permission'].includes(String(att.checkOut).toLowerCase().trim()))
+          )
+        );
         const hasPermission = !hasRealIn && (att?.status === 'Permission' || todayLeaves.some((l: any) => isRecordForStaff(l, s)));
 
         if (hasPermission) {
@@ -2257,6 +2270,19 @@ export default async function handler(req: any, res: any) {
             }
           } else {
             displayCheckIn = 'បាន Check In';
+          }
+        }
+
+        let displayCheckOut = att?.checkOut;
+        if (!displayCheckOut || displayCheckOut === '--' || !isRealTime(displayCheckOut)) {
+          if (att?.updatedAt && (String(att?.status || '').toLowerCase() === 'completed' || String(att?.status || '').toLowerCase() === 'checkedout')) {
+            try {
+              displayCheckOut = new Date(att.updatedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Phnom_Penh' });
+            } catch (_) {
+              displayCheckOut = 'បាន Check Out';
+            }
+          } else {
+            displayCheckOut = isRealTime(att?.checkOut) ? att.checkOut : 'បាន Check Out';
           }
         }
 
@@ -2334,7 +2360,7 @@ export default async function handler(req: any, res: any) {
             staff: s,
             branchName: bName,
             checkIn: displayCheckIn,
-            checkOut: att.checkOut,
+            checkOut: displayCheckOut,
             shiftLabel,
             shiftRange: `${startTimeDisplay} - ${endTimeDisplay}`
           };

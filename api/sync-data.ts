@@ -243,6 +243,53 @@ export default async function handler(req: any, res: any) {
 
           // Smart-merge attendance: Never erase live scan records created via mobile/Telegram/Face
           if (collectionId === 'attendance' && Array.isArray(collectionData)) {
+            const isRealTime = (t?: any) => Boolean(t && t !== '--' && /\d/.test(String(t)) && !String(t).toLowerCase().includes('absent'));
+            const isCompletedAtt = (r?: any) => Boolean(
+              r && (
+                isRealTime(r.checkOut) ||
+                String(r.status || '').toLowerCase() === 'completed' ||
+                String(r.status || '').toLowerCase() === 'checkedout'
+              )
+            );
+
+            const mergeAttendance = (serverItem: any, clientItem: any) => {
+              const clientTime = new Date(clientItem.updatedAt || 0).getTime();
+              const serverTime = new Date(serverItem.updatedAt || 0).getTime();
+              const base = (clientTime >= serverTime) ? { ...serverItem, ...clientItem } : { ...clientItem, ...serverItem };
+
+              // Never overwrite real checkIn with empty/--
+              if (isRealTime(serverItem.checkIn) && !isRealTime(clientItem.checkIn)) {
+                base.checkIn = serverItem.checkIn;
+                base.checkInPhoto = serverItem.checkInPhoto || clientItem.checkInPhoto;
+                base.checkInFaceScore = serverItem.checkInFaceScore ?? clientItem.checkInFaceScore;
+                base.checkInLatitude = serverItem.checkInLatitude ?? clientItem.checkInLatitude;
+                base.checkInLongitude = serverItem.checkInLongitude ?? clientItem.checkInLongitude;
+              } else if (isRealTime(clientItem.checkIn)) {
+                base.checkIn = clientItem.checkIn;
+              }
+
+              // Never overwrite real checkOut with empty/--
+              if (isRealTime(serverItem.checkOut) && !isRealTime(clientItem.checkOut)) {
+                base.checkOut = serverItem.checkOut;
+                base.checkOutPhoto = serverItem.checkOutPhoto || clientItem.checkOutPhoto;
+                base.checkOutFaceScore = serverItem.checkOutFaceScore ?? clientItem.checkOutFaceScore;
+                base.checkOutLatitude = serverItem.checkOutLatitude ?? clientItem.checkOutLatitude;
+                base.checkOutLongitude = serverItem.checkOutLongitude ?? clientItem.checkOutLongitude;
+                base.status = 'Completed';
+              } else if (isRealTime(clientItem.checkOut)) {
+                base.checkOut = clientItem.checkOut;
+              }
+
+              if (isCompletedAtt(serverItem) && !isRealTime(clientItem.checkOut)) {
+                base.status = 'Completed';
+                if (serverItem.checkOut && !isRealTime(base.checkOut)) {
+                  base.checkOut = serverItem.checkOut;
+                }
+              }
+
+              return base;
+            };
+
             const serverAtt = Array.isArray(existingMap['attendance']) ? existingMap['attendance'] : [];
             const mergedMap = new Map<string, any>();
 
@@ -261,13 +308,7 @@ export default async function handler(req: any, res: any) {
               if (!existingItem) {
                 mergedMap.set(key, clientItem);
               } else {
-                const clientTime = new Date(clientItem.updatedAt || 0).getTime();
-                const serverTime = new Date(existingItem.updatedAt || 0).getTime();
-                if (clientTime >= serverTime) {
-                  mergedMap.set(key, { ...existingItem, ...clientItem });
-                } else {
-                  mergedMap.set(key, { ...clientItem, ...existingItem });
-                }
+                mergedMap.set(key, mergeAttendance(existingItem, clientItem));
               }
             }
 

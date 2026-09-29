@@ -2452,8 +2452,55 @@ app.post('/api/sync-data', async (req, res) => {
   try {
     const payload = req.body as Partial<SyncPayload>;
     
-    // Smart merge attendance so mobile scan check-ins are not wiped out
+    // Smart merge attendance so mobile scan check-ins/outs are not wiped out
     if (payload.attendance && Array.isArray(payload.attendance)) {
+      const isRealTime = (t?: any) => Boolean(t && t !== '--' && /\d/.test(String(t)) && !String(t).toLowerCase().includes('absent'));
+      const isCompletedAtt = (r?: any) => Boolean(
+        r && (
+          isRealTime(r.checkOut) ||
+          String(r.status || '').toLowerCase() === 'completed' ||
+          String(r.status || '').toLowerCase() === 'checkedout'
+        )
+      );
+
+      const mergeAttendance = (serverItem: any, clientItem: any) => {
+        const clientTime = new Date(clientItem.updatedAt || 0).getTime();
+        const serverTime = new Date(serverItem.updatedAt || 0).getTime();
+        const base = (clientTime >= serverTime) ? { ...serverItem, ...clientItem } : { ...clientItem, ...serverItem };
+
+        // Never overwrite real checkIn with empty/--
+        if (isRealTime(serverItem.checkIn) && !isRealTime(clientItem.checkIn)) {
+          base.checkIn = serverItem.checkIn;
+          base.checkInPhoto = serverItem.checkInPhoto || clientItem.checkInPhoto;
+          base.checkInFaceScore = serverItem.checkInFaceScore ?? clientItem.checkInFaceScore;
+          base.checkInLatitude = serverItem.checkInLatitude ?? clientItem.checkInLatitude;
+          base.checkInLongitude = serverItem.checkInLongitude ?? clientItem.checkInLongitude;
+        } else if (isRealTime(clientItem.checkIn)) {
+          base.checkIn = clientItem.checkIn;
+        }
+
+        // Never overwrite real checkOut with empty/--
+        if (isRealTime(serverItem.checkOut) && !isRealTime(clientItem.checkOut)) {
+          base.checkOut = serverItem.checkOut;
+          base.checkOutPhoto = serverItem.checkOutPhoto || clientItem.checkOutPhoto;
+          base.checkOutFaceScore = serverItem.checkOutFaceScore ?? clientItem.checkOutFaceScore;
+          base.checkOutLatitude = serverItem.checkOutLatitude ?? clientItem.checkOutLatitude;
+          base.checkOutLongitude = serverItem.checkOutLongitude ?? clientItem.checkOutLongitude;
+          base.status = 'Completed';
+        } else if (isRealTime(clientItem.checkOut)) {
+          base.checkOut = clientItem.checkOut;
+        }
+
+        if (isCompletedAtt(serverItem) && !isRealTime(clientItem.checkOut)) {
+          base.status = 'Completed';
+          if (serverItem.checkOut && !isRealTime(base.checkOut)) {
+            base.checkOut = serverItem.checkOut;
+          }
+        }
+
+        return base;
+      };
+
       const existingAtt = Array.isArray(localDb.attendance) ? localDb.attendance : [];
       const mergedMap = new Map<string, any>();
       for (const item of existingAtt) {
@@ -2467,13 +2514,7 @@ app.post('/api/sync-data', async (req, res) => {
         if (!existingItem) {
           mergedMap.set(key, clientItem);
         } else {
-          const clientTime = new Date(clientItem.updatedAt || 0).getTime();
-          const serverTime = new Date(existingItem.updatedAt || 0).getTime();
-          if (clientTime >= serverTime) {
-            mergedMap.set(key, { ...existingItem, ...clientItem });
-          } else {
-            mergedMap.set(key, { ...clientItem, ...existingItem });
-          }
+          mergedMap.set(key, mergeAttendance(existingItem, clientItem));
         }
       }
       payload.attendance = Array.from(mergedMap.values());
@@ -4977,10 +5018,23 @@ function getMissingAttendanceReportData(targetDateStr?: string) {
     };
 
     const matchingStaffRecords = todayAtt.filter((a: any) => isRecordForStaff(a, s));
-    const att = matchingStaffRecords.find((a: any) => isCheckedIn(a)) || matchingStaffRecords[matchingStaffRecords.length - 1] || null;
+    const attCompleted = matchingStaffRecords.find((a: any) => 
+      isRealTime(a.checkOut) || 
+      String(a.status || '').toLowerCase() === 'completed' || 
+      String(a.status || '').toLowerCase() === 'checkedout'
+    );
+    const attCheckedIn = matchingStaffRecords.find((a: any) => isCheckedIn(a));
+    const att = attCompleted || attCheckedIn || matchingStaffRecords[matchingStaffRecords.length - 1] || null;
 
     const hasRealIn = isCheckedIn(att);
-    const hasRealOut = att && isRealTime(att.checkOut);
+    const hasRealOut = Boolean(
+      att && (
+        isRealTime(att.checkOut) ||
+        String(att.status || '').toLowerCase() === 'completed' ||
+        String(att.status || '').toLowerCase() === 'checkedout' ||
+        (att.checkOut && att.checkOut !== '--' && !['working', 'late', 'absent', 'present', 'permission'].includes(String(att.checkOut).toLowerCase().trim()))
+      )
+    );
     const hasPermission = !hasRealIn && (att?.status === 'Permission' || todayLeaves.some((l: any) => isRecordForStaff(l, s)));
 
     if (hasPermission) {
@@ -5002,6 +5056,19 @@ function getMissingAttendanceReportData(targetDateStr?: string) {
         }
       } else {
         displayCheckIn = 'បាន Check In';
+      }
+    }
+
+    let displayCheckOut = att?.checkOut;
+    if (!displayCheckOut || displayCheckOut === '--' || !isRealTime(displayCheckOut)) {
+      if (att?.updatedAt && (String(att?.status || '').toLowerCase() === 'completed' || String(att?.status || '').toLowerCase() === 'checkedout')) {
+        try {
+          displayCheckOut = new Date(att.updatedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Phnom_Penh' });
+        } catch (_) {
+          displayCheckOut = 'បាន Check Out';
+        }
+      } else {
+        displayCheckOut = isRealTime(att?.checkOut) ? att.checkOut : 'បាន Check Out';
       }
     }
 
@@ -5043,7 +5110,7 @@ function getMissingAttendanceReportData(targetDateStr?: string) {
         currentlyWorking.push({
           staff: s,
           branchName: bName,
-          checkIn: att.checkIn,
+          checkIn: displayCheckIn,
           shiftName: `${shiftLabel} (${startTimeDisplay} - ${endTimeDisplay})`
         });
       }
@@ -5051,8 +5118,8 @@ function getMissingAttendanceReportData(targetDateStr?: string) {
       completedToday.push({
         staff: s,
         branchName: bName,
-        checkIn: att.checkIn,
-        checkOut: att.checkOut
+        checkIn: displayCheckIn,
+        checkOut: displayCheckOut
       });
     }
   }
