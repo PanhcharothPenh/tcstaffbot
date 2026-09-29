@@ -5374,12 +5374,12 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
           { text: '🚪 ចុះវត្តមានចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
         ],
         [
-          { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
-          { text: '⚠️ មិនទាន់ Check In/Out' }
+          { text: '📊 របាយការណ៍ Check In / Out' },
+          { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
         ],
         [
-          { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' },
-          { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } }
+          { text: '📈 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history` } },
+          { text: '📝 សុំច្បាប់' }
         ],
         [
           { text: '👤 ព័ត៌មានគណនី' },
@@ -5392,10 +5392,22 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
 
     const persistentKb = isOwnerRole ? ownerReplyKeyboard : staffReplyKeyboard;
 
-    // Handle Missing Attendance (មិនទាន់ Check In / មិនទាន់ Check Out)
+    // Handle Missing Attendance (មិនទាន់ Check In / មិនទាន់ Check Out / របាយការណ៍វត្តមាន)
     const isMissingAttendanceAction =
       text.toLowerCase().startsWith('/missing') ||
+      text.toLowerCase().startsWith('/attendance_report') ||
+      text.toLowerCase().startsWith('/all_attendance') ||
       text.toLowerCase().includes('missing') ||
+      text.includes('វត្តមានបុគ្គលិកទាំងអស់') ||
+      text.includes('វត្តមានបុគ្គលិក') ||
+      text.includes('វត្តមាន') ||
+      text.includes('របាយការណ៍ Check In / Out') ||
+      text.includes('របាយការណ៍ Check In') ||
+      text.includes('របាយការណ៍ check in') ||
+      text.includes('Check In / Out') ||
+      text.includes('check in / out') ||
+      text.includes('Check In/Out') ||
+      text.includes('check in/out') ||
       text.includes('មិនទាន់ Check In/Out') ||
       text.includes('មិនទាន់ Check In') ||
       text.includes('មិនទាន់ Check Out') ||

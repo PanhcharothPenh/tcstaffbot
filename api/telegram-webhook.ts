@@ -979,15 +979,14 @@ export default async function handler(req: any, res: any) {
             { text: '🚪 ចុះវត្តមានចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
           ],
           [
-            { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
-            { text: '⚠️ មិនទាន់ Check In/Out' }
+            { text: '📊 របាយការណ៍ Check In / Out' },
+            { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
           ],
           [
-            { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' },
-            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+            { text: '📈 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
+            { text: '📝 សុំច្បាប់' }
           ],
           [
-            { text: '📝 សុំច្បាប់' },
             { text: '👤 ព័ត៌មានគណនី' },
             { text: '❓ របៀបប្រើប្រាស់' }
           ]
@@ -1001,15 +1000,14 @@ export default async function handler(req: any, res: any) {
             { text: '🚪 ចុះវត្តមានចេញ' }
           ],
           [
-            { text: '👥 វត្តមានបុគ្គលិកទាំងអស់' },
-            { text: '⚠️ មិនទាន់ Check In/Out' }
+            { text: '📊 របាយការណ៍ Check In / Out' },
+            { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
           ],
           [
-            { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' },
-            { text: '📊 មើលប្រវត្តិវត្តមាន' }
+            { text: '📈 មើលប្រវត្តិវត្តមាន' },
+            { text: '📝 សុំច្បាប់' }
           ],
           [
-            { text: '📝 សុំច្បាប់' },
             { text: '👤 ព័ត៌មានគណនី' },
             { text: '❓ របៀបប្រើប្រាស់' }
           ]
@@ -1700,109 +1698,23 @@ export default async function handler(req: any, res: any) {
       // =================================================================================
       // ACTION: 👥 របាយការណ៍វត្តមានបុគ្គលិកទាំងអស់ (OWNER: ALL STAFF ATTENDANCE TODAY)
       // =================================================================================
-      if (userText.includes('វត្តមានបុគ្គលិកទាំងអស់') || (userText.includes('វត្តមានបុគ្គលិក') && isOwnerRole)) {
-        const todayRecords = allAtt.filter((a: any) => isTodayDateMatch(a.date, a.createdAt));
-
-        const presentStaffMap = new Map<string, { staff: any, att: any }>();
-        const permissionStaff: any[] = [];
-        const absentStaff: any[] = [];
-
-        for (const s of allStaff) {
-          if (s.shift === 'Day Off') continue;
-          const matchingStaffRecords = todayRecords.filter((a: any) => isRecordForStaff(a, s));
-          const att = matchingStaffRecords.find((a: any) => isCheckedIn(a)) || matchingStaffRecords[matchingStaffRecords.length - 1] || null;
-
-          if (isCheckedIn(att)) {
-            presentStaffMap.set(s.id, { staff: s, att });
-          } else if (att?.status === 'Permission' || allLeaveRequests.some((l: any) => isTodayDateMatch(l.date, l.createdAt) && isRecordForStaff(l, s) && l.status === 'Approved')) {
-            permissionStaff.push({ staff: s, att });
-          } else {
-            absentStaff.push(s);
-          }
-        }
-
-        // Include any additional checked-in records not explicitly mapped in allStaff
-        for (const a of todayRecords) {
-          if (!isCheckedIn(a) || a.isOwner) continue;
-          const isOwnerRec = a.staffId === 'usr_owner' || String(a.staffId || '').startsWith('staff_usr_usr_owner') || a.staffId === 'staff_owner_clean24';
-          if (isOwnerRec) continue;
-          const alreadyMapped = Array.from(presentStaffMap.values()).some(p => isRecordForStaff(a, p.staff));
-          if (!alreadyMapped) {
-            const st = allStaff.find((s: any) => isRecordForStaff(a, s)) || { id: a.staffId || ('att_st_' + Date.now()), fullName: a.staffName || 'Staff', branchId: a.branchId, position: 'Staff' };
-            presentStaffMap.set(st.id, { staff: st, att: a });
-          }
-        }
-
-        const presentList = Array.from(presentStaffMap.values());
-
-        const [yStr, mStr2, dStr2] = phnomPenhDateStr.split('-');
-        const displayDate = `${dStr2}-${mStr2}-${yStr}`;
-
-        let summaryText = `👥 <b>[របាយការណ៍វត្តមានបុគ្គលិកថ្ងៃនេះ]</b>\n` +
-          `📅 <b>កាលបរិច្ឆេទ:</b> <code>${displayDate}</code>\n\n` +
-          `🟢 <b>បានចុះវត្តមានចូល (${presentList.length} នាក់)៖</b>\n`;
-
-        if (presentList.length === 0) {
-          summaryText += `(មិនទាន់មានបុគ្គលិកចុះវត្តមានចូលនៅឡើយទេ)\n`;
-        } else {
-          presentList.forEach((item: any, idx: number) => {
-            const st = item.staff;
-            const r = item.att;
-            const name = st?.fullName || r.staffName || 'Staff';
-            const bId = r.branchId || st?.branchId || (String(name).toLowerCase().includes('corner') ? 'b2' : 'b1');
-            const bObj = allBranches.find((b: any) => b.id === bId);
-            let bName = bObj?.branchName || (bId === 'b2' ? 'Coffee Corner SMC' : 'Toto By Chi Chi MC Park');
-            if (String(name).toLowerCase().includes('corner')) bName = 'Coffee Corner SMC';
-            else if (String(name).toLowerCase().includes('toto')) bName = 'Toto By Chi Chi MC Park';
-
-            let checkInTime = r.checkIn;
-            if (!checkInTime || checkInTime === '--' || checkInTime === 'Late' || checkInTime === 'Working') {
-              if (r.createdAt) {
-                try {
-                  checkInTime = new Date(r.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Phnom_Penh' });
-                } catch (_) {
-                  checkInTime = 'បាន Check In';
-                }
-              } else {
-                checkInTime = 'បាន Check In';
-              }
-            }
-
-            summaryText += `${idx + 1}. <b>${name}</b> (${bName}): ចូល <code>${checkInTime}</code> ${r.checkOut && r.checkOut !== '--' ? `→ ចេញ <code>${r.checkOut}</code>` : ''}\n`;
-          });
-        }
-
-        if (permissionStaff.length > 0) {
-          summaryText += `\n🟡 <b>ច្បាប់ឈប់សម្រាក (${permissionStaff.length} នាក់)៖</b>\n`;
-          permissionStaff.forEach((item: any) => {
-            const st = item.staff;
-            const r = item.att;
-            const name = st?.fullName || r?.staffName || 'Staff';
-            summaryText += `- ${name}: ${r?.notes || 'សុំច្បាប់'}\n`;
-          });
-        }
-
-        if (absentStaff.length > 0) {
-          summaryText += `\n🔴 <b>មិនទាន់ចូល (${absentStaff.length} នាក់)៖</b>\n`;
-          absentStaff.forEach((s: any) => {
-            summaryText += `- ${s.fullName} (${s.position || 'Staff'})\n`;
-          });
-        }
-
-        return sendOrReply(res, botToken, {
-          chat_id: chatId,
-          text: summaryText,
-          parse_mode: 'HTML',
-          reply_markup: persistentReplyKeyboard
-        });
-      }
-
+      // ACTION: 📊 របាយការណ៍វត្តមាន & CHECK IN / OUT (UNIFIED COMPREHENSIVE SHIFT REPORT)
       // =================================================================================
-      // ACTION: ⚠️ របាយការណ៍មិនទាន់ CHECK IN / CHECK OUT (MISSING ATTENDANCE TODAY)
-      // =================================================================================
-      const isMissingAction = 
+      const isAttendanceReportAction = 
         userText.toLowerCase().startsWith('/missing') ||
+        userText.toLowerCase().startsWith('/attendance_report') ||
+        userText.toLowerCase().startsWith('/all_attendance') ||
         userText.toLowerCase().includes('missing') ||
+        userText.includes('វត្តមានបុគ្គលិកទាំងអស់') ||
+        userText.includes('វត្តមានបុគ្គលិក') ||
+        userText.includes('វត្តមាន') ||
+        userText.includes('របាយការណ៍ Check In / Out') ||
+        userText.includes('របាយការណ៍ Check In') ||
+        userText.includes('របាយការណ៍ check in') ||
+        userText.includes('Check In / Out') ||
+        userText.includes('check in / out') ||
+        userText.includes('Check In/Out') ||
+        userText.includes('check in/out') ||
         userText.includes('មិនទាន់ Check In/Out') ||
         userText.includes('មិនទាន់ Check In') ||
         userText.includes('មិនទាន់ Check Out') ||
@@ -1810,15 +1722,9 @@ export default async function handler(req: any, res: any) {
         userText.includes('មិនទាន់ check out') ||
         userText.includes('ភ្លេច check') ||
         userText.includes('មិនទាន់ check') ||
-        userText.includes('មិនទាន់') ||
-        userText.includes('របាយការណ៍ Check In') ||
-        userText.includes('របាយការណ៍ check in') ||
-        userText.includes('Check In / Out') ||
-        userText.includes('check in / out') ||
-        userText.includes('Check In/Out') ||
-        userText.includes('check in/out');
+        userText.includes('មិនទាន់');
 
-      if (isMissingAction) {
+      if (isAttendanceReportAction) {
         const now = new Date();
         const phnomPenhTime = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Phnom_Penh' });
         const [hStr, mStr] = phnomPenhTime.split(':');
