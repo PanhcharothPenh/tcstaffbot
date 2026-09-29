@@ -485,12 +485,22 @@ export default function AttendanceView({
   }, [attendance, filterBranchId, selectedDate, todayPhnomPenh]);
 
   // Open Edit Modal
+  // Open Edit Modal
   const handleOpenEdit = (record: Attendance) => {
     setEditingRecord(record);
-    setEditCheckIn(record.checkIn || '');
-    setEditCheckOut(record.checkOut || '');
-    setEditStatus(record.status || 'Present');
-    setEditReason('');
+    const inVal = record.checkIn && record.checkIn !== '--' ? record.checkIn : '';
+    const outVal = record.checkOut && record.checkOut !== '--' ? record.checkOut : '';
+    setEditCheckIn(inVal);
+    setEditCheckOut(outVal);
+    setEditStatus(record.status || (outVal ? 'Completed' : (inVal ? 'Present' : 'Absent')));
+    
+    // Load previously saved note/reason so it's always preserved when re-editing
+    const prevNote = record.notes || (record as any).note || (record as any).reason || (
+      record.auditHistory && record.auditHistory.length > 0 
+        ? record.auditHistory[record.auditHistory.length - 1].reason 
+        : ''
+    ) || '';
+    setEditReason(prevNote === 'កែប្រែដោយ Admin' ? '' : prevNote);
   };
 
   // Save Edit with Audit Trail
@@ -498,103 +508,52 @@ export default function AttendanceView({
     e.preventDefault();
     if (!editingRecord) return;
 
-    const finalReason = editReason.trim() || 'កែប្រែដោយ Admin';
+    const finalReason = editReason.trim();
     setIsSavingEdit(true);
     try {
-      const res = await fetch(`/api/admin/attendance/${editingRecord.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          checkIn: editCheckIn,
-          checkOut: editCheckOut,
-          status: editStatus,
-          reason: finalReason,
-          changedBy: currentRole,
-          staffId: editingRecord.staffId,
-          staffName: editingRecord.staffName,
-          date: editingRecord.date
-        })
-      });
-
-      const data = await res.json();
-      const savedRecord = data?.attendance || data?.record;
-      if (data.success && savedRecord) {
-        setAttendance(prev => {
-          const updated = prev.map(a => (a.id === savedRecord.id || (a.staffId === savedRecord.staffId && a.date === savedRecord.date)) ? savedRecord : a);
-          try { db.saveAttendance(updated); } catch {}
-          return updated;
-        });
-        onAddLog(`Edited attendance for ${editingRecord.staffName} on ${editingRecord.date}: ${finalReason}`);
-        setEditingRecord(null);
-      } else {
-        // Local fallback if offline or unexpected payload
-        const nowIso = new Date().toISOString();
-        const updatedRecord: Attendance = {
-          ...editingRecord,
-          checkIn: editCheckIn,
-          checkOut: editCheckOut,
-          status: editStatus,
-          auditHistory: [
-            ...(editingRecord.auditHistory || []),
-            {
-              field: 'Manual Adjustment',
-              oldValue: `${editingRecord.checkIn} - ${editingRecord.checkOut} (${editingRecord.status})`,
-              newValue: `${editCheckIn} - ${editCheckOut} (${editStatus})`,
-              changedBy: currentRole,
-              changedAt: nowIso,
-              reason: finalReason
-            }
-          ],
-          updatedAt: nowIso
-        };
-        setAttendance(prev => {
-          const updated = prev.map(a => a.id === updatedRecord.id ? updatedRecord : a);
-          try { db.saveAttendance(updated); } catch {}
-          return updated;
-        });
-        // Push to /api/sync-data as well so server immediately receives it
-        fetch('/api/sync-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ attendance: [updatedRecord] })
-        }).catch(() => {});
-
-        onAddLog(`Edited attendance for ${editingRecord.staffName}: ${finalReason}`);
-        setEditingRecord(null);
-      }
-    } catch (err: any) {
-      console.warn('Direct PATCH error, saving via smart-sync:', err.message);
       const nowIso = new Date().toISOString();
+      const cleanCheckIn = editCheckIn.trim() || '--';
+      const cleanCheckOut = editCheckOut.trim() || '--';
+
       const updatedRecord: Attendance = {
         ...editingRecord,
-        checkIn: editCheckIn,
-        checkOut: editCheckOut,
+        checkIn: cleanCheckIn,
+        checkOut: cleanCheckOut,
         status: editStatus,
+        notes: finalReason || undefined,
+        ...(finalReason ? { note: finalReason, reason: finalReason } : {}),
         auditHistory: [
           ...(editingRecord.auditHistory || []),
           {
             field: 'Manual Adjustment',
-            oldValue: `${editingRecord.checkIn} - ${editingRecord.checkOut} (${editingRecord.status})`,
-            newValue: `${editCheckIn} - ${editCheckOut} (${editStatus})`,
+            oldValue: `${editingRecord.checkIn || '--'} - ${editingRecord.checkOut || '--'} (${editingRecord.status})`,
+            newValue: `${cleanCheckIn} - ${cleanCheckOut} (${editStatus})`,
             changedBy: currentRole,
             changedAt: nowIso,
-            reason: finalReason
+            reason: finalReason || 'កែប្រែដោយ Admin'
           }
         ],
         updatedAt: nowIso
       };
+
+      // 1. Update React state immediately
       setAttendance(prev => {
-        const updated = prev.map(a => a.id === updatedRecord.id ? updatedRecord : a);
+        const updated = prev.map(a => (a.id === updatedRecord.id || (a.staffId === updatedRecord.staffId && a.date === updatedRecord.date)) ? updatedRecord : a);
         try { db.saveAttendance(updated); } catch {}
         return updated;
       });
+
+      // 2. Direct save to Supabase via /api/sync-data
       fetch('/api/sync-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ attendance: [updatedRecord] })
       }).catch(() => {});
-      onAddLog(`Edited attendance for ${editingRecord.staffName}: ${finalReason}`);
+
+      onAddLog(`Edited attendance for ${editingRecord.staffName || 'Staff'}: ${cleanCheckIn} - ${cleanCheckOut} (${editStatus}) ${finalReason ? `[${finalReason}]` : ''}`);
       setEditingRecord(null);
+    } catch (err: any) {
+      console.warn('Save edit exception:', err.message);
     } finally {
       setIsSavingEdit(false);
     }
@@ -2709,60 +2668,213 @@ export default function AttendanceView({
               </button>
             </div>
 
-            <div className="bg-blue-50/60 p-3 rounded-xl border border-blue-100 text-xs text-blue-900">
-              <span className="font-bold">{editingRecord.staffName}</span> • {editingRecord.date}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="bg-blue-50/70 p-3 rounded-2xl border border-blue-100/80 flex items-center justify-between text-xs text-blue-950">
               <div>
-                <label className="text-[11px] font-bold text-slate-600 mb-1 block">ម៉ោងចូល</label>
-                <input
-                  type="text"
-                  placeholder="07:00 AM"
-                  value={editCheckIn}
-                  onChange={e => setEditCheckIn(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-mono font-bold"
-                />
+                <span className="font-black text-sm block">{editingRecord.staffName || 'Staff'}</span>
+                <span className="text-[11px] text-blue-700/80 font-medium">📅 {editingRecord.date} • {editingRecord.branchName || (editingRecord.branchId === 'b2' ? 'Coffee corner' : 'toto by Chichi')}</span>
               </div>
+              <span className="text-[10px] font-bold px-2 py-1 bg-white/80 border border-blue-200 rounded-lg text-blue-800">
+                {editingRecord.shiftType || 'Shift'}
+              </span>
+            </div>
 
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 mb-1 block">ម៉ោងចេញ</label>
-                <input
-                  type="text"
-                  placeholder="04:00 PM"
-                  value={editCheckOut}
-                  onChange={e => setEditCheckOut(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-mono font-bold"
-                />
+            {/* Check-In Section */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                  <Clock size={13} className="text-emerald-600" /> ម៉ោងចូល (Check In)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    let h = d.getHours();
+                    const m = d.getMinutes();
+                    const ampm = h >= 12 ? 'PM' : 'AM';
+                    h = h % 12;
+                    h = h ? h : 12;
+                    const strH = h < 10 ? '0' + h : String(h);
+                    const strM = m < 10 ? '0' + m : String(m);
+                    setEditCheckIn(`${strH}:${strM} ${ampm}`);
+                    if (editStatus === 'Absent') setEditStatus('Present');
+                  }}
+                  className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
+                >
+                  ⚡ ឥឡូវនេះ (Now)
+                </button>
+              </div>
+              <input
+                type="text"
+                placeholder="06:30 AM"
+                value={editCheckIn}
+                onChange={e => {
+                  setEditCheckIn(e.target.value);
+                  if (e.target.value && e.target.value !== '--' && editStatus === 'Absent') {
+                    setEditStatus('Present');
+                  }
+                }}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-mono font-bold"
+              />
+              {/* Quick Check-In Preset Chips */}
+              <div className="flex flex-wrap gap-1 pt-0.5">
+                {['06:30 AM', '06:45 AM', '07:00 AM', '12:50 PM', '01:00 PM', '01:30 PM', '02:00 PM'].map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      setEditCheckIn(t);
+                      if (editStatus === 'Absent') setEditStatus('Present');
+                    }}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                      editCheckIn === t 
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setEditCheckIn('--')}
+                  className="px-2 py-0.5 text-[10px] font-bold rounded-lg border bg-rose-50 hover:bg-rose-100 text-rose-600 border-rose-200 cursor-pointer"
+                >
+                  Clear
+                </button>
               </div>
             </div>
 
-            <div className="text-xs">
-              <label className="text-[11px] font-bold text-slate-600 mb-1 block">ស្ថានភាព</label>
-              <select
-                value={editStatus}
-                onChange={e => setEditStatus(e.target.value as any)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
-              >
-                <option value="Present">Present (វត្តមាន)</option>
-                <option value="Working">Working (កំពុងធ្វើការ)</option>
-                <option value="Completed">Completed (បានចេញ)</option>
-                <option value="Late">Late (យឺត)</option>
-                <option value="Absent">Absent (អវត្តមាន)</option>
-                <option value="Manual">Manual</option>
-              </select>
+            {/* Check-Out Section */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                  <Clock size={13} className="text-blue-600" /> ម៉ោងចេញ (Check Out)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    let h = d.getHours();
+                    const m = d.getMinutes();
+                    const ampm = h >= 12 ? 'PM' : 'AM';
+                    h = h % 12;
+                    h = h ? h : 12;
+                    const strH = h < 10 ? '0' + h : String(h);
+                    const strM = m < 10 ? '0' + m : String(m);
+                    setEditCheckOut(`${strH}:${strM} ${ampm}`);
+                    setEditStatus('Completed');
+                  }}
+                  className="text-[10px] font-bold text-blue-700 hover:text-blue-800 hover:underline cursor-pointer"
+                >
+                  ⚡ ឥឡូវនេះ (Now)
+                </button>
+              </div>
+              <input
+                type="text"
+                placeholder="04:00 PM"
+                value={editCheckOut}
+                onChange={e => {
+                  setEditCheckOut(e.target.value);
+                  if (e.target.value && e.target.value !== '--') {
+                    setEditStatus('Completed');
+                  }
+                }}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-mono font-bold"
+              />
+              {/* Quick Check-Out Preset Chips */}
+              <div className="flex flex-wrap gap-1 pt-0.5">
+                {['02:00 PM', '02:30 PM', '04:00 PM', '09:00 PM', '09:30 PM'].map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      setEditCheckOut(t);
+                      setEditStatus('Completed');
+                    }}
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                      editCheckOut === t 
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs' 
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setEditCheckOut('--')}
+                  className="px-2 py-0.5 text-[10px] font-bold rounded-lg border bg-rose-50 hover:bg-rose-100 text-rose-600 border-rose-200 cursor-pointer"
+                >
+                  Clear
+                </button>
+              </div>
             </div>
 
-            <div className="text-xs">
-              <label className="text-[11px] font-bold text-slate-600 mb-1 block">
-                មូលហេតុនៃការកែប្រែ (Audit Reason)
+            {/* Status Selection */}
+            <div className="text-xs space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-700 block">ស្ថានភាពវត្តមាន (Status)</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { val: 'Present', label: 'Present (វត្តមាន)', color: 'border-emerald-500 bg-emerald-50 text-emerald-800' },
+                  { val: 'Completed', label: 'Completed (បានចេញ)', color: 'border-blue-500 bg-blue-50 text-blue-800' },
+                  { val: 'Late', label: 'Late (យឺត)', color: 'border-amber-500 bg-amber-50 text-amber-800' },
+                  { val: 'Absent', label: 'Absent (អវត្តមាន)', color: 'border-rose-500 bg-rose-50 text-rose-800' },
+                  { val: 'Working', label: 'Working (កំពុងធ្វើ)', color: 'border-cyan-500 bg-cyan-50 text-cyan-800' },
+                  { val: 'Manual', label: 'Manual (ដោយដៃ)', color: 'border-purple-500 bg-purple-50 text-purple-800' },
+                ].map(s => (
+                  <button
+                    key={s.val}
+                    type="button"
+                    onClick={() => {
+                      setEditStatus(s.val as any);
+                      if (s.val === 'Absent') {
+                        setEditCheckIn('--');
+                        setEditCheckOut('--');
+                      }
+                    }}
+                    className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer text-center ${
+                      editStatus === s.val
+                        ? `${s.color} ring-2 ring-blue-500/20 shadow-xs font-black`
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Note & Audit Reason */}
+            <div className="text-xs space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-700 block">
+                មូលហេតុ / កំណត់សម្គាល់ (Note & Reason)
               </label>
+              {/* Quick Note Presets */}
+              <div className="flex flex-wrap gap-1 mb-1">
+                {[
+                  'ភ្លេច Check-in',
+                  'ស្កេនទូរស័ព្ទមិនជាប់',
+                  'ទូរស័ព្ទអស់ថ្ម',
+                  'មកយឺតមានការអនុគ្រោះ',
+                  'សុំច្បាប់ផ្ទាល់មាត់',
+                  'បំពេញការងារបន្ថែម'
+                ].map(reasonTag => (
+                  <button
+                    key={reasonTag}
+                    type="button"
+                    onClick={() => setEditReason(prev => prev ? `${prev}, ${reasonTag}` : reasonTag)}
+                    className="px-2 py-0.5 text-[10px] font-medium bg-slate-100 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 text-slate-600 rounded-lg border border-slate-200 transition cursor-pointer"
+                  >
+                    + {reasonTag}
+                  </button>
+                ))}
+              </div>
               <textarea
                 rows={2}
-                placeholder="ឧ. បុគ្គលិកភ្លេច Check-in តាមទូរស័ព្ទ... (មិនបង្ខំ)"
+                placeholder="ឧ. បុគ្គលិកភ្លេច Check-in តាមទូរស័ព្ទ... (បញ្ចូលកំណត់សម្គាល់)"
                 value={editReason}
                 onChange={e => setEditReason(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 leading-relaxed font-medium"
               />
             </div>
 
@@ -2777,9 +2889,9 @@ export default function AttendanceView({
               <button
                 type="submit"
                 disabled={isSavingEdit}
-                className="flex-1 py-2.5 bg-[#003D9B] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs disabled:opacity-50"
+                className="flex-1 py-2.5 bg-[#003D9B] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
-                {isSavingEdit ? 'កំពុងរក្សាទុក...' : 'រក្សាទុកការកែប្រែ'}
+                {isSavingEdit ? 'កំពុងរក្សាទុក...' : '💾 រក្សាទុកការកែប្រែ'}
               </button>
             </div>
           </form>
