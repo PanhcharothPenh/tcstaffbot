@@ -540,15 +540,16 @@ export default function AttendanceView({
       setAttendance(prev => {
         const updated = prev.map(a => (a.id === updatedRecord.id || (a.staffId === updatedRecord.staffId && a.date === updatedRecord.date)) ? updatedRecord : a);
         try { db.saveAttendance(updated); } catch {}
+
+        // 2. Direct save to Supabase with the entire updated attendance roster
+        fetch('/api/sync-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ attendance: updated })
+        }).catch(() => {});
+
         return updated;
       });
-
-      // 2. Direct save to Supabase via /api/sync-data
-      fetch('/api/sync-data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attendance: [updatedRecord] })
-      }).catch(() => {});
 
       onAddLog(`Edited attendance for ${editingRecord.staffName || 'Staff'}: ${cleanCheckIn} - ${cleanCheckOut} (${editStatus}) ${finalReason ? `[${finalReason}]` : ''}`);
       setEditingRecord(null);

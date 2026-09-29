@@ -250,51 +250,26 @@ export default async function handler(req: any, res: any) {
 
           // Smart-merge attendance: Never erase live scan records created via mobile/Telegram/Face
           if (collectionId === 'attendance' && Array.isArray(collectionData)) {
-            const isRealTime = (t?: any) => Boolean(t && t !== '--' && /\d/.test(String(t)) && !String(t).toLowerCase().includes('absent'));
-            const isCompletedAtt = (r?: any) => Boolean(
-              r && (
-                isRealTime(r.checkOut) ||
-                String(r.status || '').toLowerCase() === 'completed' ||
-                String(r.status || '').toLowerCase() === 'checkedout'
-              )
-            );
-
             const mergeAttendance = (serverItem: any, clientItem: any) => {
               const clientTime = new Date(clientItem.updatedAt || 0).getTime();
               const serverTime = new Date(serverItem.updatedAt || 0).getTime();
-              const base = (clientTime >= serverTime) ? { ...serverItem, ...clientItem } : { ...clientItem, ...serverItem };
 
-              // Never overwrite real checkIn with empty/--
-              if (isRealTime(serverItem.checkIn) && !isRealTime(clientItem.checkIn)) {
-                base.checkIn = serverItem.checkIn;
-                base.checkInPhoto = serverItem.checkInPhoto || clientItem.checkInPhoto;
-                base.checkInFaceScore = serverItem.checkInFaceScore ?? clientItem.checkInFaceScore;
-                base.checkInLatitude = serverItem.checkInLatitude ?? clientItem.checkInLatitude;
-                base.checkInLongitude = serverItem.checkInLongitude ?? clientItem.checkInLongitude;
-              } else if (isRealTime(clientItem.checkIn)) {
-                base.checkIn = clientItem.checkIn;
+              // If client edited this record (newer updatedAt or explicit admin edit), client values take precedence
+              if (clientTime >= serverTime) {
+                return {
+                  ...serverItem,
+                  ...clientItem,
+                  checkInPhoto: clientItem.checkInPhoto || serverItem.checkInPhoto,
+                  checkOutPhoto: clientItem.checkOutPhoto || serverItem.checkOutPhoto,
+                  checkInFaceScore: clientItem.checkInFaceScore ?? serverItem.checkInFaceScore,
+                  checkOutFaceScore: clientItem.checkOutFaceScore ?? serverItem.checkOutFaceScore,
+                  checkInLatitude: clientItem.checkInLatitude ?? serverItem.checkInLatitude,
+                  checkInLongitude: clientItem.checkInLongitude ?? serverItem.checkInLongitude,
+                  checkOutLatitude: clientItem.checkOutLatitude ?? serverItem.checkOutLatitude,
+                  checkOutLongitude: clientItem.checkOutLongitude ?? serverItem.checkOutLongitude,
+                };
               }
-
-              // Never overwrite real checkOut with empty/--
-              if (isRealTime(serverItem.checkOut) && !isRealTime(clientItem.checkOut)) {
-                base.checkOut = serverItem.checkOut;
-                base.checkOutPhoto = serverItem.checkOutPhoto || clientItem.checkOutPhoto;
-                base.checkOutFaceScore = serverItem.checkOutFaceScore ?? clientItem.checkOutFaceScore;
-                base.checkOutLatitude = serverItem.checkOutLatitude ?? clientItem.checkOutLatitude;
-                base.checkOutLongitude = serverItem.checkOutLongitude ?? clientItem.checkOutLongitude;
-                base.status = 'Completed';
-              } else if (isRealTime(clientItem.checkOut)) {
-                base.checkOut = clientItem.checkOut;
-              }
-
-              if (isCompletedAtt(serverItem) && !isRealTime(clientItem.checkOut)) {
-                base.status = 'Completed';
-                if (serverItem.checkOut && !isRealTime(base.checkOut)) {
-                  base.checkOut = serverItem.checkOut;
-                }
-              }
-
-              return base;
+              return { ...clientItem, ...serverItem };
             };
 
             const serverAtt = Array.isArray(existingMap['attendance']) ? existingMap['attendance'] : [];
@@ -310,12 +285,26 @@ export default async function handler(req: any, res: any) {
 
             for (const clientItem of collectionData) {
               if (!clientItem) continue;
-              const key = clientItem.id ? String(clientItem.id) : `${clientItem.staffId}_${clientItem.date}`;
-              const existingItem = mergedMap.get(key);
-              if (!existingItem) {
-                mergedMap.set(key, clientItem);
+              let existingKey: string | null = null;
+              if (clientItem.id && mergedMap.has(String(clientItem.id))) {
+                existingKey = String(clientItem.id);
+              } else if (clientItem.staffId && clientItem.date && mergedMap.has(`${clientItem.staffId}_${clientItem.date}`)) {
+                existingKey = `${clientItem.staffId}_${clientItem.date}`;
               } else {
-                mergedMap.set(key, mergeAttendance(existingItem, clientItem));
+                for (const [k, v] of mergedMap.entries()) {
+                  if (v && v.staffId === clientItem.staffId && v.date === clientItem.date) {
+                    existingKey = k;
+                    break;
+                  }
+                }
+              }
+
+              if (!existingKey) {
+                const newKey = clientItem.id ? String(clientItem.id) : `${clientItem.staffId}_${clientItem.date}`;
+                mergedMap.set(newKey, clientItem);
+              } else {
+                const existing = mergedMap.get(existingKey);
+                mergedMap.set(existingKey, mergeAttendance(existing, clientItem));
               }
             }
 
