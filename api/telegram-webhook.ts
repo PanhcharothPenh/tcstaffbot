@@ -503,6 +503,105 @@ export default async function handler(req: any, res: any) {
 
       const isPrivateChat = msg.chat?.type === 'private' || !msg.chat?.type;
 
+      // Shared attendance helpers available throughout the request lifecycle
+      const isTodayDateMatch = (recordDate?: string, recordCreatedAt?: string): boolean => {
+        if (!recordDate && !recordCreatedAt) return false;
+        if (recordDate) {
+          const r = String(recordDate).trim();
+          if (r === phnomPenhDateStr || r.startsWith(phnomPenhDateStr)) return true;
+          if (r === `${d}-${m}-${y}` || r === `${d}/${m}/${y}`) return true;
+          const cleanR = r.replace(/[\/\.]/g, '-');
+          const parts = cleanR.split('-');
+          if (parts.length === 3) {
+            if (parts[0].length === 4) {
+              const py = parseInt(parts[0], 10);
+              const pm = parseInt(parts[1], 10);
+              const pd = parseInt(parts[2], 10);
+              if (py === curYear && pm === curMonth && pd === parseInt(d, 10)) return true;
+            } else {
+              const pd = parseInt(parts[0], 10);
+              const pm = parseInt(parts[1], 10);
+              const py = parseInt(parts[2], 10);
+              if (py === curYear && pm === curMonth && pd === parseInt(d, 10)) return true;
+            }
+          }
+        }
+        if (recordCreatedAt) {
+          try {
+            const cDate = new Date(recordCreatedAt).toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
+            if (cDate === phnomPenhDateStr) return true;
+          } catch (_) {}
+        }
+        return false;
+      };
+
+      const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t) && !String(t).toLowerCase().includes('absent'));
+
+      const isCheckedIn = (record?: any): boolean => {
+        if (!record) return false;
+        if (isRealTime(record.checkIn)) return true;
+        const st = String(record.status || '').toLowerCase().trim();
+        if (st === 'working' || st === 'late' || st === 'present' || st === 'normal' || st === 'completed') return true;
+        if (record.checkIn && record.checkIn !== '--' && record.checkIn.toLowerCase() !== 'absent') return true;
+        return false;
+      };
+
+      const normalizeStaffId = (id: any) => String(id || '').replace(/^staff_usr_/, '').replace(/^staff_/, '').replace(/^usr_/, '').toLowerCase().trim();
+      const cleanStaffName = (name: any) => {
+        if (!name) return '';
+        return String(name)
+          .replace(/\s*\([^)]*\)/g, '')
+          .replace(/\s*（[^）]*）/g, '')
+          .replace(/\u17bc\u17c9/g, '\u17c9\u17bc')
+          .replace(/\u17bc\u17ca/g, '\u17ca\u17bc')
+          .replace(/[\s\-_]/g, '')
+          .toLowerCase()
+          .trim();
+      };
+      const cleanPhone = (p: any) => String(p || '').replace(/\D/g, '');
+
+      const isNameMatch = (n1: any, n2: any): boolean => {
+        const c1 = cleanStaffName(n1);
+        const c2 = cleanStaffName(n2);
+        if (!c1 || !c2) return false;
+        if (c1 === c2 || c1.includes(c2) || c2.includes(c1)) return true;
+        const s1 = c1.replace(/[\u17c6-\u17d3]/g, '');
+        const s2 = c2.replace(/[\u17c6-\u17d3]/g, '');
+        if (s1.length >= 3 && s2.length >= 3 && (s1 === s2 || s1.includes(s2) || s2.includes(s1))) {
+          return true;
+        }
+        const r1 = c1.replace(/[^a-z0-9]/g, '');
+        const r2 = c2.replace(/[^a-z0-9]/g, '');
+        if (r1 && r2 && (r1 === r2 || r1.includes(r2) || r2.includes(r1))) {
+          return true;
+        }
+        return false;
+      };
+
+      const isRecordForStaff = (a: any, s: any): boolean => {
+        if (!a || !s) return false;
+        const aId = String(a.staffId || a.employeeId || a.id || '').trim();
+        const sId = String(s.id || s.staffId || '').trim();
+        if (aId && sId) {
+          if (aId === sId) return true;
+          if (normalizeStaffId(aId) === normalizeStaffId(sId)) return true;
+        }
+        if (s.telegramId && a.telegramId && String(s.telegramId).trim() === String(a.telegramId).trim()) return true;
+        const aNames = [a.staffName, a.name, a.fullName, a.employeeName].filter(Boolean);
+        const sNames = [s.fullName, s.name, s.staffName].filter(Boolean);
+        for (const an of aNames) {
+          for (const sn of sNames) {
+            if (isNameMatch(an, sn)) return true;
+          }
+        }
+        if (s.phone && a.phone) {
+          const p1 = cleanPhone(s.phone);
+          const p2 = cleanPhone(a.phone);
+          if (p1 && p2 && p1 === p2) return true;
+        }
+        return false;
+      };
+
       if (supabase) {
         try {
           const isAttendanceCheckText = 
@@ -523,7 +622,11 @@ export default async function handler(req: any, res: any) {
             userText.includes('Check In/Out') ||
             userText.includes('check in/out') ||
             userText.includes('វត្តមានបុគ្គលិកទាំងអស់') ||
-            userText.includes('វត្តមាន');
+            userText.includes('វត្តមាន') ||
+            userText.includes('/checkout') ||
+            userText.includes('/checkin') ||
+            userText.includes('ចេញ') ||
+            userText.includes('ចូល');
 
           if (isAttendanceCheckText) {
             delete MEM_CACHE['attendance'];
@@ -731,14 +834,15 @@ export default async function handler(req: any, res: any) {
           }
 
           if (matchedStaff) {
-            const todayStaffAtts = allAtt.filter((a: any) => {
-              const dMatch = a.date === phnomPenhDateStr || String(a.date || '').startsWith(phnomPenhDateStr);
-              const idMatch = String(a.staffId || '').trim() === String(matchedStaff.id || '').trim();
-              const nameMatch = a.staffName && matchedStaff.fullName && (a.staffName === matchedStaff.fullName || a.staffName.includes(matchedStaff.fullName) || matchedStaff.fullName.includes(a.staffName));
-              return dMatch && (idMatch || nameMatch);
-            });
-            todayAttendance = todayStaffAtts.find((a: any) => Boolean(a.checkIn && a.checkIn !== '--' && a.checkIn !== 'absent')) || todayStaffAtts[todayStaffAtts.length - 1] || null;
-            staffBranch = allBranches.find((b: any) => b.id === matchedStaff.branchId);
+            const todayStaffAtts = allAtt.filter((a: any) => isTodayDateMatch(a.date, a.createdAt) && isRecordForStaff(a, matchedStaff));
+            const attCompleted = todayStaffAtts.find((a: any) => 
+              isRealTime(a.checkOut) || 
+              String(a.status || '').toLowerCase() === 'completed' || 
+              String(a.status || '').toLowerCase() === 'checkedout'
+            );
+            const attCheckedIn = todayStaffAtts.find((a: any) => isCheckedIn(a));
+            todayAttendance = attCompleted || attCheckedIn || todayStaffAtts[todayStaffAtts.length - 1] || null;
+            staffBranch = allBranches.find((b: any) => b.id === (todayAttendance?.branchId || matchedStaff.branchId));
           }
 
           // Record Telegram numeric Chat ID into address book in background (non-blocking)
@@ -1588,112 +1692,7 @@ export default async function handler(req: any, res: any) {
           });
       }
 
-      // =================================================================================
-      // SHARED ATTENDANCE HELPERS & ROBUST KHMER NORMALIZATION
-      // =================================================================================
-      const isTodayDateMatch = (recordDate?: string, recordCreatedAt?: string): boolean => {
-        if (!recordDate && !recordCreatedAt) return false;
-        if (recordDate) {
-          const r = String(recordDate).trim();
-          if (r === phnomPenhDateStr || r.startsWith(phnomPenhDateStr)) return true;
-          if (r === `${d}-${m}-${y}` || r === `${d}/${m}/${y}`) return true;
-          const cleanR = r.replace(/[\/\.]/g, '-');
-          const parts = cleanR.split('-');
-          if (parts.length === 3) {
-            if (parts[0].length === 4) {
-              const py = parseInt(parts[0], 10);
-              const pm = parseInt(parts[1], 10);
-              const pd = parseInt(parts[2], 10);
-              if (py === curYear && pm === curMonth && pd === parseInt(d, 10)) return true;
-            } else {
-              const pd = parseInt(parts[0], 10);
-              const pm = parseInt(parts[1], 10);
-              const py = parseInt(parts[2], 10);
-              if (py === curYear && pm === curMonth && pd === parseInt(d, 10)) return true;
-            }
-          }
-        }
-        if (recordCreatedAt) {
-          try {
-            const cDate = new Date(recordCreatedAt).toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });
-            if (cDate === phnomPenhDateStr) return true;
-          } catch (_) {}
-        }
-        return false;
-      };
 
-      const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
-
-      const isCheckedIn = (record?: any): boolean => {
-        if (!record) return false;
-        if (isRealTime(record.checkIn)) return true;
-        const st = String(record.status || '').toLowerCase().trim();
-        if (st === 'working' || st === 'late' || st === 'present' || st === 'normal' || st === 'completed') return true;
-        if (record.checkIn && record.checkIn !== '--' && record.checkIn.toLowerCase() !== 'absent') return true;
-        return false;
-      };
-
-      const normalizeStaffId = (id: any) => String(id || '').replace(/^staff_usr_/, '').replace(/^staff_/, '').replace(/^usr_/, '').toLowerCase().trim();
-      const cleanStaffName = (name: any) => {
-        if (!name) return '';
-        return String(name)
-          .replace(/\s*\([^)]*\)/g, '')
-          .replace(/\s*（[^）]*）/g, '')
-          .replace(/\u17bc\u17c9/g, '\u17c9\u17bc') // normalize mobile keyboard inverted Khmer diacritic order
-          .replace(/\u17bc\u17ca/g, '\u17ca\u17bc')
-          .replace(/[\s\-_]/g, '')
-          .toLowerCase()
-          .trim();
-      };
-      const cleanPhone = (p: any) => String(p || '').replace(/\D/g, '');
-
-      const isNameMatch = (n1: any, n2: any): boolean => {
-        const c1 = cleanStaffName(n1);
-        const c2 = cleanStaffName(n2);
-        if (!c1 || !c2) return false;
-        if (c1 === c2 || c1.includes(c2) || c2.includes(c1)) return true;
-        // Diacritic-stripped phonetic matching (handles typing variations)
-        const s1 = c1.replace(/[\u17c6-\u17d3]/g, '');
-        const s2 = c2.replace(/[\u17c6-\u17d3]/g, '');
-        if (s1.length >= 3 && s2.length >= 3 && (s1 === s2 || s1.includes(s2) || s2.includes(s1))) {
-          return true;
-        }
-        // Romanized comparison if English letters present
-        const r1 = c1.replace(/[^a-z0-9]/g, '');
-        const r2 = c2.replace(/[^a-z0-9]/g, '');
-        if (r1 && r2 && (r1 === r2 || r1.includes(r2) || r2.includes(r1))) {
-          return true;
-        }
-        return false;
-      };
-
-      const isRecordForStaff = (a: any, s: any): boolean => {
-        if (!a || !s) return false;
-        // 1. Direct or normalized staffId match
-        const aId = String(a.staffId || a.employeeId || a.id || '').trim();
-        const sId = String(s.id || s.staffId || '').trim();
-        if (aId && sId) {
-          if (aId === sId) return true;
-          if (normalizeStaffId(aId) === normalizeStaffId(sId)) return true;
-        }
-        // 2. Telegram ID match
-        if (s.telegramId && a.telegramId && String(s.telegramId).trim() === String(a.telegramId).trim()) return true;
-        // 3. Name match across all possible name fields
-        const aNames = [a.staffName, a.name, a.fullName, a.employeeName].filter(Boolean);
-        const sNames = [s.fullName, s.name, s.staffName].filter(Boolean);
-        for (const an of aNames) {
-          for (const sn of sNames) {
-            if (isNameMatch(an, sn)) return true;
-          }
-        }
-        // 4. Phone match
-        if (s.phone && a.phone) {
-          const p1 = cleanPhone(s.phone);
-          const p2 = cleanPhone(a.phone);
-          if (p1 && p2 && p1 === p2) return true;
-        }
-        return false;
-      };
 
       // =================================================================================
       // ACTION: 👥 របាយការណ៍វត្តមានបុគ្គលិកទាំងអស់ (OWNER: ALL STAFF ATTENDANCE TODAY)
