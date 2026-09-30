@@ -79,20 +79,14 @@ export default function AttendanceView({
 }: AttendanceViewProps) {
   const t = translations[lang];
 
-  // Filters State - default to Phnom Penh local date
+  // Filters State - default to all dates so all records are immediately visible
   const todayPhnomPenh = useMemo(() => getPhnomPenhDateStr(), []);
-  const [selectedDate, setSelectedDate] = useState<string>(() => getPhnomPenhDateStr());
+  const [selectedDate, setSelectedDate] = useState<string>('');
   const [filterStaffId, setFilterStaffId] = useState('all');
-  const [filterBranchId, setFilterBranchId] = useState(activeBranchId || 'all');
+  const [filterBranchId, setFilterBranchId] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  useEffect(() => {
-    if (activeBranchId) {
-      setFilterBranchId(activeBranchId);
-    }
-  }, [activeBranchId]);
   // Leave Requests State (load cached immediately for instant UI)
   const [leaveRequests, setLeaveRequests] = useState<any[]>(() => {
     try {

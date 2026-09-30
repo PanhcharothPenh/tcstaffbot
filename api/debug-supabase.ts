@@ -30,9 +30,11 @@ export default async function handler(req: any, res: any) {
     try {
       const start = Date.now();
       const supabase = createClient(supabaseUrl, supabaseKey);
+      const targetTable = req.query?.table || 'tc_collections';
+      tableInUse = targetTable;
 
       if (colParam) {
-        const { data: colRow, error: cErr } = await supabase.from('tc_collections').select('id, data, updated_at').eq('id', colParam).maybeSingle();
+        const { data: colRow, error: cErr } = await supabase.from(targetTable).select('id, data, updated_at').eq('id', colParam).maybeSingle();
         latencyMs = Date.now() - start;
         if (cErr) errorMsg = cErr.message;
         else if (colRow) {
@@ -44,7 +46,7 @@ export default async function handler(req: any, res: any) {
           targetData = { id: colRow.id, updated_at: colRow.updated_at, totalCount: Array.isArray(colRow.data) ? colRow.data.length : 1, filteredCount: list.length, items: list.slice(0, 30) };
         }
       } else {
-        const { data: starData, error: starErr } = await supabase.from('tc_collections').select('id, updated_at');
+        const { data: starData, error: starErr } = await supabase.from(targetTable).select('id, updated_at');
         latencyMs = Date.now() - start;
 
         if (starErr) {
