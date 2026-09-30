@@ -376,6 +376,27 @@ if (!localDb.users || localDb.users.length === 0) {
       telegramChatId: '7818150707',
       twoFactorMethod: 'telegram',
       assignedBranchIds: ['b1', 'b2']
+    },
+    {
+      id: 'usr_theary',
+      role: 'Owner',
+      username: 'theary',
+      email: 'theary@p2bkh.tech',
+      fullName: 'Tha Theary (Owner)',
+      phone: '',
+      passwordHash: '',
+      roleId: 'owner',
+      status: 'Active',
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      lastLoginAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      forcePasswordChange: false,
+      telegramUsername: '@theary5686',
+      telegramChatId: '719054686',
+      twoFactorMethod: 'telegram',
+      assignedBranchIds: ['b1', 'b2']
     }
   ];
   saveLocalDb();

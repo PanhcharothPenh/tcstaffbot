@@ -279,6 +279,20 @@ const SEED_USERS: User[] = [
     telegramChatId: '7818150707',
     twoFactorMethod: 'telegram',
     assignedBranchIds: ['b1', 'b2']
+  },
+  {
+    id: 'usr_theary',
+    role: 'Owner',
+    username: 'theary',
+    email: 'theary@p2bkh.tech',
+    fullName: 'Tha Theary (Owner)',
+    phone: '',
+    roleId: 'owner',
+    status: 'Active',
+    telegramUsername: '@theary5686',
+    telegramChatId: '719054686',
+    twoFactorMethod: 'telegram',
+    assignedBranchIds: ['b1', 'b2']
   }
 ];
 

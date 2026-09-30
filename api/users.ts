@@ -44,6 +44,20 @@ const DEFAULT_USERS: any[] = [
     telegramChatId: '7818150707',
     phone: '',
     twoFactorMethod: 'telegram'
+  },
+  {
+    id: 'usr_theary',
+    username: 'theary',
+    email: 'theary@p2bkh.tech',
+    fullName: 'Tha Theary (Owner)',
+    role: 'Owner',
+    roleId: 'owner',
+    status: 'Active',
+    assignedBranchIds: ['b1', 'b2'],
+    telegramUsername: '@theary5686',
+    telegramChatId: '719054686',
+    phone: '',
+    twoFactorMethod: 'telegram'
   }
 ];
 
