@@ -598,56 +598,10 @@ export default async function handler(req: any, res: any) {
           needsDbHeal = true;
         }
 
-        // 2. Auto-heal users to always include all 4 Owners (root, penh, miller, theary) without duplicates
-        let currentUsers = Array.isArray(db.users) ? [...db.users] : [];
-        
-        // First normalize any old roth to root
-        currentUsers = currentUsers.map((u: any) => {
-          if ((u.id === 'usr_owner' || u.id === 'usr_root') && (u.username === 'roth' || u.username === 'root')) {
-            return {
-              ...u,
-              id: 'usr_root',
-              username: 'root',
-              fullName: 'Root (Executive Owner)',
-              email: 'root@p2bkh.tech',
-              role: 'Owner',
-              roleId: 'owner',
-              status: 'Active',
-              assignedBranchIds: ['b1', 'b2'],
-              telegramUsername: '@root'
-            };
-          }
-          return u;
-        });
-
-        for (const defaultOwner of DEFAULT_USERS) {
-          const exists = currentUsers.some((u: any) => 
-            u.id === defaultOwner.id || 
-            u.username?.toLowerCase() === defaultOwner.username?.toLowerCase() ||
-            (defaultOwner.telegramChatId && String(u.telegramChatId || u.telegramId) === defaultOwner.telegramChatId)
-          );
-          if (!exists) {
-            currentUsers.push(defaultOwner);
-          }
-        }
-
-        // Strict deduplication by username/id
-        const userMap = new Map<string, any>();
-        for (const u of currentUsers) {
-          const key = (u.username || u.id || '').toLowerCase().trim();
-          if (!key) continue;
-          if (!userMap.has(key)) {
-            userMap.set(key, u);
-          } else {
-            const existing = userMap.get(key);
-            userMap.set(key, { ...existing, ...u, id: existing.id || u.id });
-          }
-        }
-        const finalUsers = Array.from(userMap.values());
-
-        if (JSON.stringify(finalUsers) !== JSON.stringify(db.users)) {
-          db.users = finalUsers;
-          rowsToHeal.push({ id: 'users', data: finalUsers, updated_at: new Date().toISOString() });
+        // 2. Auto-heal users ONLY if empty or missing in Supabase
+        if (!Array.isArray(db.users) || db.users.length === 0) {
+          db.users = DEFAULT_USERS;
+          rowsToHeal.push({ id: 'users', data: DEFAULT_USERS, updated_at: new Date().toISOString() });
           needsDbHeal = true;
         }
 
