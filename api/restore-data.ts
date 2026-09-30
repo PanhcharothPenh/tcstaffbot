@@ -2171,7 +2171,11 @@ export default async function handler(req: any, res: any) {
     });
 
     // 2. Fetch rows from clean24_collections (if table exists)
-    const { data: c24Rows } = await supabase.from('clean24_collections').select('*').catch(() => ({ data: [] }));
+    let c24Rows: any[] = [];
+    try {
+      const res = await supabase.from('clean24_collections').select('*');
+      if (res && Array.isArray(res.data)) c24Rows = res.data;
+    } catch (_) {}
     const c24Map: Record<string, any> = {};
     if (Array.isArray(c24Rows)) {
       for (const r of c24Rows) if (r && r.id) c24Map[r.id] = r;
