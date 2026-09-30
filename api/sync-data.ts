@@ -587,33 +587,36 @@ export default async function handler(req: any, res: any) {
           }
         }
 
-        // Auto-heal empty or wiped collections in Supabase
+        // Auto-heal only if collection row NEVER existed in Supabase database
         let needsDbHeal = false;
         const rowsToHeal: any[] = [];
+        const existingRowIds = new Set((tcRows || []).map((r: any) => r && r.id).filter(Boolean));
 
-        // 1. Auto-heal staff roster if wiped or empty
-        if (!Array.isArray(db.staff) || db.staff.length === 0) {
+        if (!existingRowIds.has('staff') && (!Array.isArray(db.staff) || db.staff.length === 0)) {
           db.staff = DEFAULT_STAFF;
           rowsToHeal.push({ id: 'staff', data: DEFAULT_STAFF, updated_at: new Date().toISOString() });
           needsDbHeal = true;
         }
 
-        // 2. Auto-heal users ONLY if empty or missing in Supabase
-        if (!Array.isArray(db.users) || db.users.length === 0) {
+        if (!existingRowIds.has('branches') && (!Array.isArray(db.branches) || db.branches.length === 0)) {
+          db.branches = DEFAULT_BRANCHES;
+          rowsToHeal.push({ id: 'branches', data: DEFAULT_BRANCHES, updated_at: new Date().toISOString() });
+          needsDbHeal = true;
+        }
+
+        if (!existingRowIds.has('users') && (!Array.isArray(db.users) || db.users.length === 0)) {
           db.users = DEFAULT_USERS;
           rowsToHeal.push({ id: 'users', data: DEFAULT_USERS, updated_at: new Date().toISOString() });
           needsDbHeal = true;
         }
 
-        // 3. Auto-heal extra shifts if empty
-        if (!Array.isArray(db.extraShifts) || db.extraShifts.length === 0) {
+        if (!existingRowIds.has('extraShifts') && (!Array.isArray(db.extraShifts) || db.extraShifts.length === 0)) {
           db.extraShifts = DEFAULT_EXTRA_SHIFTS;
           rowsToHeal.push({ id: 'extraShifts', data: DEFAULT_EXTRA_SHIFTS, updated_at: new Date().toISOString() });
           needsDbHeal = true;
         }
 
-        // 4. Auto-heal leave requests if empty
-        if (!Array.isArray(db.leaveRequests) || db.leaveRequests.length === 0) {
+        if (!existingRowIds.has('leaveRequests') && (!Array.isArray(db.leaveRequests) || db.leaveRequests.length === 0)) {
           db.leaveRequests = DEFAULT_LEAVE_REQUESTS;
           rowsToHeal.push({ id: 'leaveRequests', data: DEFAULT_LEAVE_REQUESTS, updated_at: new Date().toISOString() });
           needsDbHeal = true;
