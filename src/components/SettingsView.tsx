@@ -119,9 +119,27 @@ export default function SettingsView({
       .catch(err => console.error('Error fetching telegram configurations:', err));
   }, [branches]);
 
-  const handleSaveSettings = (e: React.FormEvent) => {
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setExchangeRate(rateInput);
+    const newSettings = {
+      ...db.getSettings(),
+      khmerExchangeRate: rateInput,
+      address,
+      shopPhone,
+      openingHours: `${opening} – ${closing}`,
+      language: lang
+    };
+    db.saveSettings(newSettings);
+    try {
+      await fetch('/api/sync-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: newSettings })
+      });
+    } catch (err) {
+      console.warn('Settings sync warning:', err);
+    }
     onAddLog(`System settings rewritten: Conversion Rate updated to ${rateInput} KHR.`);
     alert(lang === 'en' ? "General configuration parameters updated successfully." : "បានធ្វើបច្ចុប្បន្នភាពការកំណត់ប្រសិទ្ធិដោយជោគជ័យ។");
   };

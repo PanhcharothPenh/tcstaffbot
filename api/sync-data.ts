@@ -873,14 +873,8 @@ export default async function handler(req: any, res: any) {
         }
 
         if (rows.length > 0) {
-          // Attempt bulk upsert first with { onConflict: 'id' }
-          const { error: batchErr } = await supabase.from('tc_collections').upsert(rows, { onConflict: 'id' });
-          if (batchErr) {
-            console.warn('[sync-data] Batch upsert error, falling back to individual row upsert/update:', batchErr.message);
-            for (const row of rows) {
-              await saveOrUpdateRow(row);
-            }
-          }
+          // Parallel, high-speed, non-blocking row saving for all collections
+          await Promise.all(rows.map(row => saveOrUpdateRow(row)));
         }
 
         return res.status(200).json({

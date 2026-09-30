@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense, lazy } from 'react';
 import { 
   Building2, 
   MapPin, 
@@ -445,251 +445,160 @@ export default function App() {
     };
   }, []);
 
-  // Sync state mutations back to key-value local storage
-  useEffect(() => {
-    db.saveBranches(branches);
-  }, [branches]);
-
-  useEffect(() => {
-    db.saveStaff(staff);
-  }, [staff]);
-
-  useEffect(() => {
-    db.saveSalaries(salaries);
-  }, [salaries]);
-
-  useEffect(() => {
-    db.saveSalarySchedules(salarySchedules);
-  }, [salarySchedules]);
-
-  useEffect(() => {
-    db.saveSalaryAdvances(salaryAdvances);
-  }, [salaryAdvances]);
-
-  useEffect(() => {
-    db.saveAttendance(attendance);
-  }, [attendance]);
-
-  useEffect(() => {
-    db.saveIncomes(incomes);
-  }, [incomes]);
-
-  useEffect(() => {
-    db.saveExpenses(expenses);
-  }, [expenses]);
-
-  useEffect(() => {
-    db.saveInventory(inventory);
-  }, [inventory]);
-
-  useEffect(() => {
-    db.saveMachines(machines);
-  }, [machines]);
-
-  useEffect(() => {
-    db.saveUsers(users);
-  }, [users]);
-
-  useEffect(() => {
-    db.saveCoinTransactions(coinTransactions);
-  }, [coinTransactions]);
-
-  useEffect(() => {
-    db.saveRevenueRecords(revenueRecords);
-  }, [revenueRecords]);
-
-  useEffect(() => {
-    db.saveGasRecords(gasRecords);
-  }, [gasRecords]);
-
-  useEffect(() => {
-    db.saveDetergentRecords(detergentRecords);
-  }, [detergentRecords]);
-
-  useEffect(() => {
-    db.saveSoftenerRecords(softenerRecords);
-  }, [softenerRecords]);
-
-  useEffect(() => {
-    db.saveStockTransactions(stockTransactions);
-  }, [stockTransactions]);
-
-  useEffect(() => {
-    db.saveSuppliers(suppliers);
-  }, [suppliers]);
-
-  useEffect(() => {
-    db.saveDebts(debts);
-  }, [debts]);
-
-  useEffect(() => {
-    db.saveDebtPayments(debtPayments);
-  }, [debtPayments]);
-
-  useEffect(() => {
-    db.saveCashDrawers(cashDrawers);
-  }, [cashDrawers]);
-
-  useEffect(() => {
-    db.saveCashDrawerTransactions(cashDrawerTransactions);
-  }, [cashDrawerTransactions]);
-
-  useEffect(() => {
-    db.saveMonthClosings(monthClosings);
-  }, [monthClosings]);
-
-  // Immediate auto-save flush on page refresh or tab close
-  useEffect(() => {
-    const handleBeforeUnloadFlush = () => {
-      try {
-        // Critical safeguard: never flush if data has not finished loading from server or sync is in progress
-        if (!isLoadedFromServer || isPullingRef.current) return;
-        
-        // Never flush if branches and staff are completely uninitialized
-        if ((!staff || staff.length === 0) && (!branches || branches.length === 0)) return;
-
-        const payload = {
-          branches,
-          staff,
-          users,
-          salaries,
-          salarySchedules,
-          salaryAdvances,
-          attendance,
-          incomes,
-          expenses,
-          inventory,
-          machines,
-          coinTransactions,
-          revenueRecords,
-          gasRecords,
-          detergentRecords,
-          softenerRecords,
-          stockTransactions,
-          suppliers,
-          debts,
-          debtPayments,
-          cashDrawers,
-          cashDrawerTransactions,
-          monthClosings,
-          leaveRequests: db.getLeaveRequests(),
-          settings: { shopName: "TC Staff Management" }
-        };
-        const serialized = JSON.stringify(payload);
-        if (serialized !== lastPushedJsonRef.current) {
-          lastPushedJsonRef.current = serialized;
-          const blob = new Blob([serialized], { type: 'application/json' });
-          if (navigator.sendBeacon) {
-            navigator.sendBeacon('/api/sync-data', blob);
-          } else {
-            fetch('/api/sync-data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: serialized,
-              keepalive: true
-            }).catch(() => {});
-          }
-        }
-      } catch (e) {}
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnloadFlush);
-    window.addEventListener('pagehide', handleBeforeUnloadFlush);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnloadFlush);
-      window.removeEventListener('pagehide', handleBeforeUnloadFlush);
-    };
-  }, [
-    isLoadedFromServer,
-    branches, staff, users, salaries, salarySchedules, salaryAdvances,
-    attendance, incomes, expenses, inventory, machines,
-    coinTransactions, revenueRecords, gasRecords, detergentRecords,
-    softenerRecords, stockTransactions, suppliers, debts, debtPayments,
-    cashDrawers, cashDrawerTransactions, monthClosings
-  ]);
-
-  // Synchronize database state to backend Express context for multi-device live sync
-  useEffect(() => {
+  // Helper to immediately push a modified collection to the cloud and Supabase
+  const pushCollection = useCallback((collection: string, data: any) => {
     if (!isLoadedFromServer || isPullingRef.current) return;
-    const payload = {
-      branches,
-      staff,
-      users,
-      salaries,
-      salarySchedules,
-      salaryAdvances,
-      attendance,
-      incomes,
-      expenses,
-      inventory,
-      machines,
-      coinTransactions,
-      revenueRecords,
-      gasRecords,
-      detergentRecords,
-      softenerRecords,
-      stockTransactions,
-      suppliers,
-      debts,
-      debtPayments,
-      cashDrawers,
-      cashDrawerTransactions,
-      monthClosings,
-      extraShifts,
-      tempShiftCovers,
-      staffExpenses,
-      leaveRequests: db.getLeaveRequests(),
-      adjustments: payrollAdjustments,
-      settings: { shopName: "TC Staff Management" }
-    };
-    const serialized = JSON.stringify(payload);
-    if (serialized === lastPushedJsonRef.current) return;
-
-    const saveTimer = setTimeout(() => {
-      lastPushedJsonRef.current = serialized;
+    try {
       fetch('/api/sync-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: serialized
+        body: JSON.stringify({ [collection]: data })
       })
-      .then(() => setDbSyncStatus('synced'))
+      .then(res => res.json())
+      .then(resData => {
+        if (resData?.success) setDbSyncStatus('synced');
+      })
       .catch(err => {
-        console.warn('Backend sync warning:', err.message);
-        setDbSyncStatus('error');
+        console.warn(`[Sync-Data] Push notice for ${collection}:`, err?.message);
       });
-    }, 1200); // 1.2s debounce for fast snappy UI
+    } catch (e) {}
+  }, [isLoadedFromServer]);
 
-    return () => clearTimeout(saveTimer);
-  }, [
-    branches,
-    staff,
-      users,
-      salaries,
-    salarySchedules,
-    salaryAdvances,
-    attendance,
-    incomes,
-    expenses,
-    inventory,
-    machines,
-    coinTransactions,
-    revenueRecords,
-    gasRecords,
-    detergentRecords,
-    softenerRecords,
-    stockTransactions,
-    suppliers,
-    debts,
-    debtPayments,
-    cashDrawers,
-    cashDrawerTransactions,
-    monthClosings,
-    extraShifts,
-    tempShiftCovers,
-    staffExpenses,
-    payrollAdjustments,
-    isLoadedFromServer
-  ]);
+  // Sync state mutations back to key-value local storage AND Supabase
+  useEffect(() => {
+    db.saveBranches(branches);
+    pushCollection('branches', branches);
+  }, [branches, pushCollection]);
+
+  useEffect(() => {
+    db.saveStaff(staff);
+    pushCollection('staff', staff);
+  }, [staff, pushCollection]);
+
+  useEffect(() => {
+    db.saveSalaries(salaries);
+    pushCollection('salaries', salaries);
+  }, [salaries, pushCollection]);
+
+  useEffect(() => {
+    db.saveSalarySchedules(salarySchedules);
+    pushCollection('salarySchedules', salarySchedules);
+  }, [salarySchedules, pushCollection]);
+
+  useEffect(() => {
+    db.saveSalaryAdvances(salaryAdvances);
+    pushCollection('salaryAdvances', salaryAdvances);
+  }, [salaryAdvances, pushCollection]);
+
+  useEffect(() => {
+    db.saveAttendance(attendance);
+    pushCollection('attendance', attendance);
+  }, [attendance, pushCollection]);
+
+  useEffect(() => {
+    db.saveIncomes(incomes);
+    pushCollection('incomes', incomes);
+  }, [incomes, pushCollection]);
+
+  useEffect(() => {
+    db.saveExpenses(expenses);
+    pushCollection('expenses', expenses);
+  }, [expenses, pushCollection]);
+
+  useEffect(() => {
+    db.saveInventory(inventory);
+    pushCollection('inventory', inventory);
+  }, [inventory, pushCollection]);
+
+  useEffect(() => {
+    db.saveMachines(machines);
+    pushCollection('machines', machines);
+  }, [machines, pushCollection]);
+
+  useEffect(() => {
+    db.saveUsers(users);
+    pushCollection('users', users);
+  }, [users, pushCollection]);
+
+  useEffect(() => {
+    db.saveCoinTransactions(coinTransactions);
+    pushCollection('coinTransactions', coinTransactions);
+  }, [coinTransactions, pushCollection]);
+
+  useEffect(() => {
+    db.saveRevenueRecords(revenueRecords);
+    pushCollection('revenueRecords', revenueRecords);
+  }, [revenueRecords, pushCollection]);
+
+  useEffect(() => {
+    db.saveGasRecords(gasRecords);
+    pushCollection('gasRecords', gasRecords);
+  }, [gasRecords, pushCollection]);
+
+  useEffect(() => {
+    db.saveDetergentRecords(detergentRecords);
+    pushCollection('detergentRecords', detergentRecords);
+  }, [detergentRecords, pushCollection]);
+
+  useEffect(() => {
+    db.saveSoftenerRecords(softenerRecords);
+    pushCollection('softenerRecords', softenerRecords);
+  }, [softenerRecords, pushCollection]);
+
+  useEffect(() => {
+    db.saveStockTransactions(stockTransactions);
+    pushCollection('stockTransactions', stockTransactions);
+  }, [stockTransactions, pushCollection]);
+
+  useEffect(() => {
+    db.saveSuppliers(suppliers);
+    pushCollection('suppliers', suppliers);
+  }, [suppliers, pushCollection]);
+
+  useEffect(() => {
+    db.saveDebts(debts);
+    pushCollection('debts', debts);
+  }, [debts, pushCollection]);
+
+  useEffect(() => {
+    db.saveDebtPayments(debtPayments);
+    pushCollection('debtPayments', debtPayments);
+  }, [debtPayments, pushCollection]);
+
+  useEffect(() => {
+    db.saveCashDrawers(cashDrawers);
+    pushCollection('cashDrawers', cashDrawers);
+  }, [cashDrawers, pushCollection]);
+
+  useEffect(() => {
+    db.saveCashDrawerTransactions(cashDrawerTransactions);
+    pushCollection('cashDrawerTransactions', cashDrawerTransactions);
+  }, [cashDrawerTransactions, pushCollection]);
+
+  useEffect(() => {
+    db.saveMonthClosings(monthClosings);
+    pushCollection('monthClosings', monthClosings);
+  }, [monthClosings, pushCollection]);
+
+  useEffect(() => {
+    db.saveExtraShifts(extraShifts);
+    pushCollection('extraShifts', extraShifts);
+  }, [extraShifts, pushCollection]);
+
+  useEffect(() => {
+    db.saveTempShiftCovers(tempShiftCovers);
+    pushCollection('tempShiftCovers', tempShiftCovers);
+  }, [tempShiftCovers, pushCollection]);
+
+  useEffect(() => {
+    db.saveStaffExpenses(staffExpenses);
+    pushCollection('staffExpenses', staffExpenses);
+  }, [staffExpenses, pushCollection]);
+
+  useEffect(() => {
+    db.savePayrollAdjustments(payrollAdjustments);
+    pushCollection('adjustments', payrollAdjustments);
+  }, [payrollAdjustments, pushCollection]);
 
   // Utility to append real time administrative logs
   const handleAddNewAuditLog = (msg: string) => {
