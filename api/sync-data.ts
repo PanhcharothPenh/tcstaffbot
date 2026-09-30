@@ -587,6 +587,64 @@ export default async function handler(req: any, res: any) {
           }
         }
 
+        // Auto-heal empty or wiped collections in Supabase
+        let needsDbHeal = false;
+        const rowsToHeal: any[] = [];
+
+        // 1. Auto-heal staff roster if wiped or empty
+        if (!Array.isArray(db.staff) || db.staff.length === 0) {
+          db.staff = DEFAULT_STAFF;
+          rowsToHeal.push({ id: 'staff', data: DEFAULT_STAFF, updated_at: new Date().toISOString() });
+          needsDbHeal = true;
+        }
+
+        // 2. Auto-heal users to always include all 4 Owners (root, penh, miller, theary)
+        let currentUsers = Array.isArray(db.users) ? [...db.users] : [];
+        let usersModified = false;
+        for (const defaultOwner of DEFAULT_USERS) {
+          const exists = currentUsers.some((u: any) => 
+            u.id === defaultOwner.id || 
+            u.username?.toLowerCase() === defaultOwner.username?.toLowerCase() ||
+            (defaultOwner.telegramChatId && String(u.telegramChatId || u.telegramId) === defaultOwner.telegramChatId)
+          );
+          if (!exists) {
+            currentUsers.push(defaultOwner);
+            usersModified = true;
+          }
+        }
+        // Normalize any old roth owner to root if needed
+        currentUsers = currentUsers.map((u: any) => {
+          if (u.id === 'usr_owner' && u.username === 'roth') {
+            usersModified = true;
+            return { ...u, id: 'usr_root', username: 'root', fullName: 'Root (Executive Owner)', email: 'root@p2bkh.tech', telegramUsername: '@root' };
+          }
+          return u;
+        });
+
+        if (usersModified || !Array.isArray(db.users) || db.users.length === 0) {
+          db.users = currentUsers;
+          rowsToHeal.push({ id: 'users', data: currentUsers, updated_at: new Date().toISOString() });
+          needsDbHeal = true;
+        }
+
+        // 3. Auto-heal extra shifts if empty
+        if (!Array.isArray(db.extraShifts) || db.extraShifts.length === 0) {
+          db.extraShifts = DEFAULT_EXTRA_SHIFTS;
+          rowsToHeal.push({ id: 'extraShifts', data: DEFAULT_EXTRA_SHIFTS, updated_at: new Date().toISOString() });
+          needsDbHeal = true;
+        }
+
+        // 4. Auto-heal leave requests if empty
+        if (!Array.isArray(db.leaveRequests) || db.leaveRequests.length === 0) {
+          db.leaveRequests = DEFAULT_LEAVE_REQUESTS;
+          rowsToHeal.push({ id: 'leaveRequests', data: DEFAULT_LEAVE_REQUESTS, updated_at: new Date().toISOString() });
+          needsDbHeal = true;
+        }
+
+        if (needsDbHeal && rowsToHeal.length > 0) {
+          supabase.from('tc_collections').upsert(rowsToHeal, { onConflict: 'id' }).catch((e: any) => console.warn('Auto-heal upsert error:', e?.message));
+        }
+
         const keys = Object.keys(db);
         if (keys.length > 0) {
           return res.status(200).json({

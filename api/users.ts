@@ -73,7 +73,31 @@ async function loadUsers(): Promise<any[]> {
     try {
       let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
       if (!error && data && Array.isArray(data.data) && data.data.length > 0) {
-        return data.data;
+        let list = [...data.data];
+        let modified = false;
+        for (const defaultOwner of DEFAULT_USERS) {
+          const exists = list.some((u: any) => 
+            u.id === defaultOwner.id || 
+            u.username?.toLowerCase() === defaultOwner.username?.toLowerCase() ||
+            (defaultOwner.telegramChatId && String(u.telegramChatId || u.telegramId) === defaultOwner.telegramChatId)
+          );
+          if (!exists) {
+            list.push(defaultOwner);
+            modified = true;
+          }
+        }
+        // Normalize any old roth to root
+        list = list.map((u: any) => {
+          if (u.id === 'usr_owner' && u.username === 'roth') {
+            modified = true;
+            return { ...u, id: 'usr_root', username: 'root', fullName: 'Root (Executive Owner)', email: 'root@p2bkh.tech', telegramUsername: '@root' };
+          }
+          return u;
+        });
+        if (modified) {
+          saveUsers(list).catch(() => {});
+        }
+        return list;
       }
     } catch (e) {
       lastUsersErrorTime = Date.now();
