@@ -5876,7 +5876,7 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
           { text: '🚪 ចុះវត្តមានចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout` } }
         ],
         [
-          { text: '📊 របាយការណ៍ Check In / Out' },
+          { text: 'របាយការណ៍វត្តមាន' },
           { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
         ],
         [

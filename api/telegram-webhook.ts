@@ -1067,7 +1067,7 @@ export default async function handler(req: any, res: any) {
             { text: '🚪 ចុះវត្តមានចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
           ],
           [
-            { text: '📊 របាយការណ៍ Check In / Out' },
+            { text: 'របាយការណ៍វត្តមាន' },
             { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
           ],
           [
@@ -1088,7 +1088,7 @@ export default async function handler(req: any, res: any) {
             { text: '🚪 ចុះវត្តមានចេញ' }
           ],
           [
-            { text: '📊 របាយការណ៍ Check In / Out' },
+            { text: 'របាយការណ៍វត្តមាន' },
             { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
           ],
           [
