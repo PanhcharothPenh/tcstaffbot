@@ -773,8 +773,24 @@ export default function UserManagementView({
     );
   }
 
+  // Deduplicated users list
+  const deduplicatedUsers = React.useMemo(() => {
+    const map = new Map<string, User>();
+    for (const u of users) {
+      const key = (u.username || u.id || '').toLowerCase().trim();
+      if (!key) continue;
+      if (!map.has(key)) {
+        map.set(key, u);
+      } else {
+        const existing = map.get(key)!;
+        map.set(key, { ...existing, ...u, id: existing.id || u.id });
+      }
+    }
+    return Array.from(map.values());
+  }, [users]);
+
   // Filtered Users List
-  const filteredUsers = users.filter(u => {
+  const filteredUsers = deduplicatedUsers.filter(u => {
     const query = searchQuery.trim().toLowerCase();
     const matchesSearch = !query || (
       (u.fullName || '').toLowerCase().includes(query) ||
@@ -791,9 +807,9 @@ export default function UserManagementView({
   });
 
   // Metric counts
-  const totalCount = users.length;
-  const activeCount = users.filter(u => u.status === 'Active').length;
-  const tg2faCount = users.filter(u => u.twoFactorMethod === 'telegram' || u.telegramUsername).length;
+  const totalCount = deduplicatedUsers.length;
+  const activeCount = deduplicatedUsers.filter(u => u.status === 'Active').length;
+  const tg2faCount = deduplicatedUsers.filter(u => u.twoFactorMethod === 'telegram' || u.telegramUsername).length;
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200" id="user_management_module">

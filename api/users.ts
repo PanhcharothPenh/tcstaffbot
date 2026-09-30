@@ -74,7 +74,26 @@ async function loadUsers(): Promise<any[]> {
       let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
       if (!error && data && Array.isArray(data.data) && data.data.length > 0) {
         let list = [...data.data];
-        let modified = false;
+        
+        // Normalize any old roth to root
+        list = list.map((u: any) => {
+          if ((u.id === 'usr_owner' || u.id === 'usr_root') && (u.username === 'roth' || u.username === 'root')) {
+            return {
+              ...u,
+              id: 'usr_root',
+              username: 'root',
+              fullName: 'Root (Executive Owner)',
+              email: 'root@p2bkh.tech',
+              role: 'Owner',
+              roleId: 'owner',
+              status: 'Active',
+              assignedBranchIds: ['b1', 'b2'],
+              telegramUsername: '@root'
+            };
+          }
+          return u;
+        });
+
         for (const defaultOwner of DEFAULT_USERS) {
           const exists = list.some((u: any) => 
             u.id === defaultOwner.id || 
@@ -83,21 +102,26 @@ async function loadUsers(): Promise<any[]> {
           );
           if (!exists) {
             list.push(defaultOwner);
-            modified = true;
           }
         }
-        // Normalize any old roth to root
-        list = list.map((u: any) => {
-          if (u.id === 'usr_owner' && u.username === 'roth') {
-            modified = true;
-            return { ...u, id: 'usr_root', username: 'root', fullName: 'Root (Executive Owner)', email: 'root@p2bkh.tech', telegramUsername: '@root' };
+
+        // Strict deduplication by username/id
+        const userMap = new Map<string, any>();
+        for (const u of list) {
+          const key = (u.username || u.id || '').toLowerCase().trim();
+          if (!key) continue;
+          if (!userMap.has(key)) {
+            userMap.set(key, u);
+          } else {
+            const existing = userMap.get(key);
+            userMap.set(key, { ...existing, ...u, id: existing.id || u.id });
           }
-          return u;
-        });
-        if (modified) {
-          saveUsers(list).catch(() => {});
         }
-        return list;
+        const finalUsers = Array.from(userMap.values());
+        if (JSON.stringify(finalUsers) !== JSON.stringify(data.data)) {
+          saveUsers(finalUsers).catch(() => {});
+        }
+        return finalUsers;
       }
     } catch (e) {
       lastUsersErrorTime = Date.now();

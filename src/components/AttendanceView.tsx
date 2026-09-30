@@ -1635,48 +1635,73 @@ export default function AttendanceView({
                           ? 'bg-blue-50/30 hover:bg-blue-50/50'
                           : 'hover:bg-slate-50/60'
                       }`}>
-                        {/* Staff Name */}
+                        {/* Staff Name & Photo */}
                         <td className="py-3 px-3.5">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-bold text-slate-900">{rec.staffName}</span>
-                            {rec.status === 'Permission' && (
-                              <span className="px-1.5 py-0.5 rounded-md text-[9.5px] font-black bg-rose-100 text-rose-800 border border-rose-300 inline-flex items-center gap-1 shadow-2xs">
-                                <span className="w-1.5 h-1.5 rounded-full bg-rose-600 inline-block"></span>
-                                <span>ច្បាប់សម្រាក</span>
-                              </span>
+                          <div className="flex items-center gap-2.5">
+                            {rec.checkInPhoto || rec.checkOutPhoto || staffList.find(s => s.id === rec.staffId)?.photoUrl ? (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedRecord(rec)}
+                                className="relative group cursor-pointer shrink-0"
+                                title="ចុចដើម្បីមើលរូបថតស្កេនធំ (View Selfie Photo)"
+                              >
+                                <img
+                                  src={rec.checkInPhoto || rec.checkOutPhoto || staffList.find(s => s.id === rec.staffId)?.photoUrl}
+                                  alt={rec.staffName}
+                                  className="w-8 h-8 rounded-xl object-cover border border-slate-200 shadow-2xs group-hover:scale-110 transition-transform"
+                                />
+                                <div className="absolute inset-0 bg-black/25 rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                  <Eye size={12} className="text-white" />
+                                </div>
+                              </button>
+                            ) : (
+                              <div className="w-8 h-8 rounded-xl bg-blue-100 text-[#003D9B] flex items-center justify-center font-bold text-xs shrink-0 select-none">
+                                {rec.staffName ? rec.staffName.charAt(0) : 'S'}
+                              </div>
                             )}
-                            {rec.status === 'Late' && (
-                              <span className={`px-1.5 py-0.5 rounded-md text-[9.5px] font-black inline-flex items-center gap-1 shadow-2xs ${
-                                rec.isLateExcused 
-                                   ? 'bg-cyan-100 text-cyan-800 border border-cyan-300' 
-                                   : 'bg-amber-100 text-amber-800 border border-amber-300'
-                              }`}>
-                                <span className={`w-1.5 h-1.5 rounded-full inline-block ${rec.isLateExcused ? 'bg-cyan-600' : 'bg-amber-600'}`}></span>
-                                <span>{rec.lateMinutes ? `យឺត ${formatLateMinutes(rec.lateMinutes, lang)} (~$${Number(rec.indicativeLateAmount || 0).toFixed(2)})` : (rec.isLateExcused ? 'យឺតមិនកាត់ប្រាក់' : (rec.lateDeduction && rec.lateDeduction > 0 ? `យឺតកាត់ $${rec.lateDeduction}` : 'មកយឺត'))}</span>
-                              </span>
-                            )}
-                            {rec.earlyMinutes && rec.earlyMinutes > 0 ? (
-                              <span className="px-1.5 py-0.5 rounded-md text-[9.5px] font-black inline-flex items-center gap-1 shadow-2xs bg-amber-100 text-amber-800 border border-amber-300">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-600 inline-block"></span>
-                                <span>ចេញមុន {rec.earlyMinutes}mn (~${Number(rec.indicativeEarlyAmount || 0).toFixed(2)})</span>
-                              </span>
-                            ) : null}
-                            {isDateMatching(rec.date, todayPhnomPenh) && rec.status !== 'Permission' && rec.status !== 'Late' && (
-                              <span className="px-1.5 py-0.2 rounded-md text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
-                                ថ្ងៃនេះ
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">{rec.date} • {rec.shiftType || 'Shift'}</div>
-                          {rec.notes && (
-                            <div className={`text-[10px] font-medium italic mt-1 bg-white/80 px-2 py-0.5 rounded-md border inline-block max-w-xs truncate ${
-                              rec.status === 'Permission' ? 'text-rose-700 border-rose-200' :
-                              rec.status === 'Late' ? (rec.isLateExcused ? 'text-cyan-700 border-cyan-200' : 'text-amber-700 border-amber-200') :
-                              'text-slate-600 border-slate-200'
-                            }`} title={rec.notes}>
-                              {rec.notes}
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-slate-900">{rec.staffName}</span>
+                                {rec.status === 'Permission' && (
+                                  <span className="px-1.5 py-0.5 rounded-md text-[9.5px] font-black bg-rose-100 text-rose-800 border border-rose-300 inline-flex items-center gap-1 shadow-2xs">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-600 inline-block"></span>
+                                    <span>ច្បាប់សម្រាក</span>
+                                  </span>
+                                )}
+                                {rec.status === 'Late' && (
+                                  <span className={`px-1.5 py-0.5 rounded-md text-[9.5px] font-black inline-flex items-center gap-1 shadow-2xs ${
+                                    rec.isLateExcused 
+                                       ? 'bg-cyan-100 text-cyan-800 border border-cyan-300' 
+                                       : 'bg-amber-100 text-amber-800 border border-amber-300'
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full inline-block ${rec.isLateExcused ? 'bg-cyan-600' : 'bg-amber-600'}`}></span>
+                                    <span>{rec.lateMinutes ? `យឺត ${formatLateMinutes(rec.lateMinutes, lang)} (~$${Number(rec.indicativeLateAmount || 0).toFixed(2)})` : (rec.isLateExcused ? 'យឺតមិនកាត់ប្រាក់' : (rec.lateDeduction && rec.lateDeduction > 0 ? `យឺតកាត់ $${rec.lateDeduction}` : 'មកយឺត'))}</span>
+                                  </span>
+                                )}
+                                {rec.earlyMinutes && rec.earlyMinutes > 0 ? (
+                                  <span className="px-1.5 py-0.5 rounded-md text-[9.5px] font-black inline-flex items-center gap-1 shadow-2xs bg-amber-100 text-amber-800 border border-amber-300">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-600 inline-block"></span>
+                                    <span>ចេញមុន {rec.earlyMinutes}mn (~${Number(rec.indicativeEarlyAmount || 0).toFixed(2)})</span>
+                                  </span>
+                                ) : null}
+                                {isDateMatching(rec.date, todayPhnomPenh) && rec.status !== 'Permission' && rec.status !== 'Late' && (
+                                  <span className="px-1.5 py-0.2 rounded-md text-[9px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
+                                    ថ្ងៃនេះ
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-mono mt-0.5">{rec.date} • {rec.shiftType || 'Shift'}</div>
+                              {rec.notes && (
+                                <div className={`text-[10px] font-medium italic mt-1 bg-white/80 px-2 py-0.5 rounded-md border inline-block max-w-xs truncate ${
+                                  rec.status === 'Permission' ? 'text-rose-700 border-rose-200' :
+                                  rec.status === 'Late' ? (rec.isLateExcused ? 'text-cyan-700 border-cyan-200' : 'text-amber-700 border-amber-200') :
+                                  'text-slate-600 border-slate-200'
+                                }`} title={rec.notes}>
+                                  {rec.notes}
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </div>
                         </td>
 
                         {/* Branch */}
@@ -1687,7 +1712,20 @@ export default function AttendanceView({
                         {/* Check In */}
                         <td className="py-3 px-3 text-center font-mono font-bold">
                           {rec.checkIn && rec.checkIn !== '--' ? (
-                            <span className="text-emerald-700">{rec.checkIn}</span>
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="text-emerald-700">{rec.checkIn}</span>
+                              {rec.checkInPhoto && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedRecord(rec)}
+                                  className="text-[9.5px] font-sans font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-1 transition cursor-pointer"
+                                  title="មើលរូបថតស្កេន Check-In"
+                                >
+                                  <Camera size={10} className="text-emerald-600" />
+                                  <span>រូបថត</span>
+                                </button>
+                              )}
+                            </div>
                           ) : rec.status === 'Permission' ? (
                             <span className="text-[10.5px] font-black text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md border border-rose-200">
                               សុំច្បាប់
@@ -1700,8 +1738,19 @@ export default function AttendanceView({
                         {/* Check Out */}
                         <td className="py-3 px-3 text-center font-mono font-bold">
                           {rec.checkOut && rec.checkOut !== '--' ? (
-                            <div className="flex flex-col items-center">
+                            <div className="flex flex-col items-center gap-1">
                               <span className="text-rose-700">{rec.checkOut}</span>
+                              {rec.checkOutPhoto && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedRecord(rec)}
+                                  className="text-[9.5px] font-sans font-bold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 px-1.5 py-0.5 rounded border border-rose-200 flex items-center gap-1 transition cursor-pointer"
+                                  title="មើលរូបថតស្កេន Check-Out"
+                                >
+                                  <Camera size={10} className="text-rose-600" />
+                                  <span>រូបថត</span>
+                                </button>
+                              )}
                               {rec.earlyMinutes && rec.earlyMinutes > 0 ? (
                                 <span className="text-[9.5px] text-amber-700 font-sans font-medium">មុន {rec.earlyMinutes}mn</span>
                               ) : null}
