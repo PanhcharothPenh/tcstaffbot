@@ -582,6 +582,27 @@ export default function AttendanceView({
     const sFullName = String(staff.fullName || '').toLowerCase();
     const effectiveBranchId = staff.branchId || (sFullName.includes('corner') ? 'b2' : 'b1');
 
+    const parseTimeToHours = (tStr?: string): number | null => {
+      if (!tStr || tStr === '--' || !/\d/.test(tStr)) return null;
+      const m = tStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+      if (!m) return null;
+      let h = parseInt(m[1], 10);
+      const min = parseInt(m[2], 10);
+      const ampm = m[3] ? m[3].toUpperCase() : '';
+      if (ampm === 'PM' && h < 12) h += 12;
+      if (ampm === 'AM' && h === 12) h = 0;
+      return h + min / 60;
+    };
+
+    let calculatedWorkHours = addStatus === 'Absent' ? 0 : 8;
+    if (addCheckIn && addCheckOut && addStatus !== 'Absent') {
+      const inH = parseTimeToHours(addCheckIn);
+      const outH = parseTimeToHours(addCheckOut);
+      if (inH !== null && outH !== null && outH > inH) {
+        calculatedWorkHours = Math.round((outH - inH) * 100) / 100;
+      }
+    }
+
     const newAtt: Attendance = {
       id: 'att_' + Date.now(),
       branchId: effectiveBranchId,
@@ -591,7 +612,7 @@ export default function AttendanceView({
       checkIn: addStatus === 'Absent' ? '' : addCheckIn,
       checkOut: addStatus === 'Absent' ? '' : addCheckOut,
       shiftType: staff.shift || 'Full Time',
-      workHours: addStatus === 'Absent' ? 0 : 8,
+      workHours: calculatedWorkHours,
       overtimeHours: 0,
       status: addStatus,
       source: 'manual',
@@ -3088,37 +3109,151 @@ export default function AttendanceView({
             )}
 
             {addStatus !== 'Absent' && (
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 mb-1 block">ម៉ោងចូល</label>
+              <div className="space-y-3">
+                {/* Check-In Field & Chips */}
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                      <Clock size={13} className="text-emerald-600" /> ម៉ោងចូល (Check In)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date();
+                        let h = d.getHours();
+                        const m = d.getMinutes();
+                        const ampm = h >= 12 ? 'PM' : 'AM';
+                        h = h % 12;
+                        h = h ? h : 12;
+                        const strH = h < 10 ? '0' + h : String(h);
+                        const strM = m < 10 ? '0' + m : String(m);
+                        setAddCheckIn(`${strH}:${strM} ${ampm}`);
+                      }}
+                      className="text-[10px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
+                    >
+                      ⚡ ឥឡូវនេះ (Now)
+                    </button>
+                  </div>
                   <input
                     type="text"
+                    placeholder="06:30 AM"
                     value={addCheckIn}
                     onChange={e => setAddCheckIn(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-mono font-bold"
                   />
+                  {/* Quick Preset Chips for In */}
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {['06:30 AM', '06:45 AM', '07:00 AM', '12:50 PM', '01:00 PM', '01:30 PM', '02:00 PM'].map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setAddCheckIn(t)}
+                        className={`px-2 py-0.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                          addCheckIn === t
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setAddCheckIn('')}
+                      className="px-2 py-0.5 text-[10px] font-bold rounded-lg border bg-rose-50 hover:bg-rose-100 text-rose-600 border-rose-200 cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600 mb-1 block">ម៉ោងចេញ</label>
+                {/* Check-Out Field & Chips */}
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                      <Clock size={13} className="text-blue-600" /> ម៉ោងចេញ (Check Out)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date();
+                        let h = d.getHours();
+                        const m = d.getMinutes();
+                        const ampm = h >= 12 ? 'PM' : 'AM';
+                        h = h % 12;
+                        h = h ? h : 12;
+                        const strH = h < 10 ? '0' + h : String(h);
+                        const strM = m < 10 ? '0' + m : String(m);
+                        setAddCheckOut(`${strH}:${strM} ${ampm}`);
+                      }}
+                      className="text-[10px] font-bold text-blue-700 hover:text-blue-800 hover:underline cursor-pointer"
+                    >
+                      ⚡ ឥឡូវនេះ (Now)
+                    </button>
+                  </div>
                   <input
                     type="text"
+                    placeholder="04:00 PM"
                     value={addCheckOut}
                     onChange={e => setAddCheckOut(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-mono font-bold"
                   />
+                  {/* Quick Preset Chips for Out */}
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {['02:00 PM', '02:30 PM', '04:00 PM', '09:00 PM', '09:30 PM'].map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setAddCheckOut(t)}
+                        className={`px-2 py-0.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                          addCheckOut === t
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setAddCheckOut('')}
+                      className="px-2 py-0.5 text-[10px] font-bold rounded-lg border bg-rose-50 hover:bg-rose-100 text-rose-600 border-rose-200 cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
 
-            <div className="text-xs">
-              <label className="text-[11px] font-bold text-slate-600 mb-1 block">សម្គាល់ / មូលហេតុ</label>
+            <div className="text-xs space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-700 block">សម្គាល់ / មូលហេតុ (Note & Reason)</label>
+              {/* Quick Note Presets */}
+              <div className="flex flex-wrap gap-1 mb-1">
+                {[
+                  'កត់ត្រាវត្តមានផ្ទាល់',
+                  'ភ្លេចស្កេនទូរស័ព្ទ',
+                  'ទូរស័ព្ទអស់ថ្ម',
+                  'មកយឺតមានការអនុគ្រោះ',
+                  'សុំច្បាប់ផ្ទាល់មាត់',
+                  'បំពេញការងារបន្ថែម'
+                ].map(reasonTag => (
+                  <button
+                    key={reasonTag}
+                    type="button"
+                    onClick={() => setAddReason(prev => prev ? `${prev}, ${reasonTag}` : reasonTag)}
+                    className="px-2 py-0.5 text-[10px] font-medium bg-slate-100 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 text-slate-600 rounded-lg border border-slate-200 transition cursor-pointer"
+                  >
+                    + {reasonTag}
+                  </button>
+                ))}
+              </div>
               <input
                 type="text"
-                placeholder="ឧ. កត់ត្រាវត្តមានផ្ទាល់..."
+                placeholder="ឧ. កត់ត្រាវត្តមានផ្ទាល់... (បញ្ចូលកំណត់សម្គាល់)"
                 value={addReason}
                 onChange={e => setAddReason(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-medium"
               />
             </div>
 
@@ -3132,9 +3267,9 @@ export default function AttendanceView({
               </button>
               <button
                 type="submit"
-                className="flex-1 py-2.5 bg-[#003D9B] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs"
+                className="flex-1 py-2.5 bg-[#003D9B] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
               >
-                កត់ត្រាវត្តមាន
+                💾 កត់ត្រាវត្តមាន
               </button>
             </div>
           </form>
