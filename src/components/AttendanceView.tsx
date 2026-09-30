@@ -377,7 +377,7 @@ export default function AttendanceView({
   const [reportEndDate, setReportEndDate] = useState(() => getPhnomPenhDateStr());
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  const isAuthorized = ['Owner', 'Admin', 'Manager'].includes(currentRole);
+  const isAuthorized = ['owner', 'admin', 'manager', 'superadmin', 'root'].includes(String(currentRole || currentUser?.role || currentUser?.roleId || 'Owner').toLowerCase()) || ['Owner', 'Admin', 'Manager'].includes(currentRole);
 
   // Sync active branch selection from top bar
   useEffect(() => {
@@ -1220,34 +1220,31 @@ export default function AttendanceView({
 
           {/* Quick Action Buttons */}
           <div className="flex items-center gap-2">
-            {activeTab === 'daily' && (
-              <>
-                <button
-                  onClick={() => setShowReportModal(true)}
-                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
-                >
-                  <FileDown size={13} />
-                  <span>{lang === 'kh' ? 'របាយការណ៍ PDF' : 'PDF Report'}</span>
-                </button>
-                {isAuthorized && (
-                  <button
-                    onClick={() => {
-                      setAddDate(selectedDate || getPhnomPenhDateStr());
-                      setShowAddModal(true);
-                    }}
-                    className="px-3.5 py-2 bg-[#003D9B] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs"
-                  >
-                    <Plus size={14} />
-                    <span>{lang === 'kh' ? 'កត់ត្រាវត្តមានដោយដៃ' : 'Manual Entry'}</span>
-                  </button>
-                )}
-              </>
+            <button
+              onClick={() => setShowReportModal(true)}
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+            >
+              <FileDown size={13} />
+              <span>{lang === 'kh' ? 'របាយការណ៍ PDF' : 'PDF Report'}</span>
+            </button>
+
+            {isAuthorized && (
+              <button
+                onClick={() => {
+                  setAddDate(selectedDate && selectedDate !== 'all' ? selectedDate : getPhnomPenhDateStr());
+                  setShowAddModal(true);
+                }}
+                className="px-3.5 py-2 bg-[#003D9B] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+              >
+                <Plus size={14} />
+                <span>{lang === 'kh' ? 'កត់ត្រាវត្តមានដោយដៃ' : 'Manual Entry'}</span>
+              </button>
             )}
 
             {activeTab === 'monthly' && (
               <button
                 onClick={() => setActiveTab('printable')}
-                className="px-3.5 py-2 bg-[#003D9B] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs"
               >
                 <Printer size={13} />
                 <span>{lang === 'kh' ? 'មើលទម្រង់ក្រដាស & PDF' : 'View Printable'}</span>
@@ -1258,10 +1255,10 @@ export default function AttendanceView({
               <>
                 <button
                   onClick={handlePrintLedger}
-                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                  className="px-3.5 py-2 bg-[#003D9B] hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs"
                 >
                   <Printer size={13} />
-                  <span>{lang === 'kh' ? 'បោះពុម្ព' : 'Print'}</span>
+                  <span>{lang === 'kh' ? 'បោះពុម្ព (Print)' : 'Print Ledger'}</span>
                 </button>
                 <button
                   onClick={handleExportPdfCanvas}
@@ -3028,9 +3025,9 @@ export default function AttendanceView({
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                 required
               >
-                <option value="">-- ជ្រើសរើសបុគ្គលិក --</option>
-                {staffList.filter(s => s.status === 'Active').map(s => (
-                  <option key={s.id} value={s.id}>{s.fullName} ({s.position})</option>
+                <option value="">-- ជ្រើសរើសបុគ្គលិក (Select Staff) --</option>
+                {staffList.filter(s => s.status !== 'Inactive' && s.status !== 'Resigned').map(s => (
+                  <option key={s.id} value={s.id}>{s.fullName} ({s.position || 'Staff'} • {getBranchName(s.branchId)})</option>
                 ))}
               </select>
             </div>
