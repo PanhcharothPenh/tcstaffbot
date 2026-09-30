@@ -7110,27 +7110,41 @@ app.post('/api/attendance/check-out', async (req, res) => {
     let inMins = 390;
     let outMins = 960;
     try {
+      const normalizeKhmerDigits = (str?: string) => {
+        if (!str) return '';
+        const khmer = ['០', '១', '២', '៣', '៤', '៥', '៦', '៧', '៨', '៩'];
+        let res = String(str);
+        for (let i = 0; i < 10; i++) res = res.replaceAll(khmer[i], String(i));
+        return res;
+      };
       const parseTimeToMinutes = (tStr: string) => {
-          const parts = tStr.trim().match(/(\d+):(\d+)\s*(AM|PM)?/i);
-          if (!parts) return 0;
-          let h = parseInt(parts[1], 10);
-          const m = parseInt(parts[2], 10);
-          const ampm = parts[3]?.toUpperCase();
-          if (ampm === 'PM' && h < 12) h += 12;
-          if (ampm === 'AM' && h === 12) h = 0;
-          return h * 60 + m;
-        };
+        if (!tStr) return 0;
+        let clean = normalizeKhmerDigits(tStr).trim();
+        const isKhmerPM = /រសៀល|ល្ងាច|យប់/i.test(clean);
+        const isKhmerAM = /ព្រឹក/i.test(clean);
+        clean = clean.replace(/(\d{1,2})[.;](\d{2})/, '$1:$2');
+        const parts = clean.match(/(\d+):(\d+)\s*(AM|PM|ព្រឹក|រសៀល|ល្ងាច|យប់)?/i);
+        if (!parts) return 0;
+        let h = parseInt(parts[1], 10);
+        const m = parseInt(parts[2], 10);
+        let ampm = parts[3]?.toUpperCase() || '';
+        if (isKhmerPM) ampm = 'PM';
+        if (isKhmerAM) ampm = 'AM';
+        if (ampm === 'PM' && h < 12) h += 12;
+        if (ampm === 'AM' && h === 12) h = 0;
+        return h * 60 + m;
+      };
 
-        inMins = parseTimeToMinutes(attRecord.checkIn);
-        outMins = parseTimeToMinutes(timeStr);
-        let diffMins = outMins - inMins;
-        if (diffMins < 0) diffMins += 24 * 60;
+      inMins = parseTimeToMinutes(attRecord.checkIn);
+      outMins = parseTimeToMinutes(timeStr);
+      let diffMins = outMins - inMins;
+      if (diffMins < 0) diffMins += 24 * 60;
 
-        const h = Math.floor(diffMins / 60);
-        const m = diffMins % 60;
-        workHours = Number((diffMins / 60).toFixed(2));
-        hoursStr = `${h}h ${String(m).padStart(2, '0')}m`;
-      } catch {}
+      const h = Math.floor(diffMins / 60);
+      const m = diffMins % 60;
+      workHours = Number((diffMins / 60).toFixed(2));
+      hoursStr = `${h}h ${String(m).padStart(2, '0')}m`;
+    } catch {}
 
       // Branch-aware shift determination & early check-out calculation
       const bName = String(branch?.branchName || '').toLowerCase();
@@ -7268,6 +7282,41 @@ app.post('/api/admin/attendance', async (req, res) => {
       return res.status(400).json({ success: false, error: 'staffId and date are required' });
     }
 
+    const normalizeDigits = (str?: string) => {
+      if (!str) return '';
+      const khmer = ['០', '១', '២', '៣', '៤', '៥', '៦', '៧', '៨', '៩'];
+      let res = String(str);
+      for (let i = 0; i < 10; i++) res = res.replaceAll(khmer[i], String(i));
+      return res;
+    };
+    const parseTime = (tStr: string) => {
+      if (!tStr) return 0;
+      let clean = normalizeDigits(tStr).trim();
+      const isKhmerPM = /រសៀល|ល្ងាច|យប់/i.test(clean);
+      const isKhmerAM = /ព្រឹក/i.test(clean);
+      clean = clean.replace(/(\d{1,2})[.;](\d{2})/, '$1:$2');
+      const parts = clean.match(/(\d+):(\d+)\s*(AM|PM|ព្រឹក|រសៀល|ល្ងាច|យប់)?/i);
+      if (!parts) return 0;
+      let h = parseInt(parts[1], 10);
+      const m = parseInt(parts[2], 10);
+      let ampm = parts[3]?.toUpperCase() || '';
+      if (isKhmerPM) ampm = 'PM';
+      if (isKhmerAM) ampm = 'AM';
+      if (ampm === 'PM' && h < 12) h += 12;
+      if (ampm === 'AM' && h === 12) h = 0;
+      return h * 60 + m;
+    };
+
+    if (record.checkIn && record.checkOut && record.checkIn !== '--' && record.checkOut !== '--' && record.status !== 'Absent' && record.status !== 'Permission') {
+      const inH = parseTime(record.checkIn) / 60;
+      const outH = parseTime(record.checkOut) / 60;
+      let diff = outH - inH;
+      if (diff < 0) diff += 24;
+      record.workHours = Math.round(diff * 100) / 100;
+    } else if (record.status === 'Absent' || record.status === 'Permission') {
+      record.workHours = 0;
+    }
+
     if (!Array.isArray(localDb.attendance)) localDb.attendance = [];
     const idx = localDb.attendance.findIndex((a: any) => a.id === record.id || (a.staffId === record.staffId && a.date === record.date));
     if (idx >= 0) {
@@ -7317,6 +7366,7 @@ app.patch('/api/admin/attendance/:id', (req, res) => {
         date: date || nowIso.slice(0, 10),
         checkIn: checkIn || '--',
         checkOut: checkOut || '--',
+        workHours: 0,
         status: status || 'Present',
         auditHistory: [],
         createdAt: nowIso,
@@ -7361,6 +7411,42 @@ app.patch('/api/admin/attendance/:id', (req, res) => {
         reason: finalReason
       });
       record.status = status;
+    }
+
+    // Auto-calculate workHours
+    const normalizeDigits = (str?: string) => {
+      if (!str) return '';
+      const khmer = ['០', '១', '២', '៣', '៤', '៥', '៦', '៧', '៨', '៩'];
+      let res = String(str);
+      for (let i = 0; i < 10; i++) res = res.replaceAll(khmer[i], String(i));
+      return res;
+    };
+    const parseTime = (tStr: string) => {
+      if (!tStr) return 0;
+      let clean = normalizeDigits(tStr).trim();
+      const isKhmerPM = /រសៀល|ល្ងាច|យប់/i.test(clean);
+      const isKhmerAM = /ព្រឹក/i.test(clean);
+      clean = clean.replace(/(\d{1,2})[.;](\d{2})/, '$1:$2');
+      const parts = clean.match(/(\d+):(\d+)\s*(AM|PM|ព្រឹក|រសៀល|ល្ងាច|យប់)?/i);
+      if (!parts) return 0;
+      let h = parseInt(parts[1], 10);
+      const m = parseInt(parts[2], 10);
+      let ampm = parts[3]?.toUpperCase() || '';
+      if (isKhmerPM) ampm = 'PM';
+      if (isKhmerAM) ampm = 'AM';
+      if (ampm === 'PM' && h < 12) h += 12;
+      if (ampm === 'AM' && h === 12) h = 0;
+      return h * 60 + m;
+    };
+
+    if (record.checkIn && record.checkOut && record.checkIn !== '--' && record.checkOut !== '--' && record.status !== 'Absent' && record.status !== 'Permission') {
+      const inH = parseTime(record.checkIn) / 60;
+      const outH = parseTime(record.checkOut) / 60;
+      let diff = outH - inH;
+      if (diff < 0) diff += 24;
+      record.workHours = Math.round(diff * 100) / 100;
+    } else if (record.status === 'Absent' || record.status === 'Permission') {
+      record.workHours = 0;
     }
 
     record.updatedAt = nowIso;

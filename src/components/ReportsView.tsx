@@ -48,8 +48,7 @@ import {
   SoftenerRecord, StockTransaction, Supplier, Debt, DebtPayment, 
   CashDrawer, CashDrawerTransaction, MonthClosing, User as UserType
 } from '../types';
-import { translations } from '../mockData';
-import { formatCurrency, formatDualCurrency, exportToCSV, formatCasesAndPackets } from '../utils';
+import { formatCurrency, formatDualCurrency, exportToCSV, formatCasesAndPackets, calculateWorkHours } from '../utils';
 import TCLogo from './TCLogo';
 
 interface ReportsViewProps {
@@ -395,7 +394,7 @@ export default function ReportsView({
           clockIn: a.checkIn || '--:--',
           clockOut: a.checkOut || '--:--',
           shift: a.shiftType || 'Regular Shift',
-          workHours: a.workHours,
+          workHours: (a.workHours !== undefined && a.workHours !== null && a.workHours > 0) ? a.workHours : calculateWorkHours(a.checkIn, a.checkOut, a.status),
           overtime: a.overtimeHours,
           status: a.status
         })).sort((a, b) => b.date.localeCompare(a.date));

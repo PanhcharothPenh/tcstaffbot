@@ -1353,12 +1353,26 @@ export default async function handler(req: any, res: any) {
       let inMins = 390;
       let outMins = 960;
       try {
+        const normalizeKhmerDigits = (str?: string) => {
+          if (!str) return '';
+          const khmer = ['០', '១', '២', '៣', '៤', '៥', '៦', '៧', '៨', '៩'];
+          let res = String(str);
+          for (let i = 0; i < 10; i++) res = res.replaceAll(khmer[i], String(i));
+          return res;
+        };
         const parseTimeToMinutes = (tStr: string) => {
-          const parts = tStr.trim().match(/(\d+):(\d+)\s*(AM|PM)?/i);
+          if (!tStr) return 0;
+          let clean = normalizeKhmerDigits(tStr).trim();
+          const isKhmerPM = /រសៀល|ល្ងាច|យប់/i.test(clean);
+          const isKhmerAM = /ព្រឹក/i.test(clean);
+          clean = clean.replace(/(\d{1,2})[.;](\d{2})/, '$1:$2');
+          const parts = clean.match(/(\d+):(\d+)\s*(AM|PM|ព្រឹក|រសៀល|ល្ងាច|យប់)?/i);
           if (!parts) return 0;
           let h = parseInt(parts[1], 10);
           const m = parseInt(parts[2], 10);
-          const ampm = parts[3]?.toUpperCase();
+          let ampm = parts[3]?.toUpperCase() || '';
+          if (isKhmerPM) ampm = 'PM';
+          if (isKhmerAM) ampm = 'AM';
           if (ampm === 'PM' && h < 12) h += 12;
           if (ampm === 'AM' && h === 12) h = 0;
           return h * 60 + m;
@@ -1574,6 +1588,17 @@ export default async function handler(req: any, res: any) {
         return res.status(400).json({ success: false, error: 'staffId and date are required' });
       }
 
+      // Recalculate workHours if checkIn and checkOut exist
+      if (record.checkIn && record.checkOut && record.checkIn !== '--' && record.checkOut !== '--' && record.status !== 'Absent' && record.status !== 'Permission') {
+        const inH = parseTimeToMinutes(record.checkIn) / 60;
+        const outH = parseTimeToMinutes(record.checkOut) / 60;
+        let diff = outH - inH;
+        if (diff < 0) diff += 24;
+        record.workHours = Math.round(diff * 100) / 100;
+      } else if (record.status === 'Absent' || record.status === 'Permission') {
+        record.workHours = 0;
+      }
+
       delete INDEX_MEM_CACHE['attendance'];
       const allAtt = await getCollection('attendance');
       const idx = allAtt.findIndex((a: any) => a.id === record.id || (a.staffId === record.staffId && a.date === record.date));
@@ -1622,6 +1647,7 @@ export default async function handler(req: any, res: any) {
           date: date || nowIso.slice(0, 10),
           checkIn: checkIn || '--',
           checkOut: checkOut || '--',
+          workHours: 0,
           status: status || 'Present',
           auditHistory: [],
           createdAt: nowIso,
@@ -1666,6 +1692,17 @@ export default async function handler(req: any, res: any) {
           reason: finalReason
         });
         record.status = status;
+      }
+
+      // Automatically recalculate workHours after edit
+      if (record.checkIn && record.checkOut && record.checkIn !== '--' && record.checkOut !== '--' && record.status !== 'Absent' && record.status !== 'Permission') {
+        const inH = parseTimeToMinutes(record.checkIn) / 60;
+        const outH = parseTimeToMinutes(record.checkOut) / 60;
+        let diff = outH - inH;
+        if (diff < 0) diff += 24;
+        record.workHours = Math.round(diff * 100) / 100;
+      } else if (record.status === 'Absent' || record.status === 'Permission') {
+        record.workHours = 0;
       }
 
       record.updatedAt = nowIso;

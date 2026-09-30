@@ -41,7 +41,15 @@ import {
 import * as XLSX from 'xlsx';
 import { Attendance, Staff, Role, Branch } from '../types';
 import { translations, db } from '../mockData';
-import { printElement, getPhnomPenhDateStr } from '../utils';
+import { 
+  printElement, 
+  getPhnomPenhDateStr, 
+  parseTimeToHours, 
+  calculateWorkHours, 
+  formatWorkDuration, 
+  formatLateMinutes,
+  normalizeKhmerDigits 
+} from '../utils';
 import { generateAttendancePdf } from '../utils/AttendancePdfService';
 
 interface AttendanceViewProps {
@@ -514,11 +522,13 @@ export default function AttendanceView({
       const nowIso = new Date().toISOString();
       const cleanCheckIn = editCheckIn.trim() || '--';
       const cleanCheckOut = editCheckOut.trim() || '--';
+      const calculatedHours = calculateWorkHours(cleanCheckIn, cleanCheckOut, editStatus);
 
       const updatedRecord: Attendance = {
         ...editingRecord,
         checkIn: cleanCheckIn,
         checkOut: cleanCheckOut,
+        workHours: calculatedHours,
         status: editStatus,
         notes: finalReason || undefined,
         ...(finalReason ? { note: finalReason, reason: finalReason } : {}),
@@ -526,8 +536,8 @@ export default function AttendanceView({
           ...(editingRecord.auditHistory || []),
           {
             field: 'Manual Adjustment',
-            oldValue: `${editingRecord.checkIn || '--'} - ${editingRecord.checkOut || '--'} (${editingRecord.status})`,
-            newValue: `${cleanCheckIn} - ${cleanCheckOut} (${editStatus})`,
+            oldValue: `${editingRecord.checkIn || '--'} - ${editingRecord.checkOut || '--'} (${editingRecord.status}) [${editingRecord.workHours ?? 0} hrs]`,
+            newValue: `${cleanCheckIn} - ${cleanCheckOut} (${editStatus}) [${calculatedHours} hrs]`,
             changedBy: currentRole,
             changedAt: nowIso,
             reason: finalReason || 'កែប្រែដោយ Admin'
@@ -551,7 +561,14 @@ export default function AttendanceView({
         return updated;
       });
 
-      onAddLog(`Edited attendance for ${editingRecord.staffName || 'Staff'}: ${cleanCheckIn} - ${cleanCheckOut} (${editStatus}) ${finalReason ? `[${finalReason}]` : ''}`);
+      // 3. Direct update to admin attendance endpoint
+      fetch('/api/admin/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedRecord)
+      }).catch(() => {});
+
+      onAddLog(`Edited attendance for ${editingRecord.staffName || 'Staff'}: ${cleanCheckIn} - ${cleanCheckOut} (${editStatus}) [${formatWorkDuration(calculatedHours, lang)}] ${finalReason ? `[${finalReason}]` : ''}`);
       setEditingRecord(null);
     } catch (err: any) {
       console.warn('Save edit exception:', err.message);
@@ -582,26 +599,9 @@ export default function AttendanceView({
     const sFullName = String(staff.fullName || '').toLowerCase();
     const effectiveBranchId = staff.branchId || (sFullName.includes('corner') ? 'b2' : 'b1');
 
-    const parseTimeToHours = (tStr?: string): number | null => {
-      if (!tStr || tStr === '--' || !/\d/.test(tStr)) return null;
-      const m = tStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
-      if (!m) return null;
-      let h = parseInt(m[1], 10);
-      const min = parseInt(m[2], 10);
-      const ampm = m[3] ? m[3].toUpperCase() : '';
-      if (ampm === 'PM' && h < 12) h += 12;
-      if (ampm === 'AM' && h === 12) h = 0;
-      return h + min / 60;
-    };
-
-    let calculatedWorkHours = addStatus === 'Absent' ? 0 : 8;
-    if (addCheckIn && addCheckOut && addStatus !== 'Absent') {
-      const inH = parseTimeToHours(addCheckIn);
-      const outH = parseTimeToHours(addCheckOut);
-      if (inH !== null && outH !== null && outH > inH) {
-        calculatedWorkHours = Math.round((outH - inH) * 100) / 100;
-      }
-    }
+    const cleanAddCheckIn = addStatus === 'Absent' ? '' : addCheckIn.trim();
+    const cleanAddCheckOut = addStatus === 'Absent' ? '' : addCheckOut.trim();
+    const calculatedWorkHours = calculateWorkHours(cleanAddCheckIn, cleanAddCheckOut, addStatus);
 
     const newAtt: Attendance = {
       id: 'att_' + Date.now(),
@@ -609,8 +609,8 @@ export default function AttendanceView({
       staffId: staff.id,
       staffName: staff.fullName,
       date: addDate,
-      checkIn: addStatus === 'Absent' ? '' : addCheckIn,
-      checkOut: addStatus === 'Absent' ? '' : addCheckOut,
+      checkIn: cleanAddCheckIn,
+      checkOut: cleanAddCheckOut,
       shiftType: staff.shift || 'Full Time',
       workHours: calculatedWorkHours,
       overtimeHours: 0,
@@ -623,7 +623,7 @@ export default function AttendanceView({
         {
           field: 'Created',
           oldValue: null,
-          newValue: 'Manual Entry',
+          newValue: `Manual Entry: ${cleanAddCheckIn || '--'} - ${cleanAddCheckOut || '--'} (${addStatus}) [${calculatedWorkHours} hrs]`,
           changedBy: currentRole,
           changedAt: nowIso,
           reason: addReason.trim() || 'Manual Clock Entry'
@@ -645,7 +645,7 @@ export default function AttendanceView({
     setFilterStatus('all');
     setSearchQuery('');
 
-    onAddLog(`Manually recorded attendance for ${staff.fullName} on ${addDate}`);
+    onAddLog(`Manually recorded attendance for ${staff.fullName} on ${addDate} [${formatWorkDuration(calculatedWorkHours, lang)}]`);
     setShowAddModal(false);
     setAddStaffId('');
 
@@ -755,42 +755,12 @@ export default function AttendanceView({
     }
   };
 
-  const formatWorkDuration = (val?: number, overrideLang?: 'kh' | 'en') => {
-    if (val === undefined || val === null || isNaN(val)) return '--';
-    const useLang = overrideLang || lang;
-    if (val === 0) return useLang === 'kh' ? '0 ម៉ោង' : '0h';
-
-    const totalMinutes = Math.round(val * 60);
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-
-    if (useLang === 'kh') {
-      if (hours === 0) return `${minutes} នាទី`;
-      if (minutes === 0) return `${hours} ម៉ោង`;
-      return `${hours} ម៉ោង ${minutes} នាទី`;
-    } else {
-      if (hours === 0) return `${minutes}mn`;
-      if (minutes === 0) return `${hours}h`;
-      return `${hours}h ${minutes}m`;
+  const getRecordWorkHours = (rec?: Attendance | null): number => {
+    if (!rec || rec.status === 'Absent' || rec.status === 'Permission') return 0;
+    if (rec.workHours !== undefined && rec.workHours !== null && rec.workHours > 0) {
+      return rec.workHours;
     }
-  };
-
-  const formatLateMinutes = (mins?: number, overrideLang?: 'kh' | 'en') => {
-    if (mins === undefined || mins === null || isNaN(mins) || mins <= 0) return overrideLang === 'en' ? '0m' : '0 នាទី';
-    const useLang = overrideLang || lang;
-    const totalMinutes = Math.round(mins);
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-
-    if (useLang === 'kh') {
-      if (hours === 0) return `${minutes} នាទី`;
-      if (minutes === 0) return `${hours} ម៉ោង`;
-      return `${hours} ម៉ោង ${minutes} នាទី`;
-    } else {
-      if (hours === 0) return `${minutes}m`;
-      if (minutes === 0) return `${hours}h`;
-      return `${hours}h ${minutes}m`;
-    }
+    return calculateWorkHours(rec.checkIn, rec.checkOut, rec.status);
   };
 
   // ----------------------------------------------------
@@ -827,7 +797,7 @@ export default function AttendanceView({
       let permissionCount = 0;
 
       records.forEach(r => {
-        totalWorkHours += r.workHours || 0;
+        totalWorkHours += getRecordWorkHours(r);
         totalOtHours += r.overtimeHours || 0;
         if (r.status === 'Present' || r.status === 'Completed' || r.status === 'Working') presentCount++;
         if (r.status === 'Late' || Number(r.lateMinutes || 0) > 0) {
@@ -880,7 +850,7 @@ export default function AttendanceView({
     let permissionCount = 0;
 
     printableLedgerRecords.forEach(r => {
-      totalWorkHours += r.workHours || 0;
+      totalWorkHours += getRecordWorkHours(r);
       totalOtHours += r.overtimeHours || 0;
       if (r.status === 'Present' || r.status === 'Completed' || r.status === 'Working') presentCount++;
       if (r.status === 'Late' || Number(r.lateMinutes || 0) > 0) {
@@ -974,7 +944,7 @@ export default function AttendanceView({
       r.shiftType || 'Full Time',
       r.checkIn || '--',
       r.checkOut || '--',
-      formatWorkDuration(r.workHours, 'en'),
+      formatWorkDuration(getRecordWorkHours(r), 'en'),
       r.overtimeHours || 0,
       r.status || 'Present',
       r.source === 'telegram' ? 'Telegram' : 'Manual'
@@ -1785,7 +1755,7 @@ export default function AttendanceView({
                         {/* Work Hours */}
                         <td className="py-3 px-3 text-center font-mono font-bold text-slate-700">
                           <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md text-xs">
-                            {formatWorkDuration(rec.workHours)}
+                            {formatWorkDuration(getRecordWorkHours(rec), lang)}
                           </span>
                         </td>
 
@@ -2130,7 +2100,7 @@ export default function AttendanceView({
                               {r.checkOut || '--'}
                             </td>
                             <td className="py-2 px-2.5 text-center border-r border-slate-200 font-bold text-slate-800">
-                              {formatWorkDuration(r.workHours)}
+                              {formatWorkDuration(getRecordWorkHours(r), lang)}
                             </td>
                             <td className="py-2 px-2 text-center border-r border-slate-200 font-mono text-slate-600">
                               {r.overtimeHours ? `${r.overtimeHours}h` : '0h'}
@@ -2670,7 +2640,7 @@ export default function AttendanceView({
             </div>
 
             {/* Total Work Duration Banner */}
-            {selectedRecord.workHours !== undefined && selectedRecord.workHours !== null && (
+            {(selectedRecord.workHours !== undefined || (selectedRecord.checkIn && selectedRecord.checkOut)) && (
               <div className="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-3 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-blue-100 text-[#003D9B] flex items-center justify-center font-bold">
@@ -2679,7 +2649,7 @@ export default function AttendanceView({
                   <div>
                     <span className="text-[11px] text-slate-500 block">រយៈពេលធ្វើការសរុប (Work Duration)</span>
                     <span className="font-black text-[#003D9B] text-sm">
-                      {formatWorkDuration(selectedRecord.workHours)}
+                      {formatWorkDuration(getRecordWorkHours(selectedRecord), lang)}
                     </span>
                   </div>
                 </div>
@@ -2883,6 +2853,19 @@ export default function AttendanceView({
                 </button>
               </div>
             </div>
+
+            {/* Live Calculated Work Duration Preview */}
+            {editCheckIn && editCheckOut && editCheckIn !== '--' && editCheckOut !== '--' && editStatus !== 'Absent' && editStatus !== 'Permission' && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-2.5 flex items-center justify-between text-xs text-emerald-900">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <Clock size={13} className="text-emerald-600" />
+                  <span>រយៈពេលធ្វើការគណនា៖</span>
+                </div>
+                <span className="font-mono font-black text-emerald-700 bg-white px-2 py-0.5 rounded-lg border border-emerald-200">
+                  {formatWorkDuration(calculateWorkHours(editCheckIn, editCheckOut, editStatus), lang)} ({calculateWorkHours(editCheckIn, editCheckOut, editStatus)}h)
+                </span>
+              </div>
+            )}
 
             {/* Status Selection */}
             <div className="text-xs space-y-1.5">
@@ -3220,6 +3203,19 @@ export default function AttendanceView({
                     </button>
                   </div>
                 </div>
+
+                {/* Live Calculated Work Duration Preview */}
+                {addCheckIn && addCheckOut && addCheckIn !== '--' && addCheckOut !== '--' && addStatus !== 'Absent' && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-2.5 flex items-center justify-between text-xs text-emerald-900">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <Clock size={13} className="text-emerald-600" />
+                      <span>រយៈពេលធ្វើការគណនា៖</span>
+                    </div>
+                    <span className="font-mono font-black text-emerald-700 bg-white px-2 py-0.5 rounded-lg border border-emerald-200">
+                      {formatWorkDuration(calculateWorkHours(addCheckIn, addCheckOut, addStatus), lang)} ({calculateWorkHours(addCheckIn, addCheckOut, addStatus)}h)
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -3435,7 +3431,7 @@ export default function AttendanceView({
                     រកឃើញទិន្នន័យ៖ <span className="text-emerald-700 font-mono text-xs">{reportMatchingRecords.length} ថ្ងៃ</span>
                   </div>
                   <div className="text-[10px] text-emerald-700">
-                    ម៉ោងធ្វើការសរុប៖ {reportMatchingRecords.reduce((acc, curr) => acc + (curr.workHours || 0), 0).toFixed(1)} ម៉ោង
+                    ម៉ោងធ្វើការសរុប៖ {reportMatchingRecords.reduce((acc, curr) => acc + getRecordWorkHours(curr), 0).toFixed(1)} ម៉ោង
                   </div>
                 </div>
                 <div className="text-emerald-600">

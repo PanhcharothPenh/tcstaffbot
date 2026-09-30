@@ -549,6 +549,59 @@ const DEFAULT_PAYLOAD: Record<string, any> = {
   }
 };
 
+function normalizeKhmerDigits(str?: string): string {
+  if (!str) return '';
+  const khmerDigits = ['០', '១', '២', '៣', '៤', '៥', '៦', '៧', '៨', '៩'];
+  let res = String(str);
+  for (let i = 0; i < 10; i++) {
+    res = res.replaceAll(khmerDigits[i], String(i));
+  }
+  return res;
+}
+
+function parseTimeToHours(tStr?: string): number | null {
+  if (!tStr || tStr === '--' || !/\S/.test(tStr)) return null;
+  let clean = normalizeKhmerDigits(tStr).trim();
+  const isKhmerPM = /រសៀល|ល្ងាច|យប់/i.test(clean);
+  const isKhmerAM = /ព្រឹក/i.test(clean);
+  clean = clean.replace(/(\d{1,2})[.;](\d{2})/, '$1:$2');
+  const match = clean.match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM|ព្រឹក|រសៀល|ល្ងាច|យប់)?/i);
+  if (!match) {
+    const singleMatch = clean.match(/^(\d{1,2})\s*(AM|PM|ព្រឹក|រសៀល|ល្ងាច|យប់)?$/i);
+    if (!singleMatch) return null;
+    let h = parseInt(singleMatch[1], 10);
+    let ampm = (singleMatch[2] || '').toUpperCase();
+    if (isKhmerPM) ampm = 'PM';
+    if (isKhmerAM) ampm = 'AM';
+    if (ampm === 'PM' && h < 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+    return h;
+  }
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  let ampm = (match[3] || '').toUpperCase();
+  if (isKhmerPM) ampm = 'PM';
+  if (isKhmerAM) ampm = 'AM';
+  if (isNaN(hours) || isNaN(minutes) || minutes < 0 || minutes >= 60) return null;
+  if (ampm === 'PM' || ampm === 'រសៀល' || ampm === 'ល្ងាច' || ampm === 'យប់') {
+    if (hours < 12) hours += 12;
+  } else if (ampm === 'AM' || ampm === 'ព្រឹក') {
+    if (hours === 12) hours = 0;
+  }
+  return hours + minutes / 60;
+}
+
+function calculateWorkHours(checkIn?: string, checkOut?: string, status?: string): number {
+  if (status === 'Absent' || status === 'Permission') return 0;
+  if (!checkIn || !checkOut || checkIn === '--' || checkOut === '--') return 0;
+  const inH = parseTimeToHours(checkIn);
+  const outH = parseTimeToHours(checkOut);
+  if (inH === null || outH === null) return 0;
+  let diff = outH - inH;
+  if (diff < 0) diff += 24;
+  return Math.round(diff * 100) / 100;
+}
+
 function getSupabaseClient() {
   const supabaseUrl = (process.env.SUPABASE_URL || '').replace(/['"]/g, '').trim();
   const supabaseKey = (process.env.SUPABASE_ANON_KEY || '').replace(/['"]/g, '').trim();
@@ -801,7 +854,14 @@ export default async function handler(req: any, res: any) {
               }
             }
 
-            finalData = Array.from(mergedMap.values());
+            finalData = Array.from(mergedMap.values()).map(item => {
+              if (item && item.checkIn && item.checkOut && item.checkIn !== '--' && item.checkOut !== '--' && item.status !== 'Absent' && item.status !== 'Permission') {
+                if (item.workHours === undefined || item.workHours === null || item.workHours <= 0) {
+                  item.workHours = calculateWorkHours(item.checkIn, item.checkOut, item.status);
+                }
+              }
+              return item;
+            });
           }
 
           // Smart-merge leaveRequests

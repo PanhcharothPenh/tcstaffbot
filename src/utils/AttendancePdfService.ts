@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Attendance, Staff, Branch } from '../types';
+import { calculateWorkHours } from '../utils';
 
 export interface AttendancePdfParams {
   title?: string;
@@ -62,7 +63,8 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
   let completedCount = 0;
 
   records.forEach(r => {
-    totalHours += r.workHours || 0;
+    const hours = (r.workHours !== undefined && r.workHours !== null && r.workHours > 0) ? r.workHours : calculateWorkHours(r.checkIn, r.checkOut, r.status);
+    totalHours += hours;
     totalOtHours += r.overtimeHours || 0;
     if (r.status === 'Present' || r.status === 'Working') presentCount++;
     if (r.status === 'Completed') completedCount++;
@@ -184,7 +186,7 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
       staff ? (r.shiftType || 'Full-Time') : (r.staffName || 'Staff'),
       r.checkIn || '--',
       r.checkOut || '--',
-      formatPdfDuration(r.workHours),
+      formatPdfDuration((r.workHours !== undefined && r.workHours !== null && r.workHours > 0) ? r.workHours : calculateWorkHours(r.checkIn, r.checkOut, r.status)),
       r.overtimeHours ? `${r.overtimeHours}h` : '0h',
       statusDisplay,
       r.source === 'telegram' ? 'Telegram' : 'Manual'

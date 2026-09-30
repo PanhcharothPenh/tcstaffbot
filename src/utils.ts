@@ -322,3 +322,133 @@ export function getPhnomPenhDateStr(): string {
   }
 }
 
+/**
+ * Normalizes Khmer numerals (០-៩) into standard Arabic digits (0-9)
+ */
+export function normalizeKhmerDigits(str?: string): string {
+  if (!str) return '';
+  const khmerDigits = ['០', '១', '២', '៣', '៤', '៥', '៦', '៧', '៨', '៩'];
+  let res = String(str);
+  for (let i = 0; i < 10; i++) {
+    res = res.replaceAll(khmerDigits[i], String(i));
+  }
+  return res;
+}
+
+/**
+ * Parses time string in various formats (12-hour, 24-hour, Khmer numerals, Khmer AM/PM words)
+ * into fractional decimal hours (e.g., 7.5 = 07:30, 14.5 = 14:30 / 02:30 PM).
+ */
+export function parseTimeToHours(tStr?: string): number | null {
+  if (!tStr || tStr === '--' || !/\S/.test(tStr)) return null;
+
+  // 1. Convert Khmer numerals to Arabic digits
+  let clean = normalizeKhmerDigits(tStr).trim();
+
+  // 2. Identify Khmer period indicators
+  const isKhmerPM = /រសៀល|ល្ងាច|យប់/i.test(clean);
+  const isKhmerAM = /ព្រឹក/i.test(clean);
+
+  // 3. Normalize separators (. or ; -> :)
+  clean = clean.replace(/(\d{1,2})[.;](\d{2})/, '$1:$2');
+
+  // 4. Regex matching H:M(:S)? (AM|PM|...)
+  const match = clean.match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM|ព្រឹក|រសៀល|ល្ងាច|យប់)?/i);
+  if (!match) {
+    // Fallback: check if only number of hours or single time was provided
+    const singleMatch = clean.match(/^(\d{1,2})\s*(AM|PM|ព្រឹក|រសៀល|ល្ងាច|យប់)?$/i);
+    if (!singleMatch) return null;
+    let h = parseInt(singleMatch[1], 10);
+    let ampm = (singleMatch[2] || '').toUpperCase();
+    if (isKhmerPM) ampm = 'PM';
+    if (isKhmerAM) ampm = 'AM';
+    if (ampm === 'PM' && h < 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+    return h;
+  }
+
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  let ampm = (match[3] || '').toUpperCase();
+
+  if (isKhmerPM) ampm = 'PM';
+  if (isKhmerAM) ampm = 'AM';
+
+  if (isNaN(hours) || isNaN(minutes) || minutes < 0 || minutes >= 60) return null;
+
+  // Handle 12-hour period adjustments
+  if (ampm === 'PM' || ampm === 'រសៀល' || ampm === 'ល្ងាច' || ampm === 'យប់') {
+    if (hours < 12) hours += 12;
+  } else if (ampm === 'AM' || ampm === 'ព្រឹក') {
+    if (hours === 12) hours = 0;
+  }
+
+  return hours + minutes / 60;
+}
+
+/**
+ * Calculates total worked duration in decimal hours between check-in and check-out.
+ * Automatically handles overnight shifts and returns 0 for absent/permission statuses.
+ */
+export function calculateWorkHours(checkIn?: string, checkOut?: string, status?: string): number {
+  if (status === 'Absent' || status === 'Permission') return 0;
+  if (!checkIn || !checkOut || checkIn === '--' || checkOut === '--') return 0;
+
+  const inH = parseTimeToHours(checkIn);
+  const outH = parseTimeToHours(checkOut);
+  if (inH === null || outH === null) return 0;
+
+  let diff = outH - inH;
+  // Handle overnight shift crossing midnight
+  if (diff < 0) {
+    diff += 24;
+  }
+
+  return Math.round(diff * 100) / 100;
+}
+
+/**
+ * Formats fractional work hours into friendly localized strings
+ * (e.g. 7.5 -> "7 ម៉ោង 30 នាទី" or "7h 30m")
+ */
+export function formatWorkDuration(hoursVal?: number, lang: 'kh' | 'en' = 'kh'): string {
+  if (hoursVal === undefined || hoursVal === null || isNaN(hoursVal)) return '--';
+  if (hoursVal <= 0) return lang === 'kh' ? '0 ម៉ោង' : '0h';
+
+  const totalMinutes = Math.round(hoursVal * 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (lang === 'kh') {
+    if (hours === 0) return `${minutes} នាទី`;
+    if (minutes === 0) return `${hours} ម៉ោង`;
+    return `${hours} ម៉ោង ${minutes} នាទី`;
+  } else {
+    if (hours === 0) return `${minutes}mn`;
+    if (minutes === 0) return `${hours}h`;
+    return `${hours}h ${minutes}m`;
+  }
+}
+
+/**
+ * Formats late minutes into friendly localized strings
+ */
+export function formatLateMinutes(mins?: number, lang: 'kh' | 'en' = 'kh'): string {
+  if (mins === undefined || mins === null || isNaN(mins) || mins <= 0) {
+    return lang === 'en' ? '0m' : '0 នាទី';
+  }
+  const totalMinutes = Math.round(mins);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (lang === 'kh') {
+    if (hours === 0) return `${minutes} នាទី`;
+    if (minutes === 0) return `${hours} ម៉ោង`;
+    return `${hours} ម៉ោង ${minutes} នាទី`;
+  } else {
+    if (hours === 0) return `${minutes}m`;
+    if (minutes === 0) return `${hours}h`;
+    return `${hours}h ${minutes}m`;
+  }
+}
+
