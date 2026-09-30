@@ -246,7 +246,8 @@ export default function StaffManagementView({
         telegramId: telegramId || s.telegramId,
         telegramUsername: formattedTgUser || s.telegramUsername,
         telegramLinked: Boolean(telegramId || s.telegramId),
-        attendanceEnabled: status === 'Active' ? attendanceEnabled : false
+        attendanceEnabled: status === 'Active' ? attendanceEnabled : false,
+        updatedAt: new Date().toISOString()
       } : s);
       setStaff(updated);
       db.saveStaff(updated);
@@ -281,7 +282,9 @@ export default function StaffManagementView({
         telegramId: telegramId || undefined,
         telegramUsername: formattedTgUser,
         telegramLinked: Boolean(telegramId),
-        attendanceEnabled
+        attendanceEnabled,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       const updated = [...staff, newStaff];
       setStaff(updated);
@@ -393,7 +396,8 @@ export default function StaffManagementView({
       ...st,
       status: updatedStatus,
       resignationDate: isCurrentlyActive ? resignDateInput : undefined,
-      attendanceEnabled: !isCurrentlyActive
+      attendanceEnabled: !isCurrentlyActive,
+      updatedAt: new Date().toISOString()
     } : st);
 
     setStaff(updated);
@@ -442,7 +446,7 @@ export default function StaffManagementView({
   };
 
   const toggleStaffStatus = (id: string, status: 'Active' | 'Resigned' | 'Suspended') => {
-    const updated = staff.map(s => s.id === id ? { ...s, status } : s);
+    const updated = staff.map(s => s.id === id ? { ...s, status, updatedAt: new Date().toISOString() } : s);
     setStaff(updated);
     db.saveStaff(updated);
     fetch('/api/sync-data', {

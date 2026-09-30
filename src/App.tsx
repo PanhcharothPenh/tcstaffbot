@@ -88,6 +88,7 @@ const CashDrawerView = lazy(() => import('./components/CashDrawerView'));
 const MonthClosingView = lazy(() => import('./components/MonthClosingView'));
 const AuditLogsView = lazy(() => import('./components/AuditLogsView'));
 import { encryptLiveUrl, decryptLiveUrl } from './utils/urlSecurity';
+import { mergeCollectionRecords } from './utils';
 
 const getTabFromUrl = (): ActiveTab => {
   if (typeof window === 'undefined') return 'staff';
@@ -348,43 +349,62 @@ export default function App() {
             return;
           }
 
-          const updateIfChanged = (incoming: any, getter: () => any, setter: (val: any) => void, saver: (val: any) => void) => {
-            if (Array.isArray(incoming)) {
-              const current = getter();
-              if (JSON.stringify(current) !== JSON.stringify(incoming)) {
-                setter(incoming);
-                saver(incoming);
-              }
+          const syncCollection = (
+            incoming: any,
+            getter: () => any[],
+            setter: (val: any) => void,
+            saver: (val: any) => void,
+            keyType: 'id' | 'attendance' | 'custom' = 'id',
+            collectionName?: string,
+            cleaner?: (list: any[]) => any[]
+          ) => {
+            if (!Array.isArray(incoming)) return;
+            const rawCurrent = getter() || [];
+            const current = cleaner ? cleaner(rawCurrent) : rawCurrent;
+            const inc = cleaner ? cleaner(incoming) : incoming;
+            const { mergedList, hasLocalWins, isChangedFromLocal } = mergeCollectionRecords(current, inc, keyType);
+
+            if (isChangedFromLocal) {
+              setter(mergedList);
+              saver(mergedList);
+            }
+
+            if (hasLocalWins && collectionName) {
+              fetch('/api/sync-data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ [collectionName]: mergedList })
+              }).catch(() => {});
             }
           };
 
-          updateIfChanged(s.branches, db.getBranches, setBranches, db.saveBranches);
-          updateIfChanged(cleanStaffRoster(s.staff), () => cleanStaffRoster(db.getStaff()), setStaff, db.saveStaff);
-          updateIfChanged(s.salaries, db.getSalaries, setSalaries, db.saveSalaries);
-          updateIfChanged(s.salarySchedules, db.getSalarySchedules, setSalarySchedules, db.saveSalarySchedules);
-          updateIfChanged(s.salaryAdvances, db.getSalaryAdvances, setSalaryAdvances, db.saveSalaryAdvances);
-          updateIfChanged(s.attendance, db.getAttendance, setAttendance, db.saveAttendance);
-          updateIfChanged(s.incomes, db.getIncomes, setIncomes, db.saveIncomes);
-          updateIfChanged(s.expenses, db.getExpenses, setExpenses, db.saveExpenses);
-          updateIfChanged(s.inventory, db.getInventory, setInventory, db.saveInventory);
-          updateIfChanged(s.machines, db.getMachines, setMachines, db.saveMachines);
-          updateIfChanged(s.users, db.getUsers, setUsers, db.saveUsers);
-          updateIfChanged(s.coinTransactions, db.getCoinTransactions, setCoinTransactions, db.saveCoinTransactions);
-          updateIfChanged(s.revenueRecords, db.getRevenueRecords, setRevenueRecords, db.saveRevenueRecords);
-          updateIfChanged(s.gasRecords, db.getGasRecords, setGasRecords, db.saveGasRecords);
-          updateIfChanged(s.detergentRecords, db.getDetergentRecords, setDetergentRecords, db.saveDetergentRecords);
-          updateIfChanged(s.softenerRecords, db.getSoftenerRecords, setSoftenerRecords, db.saveSoftenerRecords);
-          updateIfChanged(s.stockTransactions, db.getStockTransactions, setStockTransactions, db.saveStockTransactions);
-          updateIfChanged(s.suppliers, db.getSuppliers, setSuppliers, db.saveSuppliers);
-          updateIfChanged(s.debts, db.getDebts, setDebts, db.saveDebts);
-          updateIfChanged(s.debtPayments, db.getDebtPayments, setDebtPayments, db.saveDebtPayments);
-          updateIfChanged(s.cashDrawers, db.getCashDrawers, setCashDrawers, db.saveCashDrawers);
-          updateIfChanged(s.cashDrawerTransactions, db.getCashDrawerTransactions, setCashDrawerTransactions, db.saveCashDrawerTransactions);
-          updateIfChanged(s.monthClosings, db.getMonthClosings, setMonthClosings, db.saveMonthClosings);
-          updateIfChanged(s.extraShifts, db.getExtraShifts, setExtraShifts, db.saveExtraShifts);
-          updateIfChanged(s.tempShiftCovers, db.getTempShiftCovers, setTempShiftCovers, db.saveTempShiftCovers);
-          updateIfChanged(s.staffExpenses, db.getStaffExpenses, setStaffExpenses, db.saveStaffExpenses);
-          updateIfChanged(s.leaveRequests, db.getLeaveRequests, () => {}, db.saveLeaveRequests);
+          syncCollection(s.branches, db.getBranches, setBranches, db.saveBranches, 'id', 'branches');
+          syncCollection(s.staff, () => cleanStaffRoster(db.getStaff()), setStaff, db.saveStaff, 'id', 'staff', cleanStaffRoster);
+          syncCollection(s.salaries, db.getSalaries, setSalaries, db.saveSalaries, 'id', 'salaries');
+          syncCollection(s.salarySchedules, db.getSalarySchedules, setSalarySchedules, db.saveSalarySchedules, 'id', 'salarySchedules');
+          syncCollection(s.salaryAdvances, db.getSalaryAdvances, setSalaryAdvances, db.saveSalaryAdvances, 'id', 'salaryAdvances');
+          syncCollection(s.attendance, db.getAttendance, setAttendance, db.saveAttendance, 'attendance', 'attendance');
+          syncCollection(s.incomes, db.getIncomes, setIncomes, db.saveIncomes, 'id', 'incomes');
+          syncCollection(s.expenses, db.getExpenses, setExpenses, db.saveExpenses, 'id', 'expenses');
+          syncCollection(s.inventory, db.getInventory, setInventory, db.saveInventory, 'id', 'inventory');
+          syncCollection(s.machines, db.getMachines, setMachines, db.saveMachines, 'id', 'machines');
+          syncCollection(s.users, db.getUsers, setUsers, db.saveUsers, 'id', 'users');
+          syncCollection(s.coinTransactions, db.getCoinTransactions, setCoinTransactions, db.saveCoinTransactions, 'id', 'coinTransactions');
+          syncCollection(s.revenueRecords, db.getRevenueRecords, setRevenueRecords, db.saveRevenueRecords, 'id', 'revenueRecords');
+          syncCollection(s.gasRecords, db.getGasRecords, setGasRecords, db.saveGasRecords, 'id', 'gasRecords');
+          syncCollection(s.detergentRecords, db.getDetergentRecords, setDetergentRecords, db.saveDetergentRecords, 'id', 'detergentRecords');
+          syncCollection(s.softenerRecords, db.getSoftenerRecords, setSoftenerRecords, db.saveSoftenerRecords, 'id', 'softenerRecords');
+          syncCollection(s.stockTransactions, db.getStockTransactions, setStockTransactions, db.saveStockTransactions, 'id', 'stockTransactions');
+          syncCollection(s.suppliers, db.getSuppliers, setSuppliers, db.saveSuppliers, 'id', 'suppliers');
+          syncCollection(s.debts, db.getDebts, setDebts, db.saveDebts, 'id', 'debts');
+          syncCollection(s.debtPayments, db.getDebtPayments, setDebtPayments, db.saveDebtPayments, 'id', 'debtPayments');
+          syncCollection(s.cashDrawers, db.getCashDrawers, setCashDrawers, db.saveCashDrawers, 'id', 'cashDrawers');
+          syncCollection(s.cashDrawerTransactions, db.getCashDrawerTransactions, setCashDrawerTransactions, db.saveCashDrawerTransactions, 'id', 'cashDrawerTransactions');
+          syncCollection(s.monthClosings, db.getMonthClosings, setMonthClosings, db.saveMonthClosings, 'id', 'monthClosings');
+          syncCollection(s.extraShifts, db.getExtraShifts, setExtraShifts, db.saveExtraShifts, 'id', 'extraShifts');
+          syncCollection(s.tempShiftCovers, db.getTempShiftCovers, setTempShiftCovers, db.saveTempShiftCovers, 'id', 'tempShiftCovers');
+          syncCollection(s.staffExpenses, db.getStaffExpenses, setStaffExpenses, db.saveStaffExpenses, 'id', 'staffExpenses');
+          syncCollection(s.leaveRequests, db.getLeaveRequests, () => {}, db.saveLeaveRequests, 'id', 'leaveRequests');
           if (s.adjustments && typeof s.adjustments === 'object') {
             setPayrollAdjustments((prev: any) => {
               const merged = { ...prev, ...s.adjustments };

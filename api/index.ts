@@ -335,17 +335,25 @@ export default async function handler(req: any, res: any) {
       const { error: upsertErr } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
       if (!upsertErr) return true;
 
-      console.warn(`[api/index] Upsert failed for ${id}: ${upsertErr.message}, trying update...`);
+      const { error: upsertNoDateErr } = await supabase.from('tc_collections').upsert({ id, data: list }, { onConflict: 'id' });
+      if (!upsertNoDateErr) return true;
+
       const { error: updateErr } = await supabase.from('tc_collections').update({
         data: list,
         updated_at: item.updated_at
       }).eq('id', id);
-
       if (!updateErr) return true;
 
-      console.warn(`[api/index] Update failed for ${id}: ${updateErr.message}, trying insert...`);
+      const { error: updateNoDateErr } = await supabase.from('tc_collections').update({
+        data: list
+      }).eq('id', id);
+      if (!updateNoDateErr) return true;
+
       const { error: insertErr } = await supabase.from('tc_collections').insert(item);
-      return !insertErr;
+      if (!insertErr) return true;
+
+      const { error: insertNoDateErr } = await supabase.from('tc_collections').insert({ id, data: list });
+      return !insertNoDateErr;
     } catch (err: any) {
       console.error(`[api/index] Exception saving collection ${id}:`, err?.message);
       return false;

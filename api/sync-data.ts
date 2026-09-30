@@ -715,24 +715,37 @@ export default async function handler(req: any, res: any) {
 
         // Helper to reliably save or update a single collection row
         const saveOrUpdateRow = async (row: { id: string; data: any; updated_at: string }) => {
+          // 1. Try upsert with updated_at
           const { error: upsertErr } = await supabase.from('tc_collections').upsert(row, { onConflict: 'id' });
           if (!upsertErr) return true;
 
-          console.warn(`[sync-data] Upsert with onConflict failed for ${row.id}: ${upsertErr.message}, trying update...`);
+          // 2. If upsert failed, try upsert WITHOUT updated_at (in case column doesn't exist)
+          const { error: upsertNoDateErr } = await supabase.from('tc_collections').upsert({ id: row.id, data: row.data }, { onConflict: 'id' });
+          if (!upsertNoDateErr) return true;
+
+          // 3. Try update with updated_at
           const { error: updateErr } = await supabase.from('tc_collections').update({
             data: row.data,
             updated_at: row.updated_at
           }).eq('id', row.id);
-
           if (!updateErr) return true;
 
-          console.warn(`[sync-data] Update failed for ${row.id}: ${updateErr.message}, trying insert...`);
+          // 4. Try update without updated_at
+          const { error: updateNoDateErr } = await supabase.from('tc_collections').update({
+            data: row.data
+          }).eq('id', row.id);
+          if (!updateNoDateErr) return true;
+
+          // 5. Try insert with updated_at
           const { error: insertErr } = await supabase.from('tc_collections').insert(row);
-          if (insertErr) {
-            console.error(`[sync-data] Insert also failed for ${row.id}:`, insertErr.message);
-            return false;
-          }
-          return true;
+          if (!insertErr) return true;
+
+          // 6. Try insert without updated_at
+          const { error: insertNoDateErr } = await supabase.from('tc_collections').insert({ id: row.id, data: row.data });
+          if (!insertNoDateErr) return true;
+
+          console.error(`[sync-data] All save strategies failed for ${row.id}:`, insertNoDateErr?.message || upsertErr?.message);
+          return false;
         };
 
         // 1. Explicit item deletion from a collection

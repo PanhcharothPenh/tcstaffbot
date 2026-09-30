@@ -452,3 +452,155 @@ export function formatLateMinutes(mins?: number, lang: 'kh' | 'en' = 'kh'): stri
   }
 }
 
+/**
+ * Smart Bidirectional Timestamp-Aware Merge for Collections
+ * 
+ * Merges incoming server records with local client records without losing
+ * local edits or newer server records.
+ * Returns { mergedList, hasLocalWins, isChangedFromLocal }:
+ * - mergedList: The combined latest records
+ * - hasLocalWins: True if local client had newer changes that server didn't have, indicating a push to server is required
+ * - isChangedFromLocal: True if the merged result differs from localList, requiring local state/storage update
+ */
+export function mergeCollectionRecords<T extends Record<string, any>>(
+  localList: T[] = [],
+  incomingList: T[] = [],
+  keyType: 'id' | 'attendance' | 'custom' = 'id'
+): { mergedList: T[]; hasLocalWins: boolean; isChangedFromLocal: boolean } {
+  const safeLocal = Array.isArray(localList) ? localList : [];
+  const safeIncoming = Array.isArray(incomingList) ? incomingList : [];
+
+  if (safeIncoming.length === 0) {
+    return {
+      mergedList: safeLocal,
+      hasLocalWins: safeLocal.length > 0,
+      isChangedFromLocal: false
+    };
+  }
+
+  if (safeLocal.length === 0) {
+    return {
+      mergedList: safeIncoming,
+      hasLocalWins: false,
+      isChangedFromLocal: true
+    };
+  }
+
+  const getItemKey = (item: any): string => {
+    if (!item) return '';
+    if (keyType === 'attendance') {
+      if (item.id) return String(item.id);
+      if (item.staffId && item.date) return `${item.staffId}_${item.date}`;
+    }
+    return item.id ? String(item.id) : (item._id ? String(item._id) : JSON.stringify(item));
+  };
+
+  const getItemTimestamp = (item: any): number => {
+    if (!item) return 0;
+    if (item.updatedAt) {
+      const t = new Date(item.updatedAt).getTime();
+      if (!isNaN(t)) return t;
+    }
+    if (item.auditHistory && Array.isArray(item.auditHistory) && item.auditHistory.length > 0) {
+      const last = item.auditHistory[item.auditHistory.length - 1];
+      if (last?.changedAt) {
+        const t = new Date(last.changedAt).getTime();
+        if (!isNaN(t)) return t;
+      }
+    }
+    if (item.createdAt) {
+      const t = new Date(item.createdAt).getTime();
+      if (!isNaN(t)) return t;
+    }
+    if (item.timestamp) {
+      const t = new Date(item.timestamp).getTime();
+      if (!isNaN(t)) return t;
+    }
+    return 0;
+  };
+
+  const mergedMap = new Map<string, any>();
+  let hasLocalWins = false;
+
+  // 1. Index incoming server records
+  for (const inc of safeIncoming) {
+    if (!inc) continue;
+    const key = getItemKey(inc);
+    if (key) {
+      mergedMap.set(key, inc);
+    }
+  }
+
+  // 2. Merge local records
+  for (const loc of safeLocal) {
+    if (!loc) continue;
+    const key = getItemKey(loc);
+    if (!key) continue;
+
+    if (!mergedMap.has(key)) {
+      // Local item not present on server -> KEEP IT and mark for push
+      mergedMap.set(key, loc);
+      hasLocalWins = true;
+    } else {
+      const inc = mergedMap.get(key);
+      const locTime = getItemTimestamp(loc);
+      const incTime = getItemTimestamp(inc);
+
+      if (locTime >= incTime) {
+        // Local is newer or equal
+        let mergedItem = { ...inc, ...loc };
+        if (keyType === 'attendance') {
+          mergedItem.checkInPhoto = loc.checkInPhoto || inc.checkInPhoto;
+          mergedItem.checkOutPhoto = loc.checkOutPhoto || inc.checkOutPhoto;
+          mergedItem.checkInFaceScore = loc.checkInFaceScore ?? inc.checkInFaceScore;
+          mergedItem.checkOutFaceScore = loc.checkOutFaceScore ?? inc.checkOutFaceScore;
+          mergedItem.checkInLatitude = loc.checkInLatitude ?? inc.checkInLatitude;
+          mergedItem.checkInLongitude = loc.checkInLongitude ?? inc.checkInLongitude;
+          mergedItem.checkOutLatitude = loc.checkOutLatitude ?? inc.checkOutLatitude;
+          mergedItem.checkOutLongitude = loc.checkOutLongitude ?? inc.checkOutLongitude;
+
+          if (loc.auditHistory || inc.auditHistory) {
+            const historyMap = new Map<string, any>();
+            (inc.auditHistory || []).forEach((h: any) => historyMap.set(h.changedAt || JSON.stringify(h), h));
+            (loc.auditHistory || []).forEach((h: any) => historyMap.set(h.changedAt || JSON.stringify(h), h));
+            mergedItem.auditHistory = Array.from(historyMap.values());
+          }
+        }
+
+        // Auto calculate workHours if checkIn and checkOut exist and workHours is missing/0
+        if (keyType === 'attendance' && (mergedItem.workHours === undefined || mergedItem.workHours === null || mergedItem.workHours <= 0)) {
+          if (mergedItem.checkIn && mergedItem.checkOut && mergedItem.checkIn !== '--' && mergedItem.checkOut !== '--' && mergedItem.status !== 'Absent' && mergedItem.status !== 'Permission') {
+            mergedItem.workHours = calculateWorkHours(mergedItem.checkIn, mergedItem.checkOut, mergedItem.status);
+          }
+        }
+
+        mergedMap.set(key, mergedItem);
+        if (JSON.stringify(loc) !== JSON.stringify(inc)) {
+          hasLocalWins = true;
+        }
+      } else {
+        // Server is strictly newer
+        let mergedItem = { ...loc, ...inc };
+        if (keyType === 'attendance') {
+          if (mergedItem.workHours === undefined || mergedItem.workHours === null || mergedItem.workHours <= 0) {
+            if (mergedItem.checkIn && mergedItem.checkOut && mergedItem.checkIn !== '--' && mergedItem.checkOut !== '--' && mergedItem.status !== 'Absent' && mergedItem.status !== 'Permission') {
+              mergedItem.workHours = calculateWorkHours(mergedItem.checkIn, mergedItem.checkOut, mergedItem.status);
+            }
+          }
+        }
+        mergedMap.set(key, mergedItem);
+      }
+    }
+  }
+
+  const mergedList = Array.from(mergedMap.values());
+  const isChangedFromLocal = JSON.stringify(safeLocal) !== JSON.stringify(mergedList);
+
+  return {
+    mergedList,
+    hasLocalWins,
+    isChangedFromLocal
+  };
+}
+
+

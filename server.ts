@@ -247,11 +247,22 @@ async function pushCollectionToSupabase(collectionId: string) {
   if (!supabase) return;
   try {
     const row = { id: collectionId, data: localDb[collectionId], updated_at: new Date().toISOString() };
-    const { error } = await supabase.from('tc_collections').upsert(row, { onConflict: 'id' });
-    if (error) {
-      console.warn(`[TC Staff Server] Upsert with onConflict failed for ${collectionId}, trying update:`, error.message);
-      await supabase.from('tc_collections').update({ data: row.data, updated_at: row.updated_at }).eq('id', collectionId);
-    }
+    const { error: upsertErr } = await supabase.from('tc_collections').upsert(row, { onConflict: 'id' });
+    if (!upsertErr) return;
+
+    const { error: upsertNoDateErr } = await supabase.from('tc_collections').upsert({ id: collectionId, data: row.data }, { onConflict: 'id' });
+    if (!upsertNoDateErr) return;
+
+    const { error: updateErr } = await supabase.from('tc_collections').update({ data: row.data, updated_at: row.updated_at }).eq('id', collectionId);
+    if (!updateErr) return;
+
+    const { error: updateNoDateErr } = await supabase.from('tc_collections').update({ data: row.data }).eq('id', collectionId);
+    if (!updateNoDateErr) return;
+
+    const { error: insertErr } = await supabase.from('tc_collections').insert(row);
+    if (!insertErr) return;
+
+    await supabase.from('tc_collections').insert({ id: collectionId, data: row.data });
   } catch (err: any) {
     console.error(`[TC Staff Server] Supabase push for ${collectionId} failed:`, err.message);
   }
@@ -2647,10 +2658,11 @@ app.post('/api/sync-data', async (req, res) => {
     saveLocalDb();
 
     if (supabase) {
-      if (payload.attendance) pushCollectionToSupabase('attendance').catch(() => {});
-      if (payload.staff) pushCollectionToSupabase('staff').catch(() => {});
-      if (payload.branches) pushCollectionToSupabase('branches').catch(() => {});
-      if (payload.users) pushCollectionToSupabase('users').catch(() => {});
+      for (const collId of Object.keys(payload)) {
+        if (payload[collId] !== undefined) {
+          pushCollectionToSupabase(collId).catch(() => {});
+        }
+      }
     }
 
     res.json({ success: true, message: 'Server-side data synchronized successfully', data: localDb });

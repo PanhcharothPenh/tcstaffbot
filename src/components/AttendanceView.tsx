@@ -48,7 +48,8 @@ import {
   calculateWorkHours, 
   formatWorkDuration, 
   formatLateMinutes,
-  normalizeKhmerDigits 
+  normalizeKhmerDigits,
+  mergeCollectionRecords
 } from '../utils';
 import { generateAttendancePdf } from '../utils/AttendancePdfService';
 
@@ -152,15 +153,37 @@ export default function AttendanceView({
         const json = await res.json();
         const s = json?.data || json?.db;
         if (s?.attendance && Array.isArray(s.attendance)) {
-          setAttendance(s.attendance);
-          try { db.saveAttendance(s.attendance); } catch {}
+          const current = db.getAttendance() || [];
+          const { mergedList, hasLocalWins, isChangedFromLocal } = mergeCollectionRecords(current, s.attendance, 'attendance');
+          if (isChangedFromLocal) {
+            setAttendance(mergedList);
+            try { db.saveAttendance(mergedList); } catch {}
+          }
+          if (hasLocalWins) {
+            fetch('/api/sync-data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ attendance: mergedList })
+            }).catch(() => {});
+          }
           if (showLog) {
             onAddLog(lang === 'en' ? 'Refreshed latest attendance records' : 'បានទាញយកកំណត់ត្រាវត្តមានចុងក្រោយជោគជ័យ');
           }
         }
         if (s?.leaveRequests && Array.isArray(s.leaveRequests)) {
-          setLeaveRequests(s.leaveRequests);
-          try { db.saveLeaveRequests(s.leaveRequests); } catch {}
+          const currentLeaves = db.getLeaveRequests() || [];
+          const { mergedList: mergedLeaves, hasLocalWins: hasLeavesWins, isChangedFromLocal: isLeavesChanged } = mergeCollectionRecords(currentLeaves, s.leaveRequests, 'id');
+          if (isLeavesChanged) {
+            setLeaveRequests(mergedLeaves);
+            try { db.saveLeaveRequests(mergedLeaves); } catch {}
+          }
+          if (hasLeavesWins) {
+            fetch('/api/sync-data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ leaveRequests: mergedLeaves })
+            }).catch(() => {});
+          }
         }
       }
     } catch (e: any) {
@@ -546,27 +569,28 @@ export default function AttendanceView({
         updatedAt: nowIso
       };
 
-      // 1. Update React state immediately
-      setAttendance(prev => {
-        const updated = prev.map(a => (a.id === updatedRecord.id || (a.staffId === updatedRecord.staffId && a.date === updatedRecord.date)) ? updatedRecord : a);
-        try { db.saveAttendance(updated); } catch {}
+      // 1. Update React state & localStorage immediately
+      const currentList = Array.isArray(attendance) ? attendance : [];
+      const updatedList = currentList.map(a => (a.id === updatedRecord.id || (a.staffId === updatedRecord.staffId && a.date === updatedRecord.date)) ? updatedRecord : a);
+      setAttendance(updatedList);
+      try { db.saveAttendance(updatedList); } catch {}
 
-        // 2. Direct save to Supabase with the entire updated attendance roster
-        fetch('/api/sync-data', {
+      // 2. Direct save to Supabase with the entire updated attendance roster
+      try {
+        await fetch('/api/sync-data', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ attendance: updated })
-        }).catch(() => {});
+          body: JSON.stringify({ attendance: updatedList })
+        });
 
-        return updated;
-      });
-
-      // 3. Direct update to admin attendance endpoint
-      fetch('/api/admin/attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedRecord)
-      }).catch(() => {});
+        await fetch('/api/admin/attendance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedRecord)
+        });
+      } catch (syncErr) {
+        console.warn('Sync warning on save edit:', syncErr);
+      }
 
       onAddLog(`Edited attendance for ${editingRecord.staffName || 'Staff'}: ${cleanCheckIn} - ${cleanCheckOut} (${editStatus}) [${formatWorkDuration(calculatedHours, lang)}] ${finalReason ? `[${finalReason}]` : ''}`);
       setEditingRecord(null);
@@ -636,7 +660,7 @@ export default function AttendanceView({
     const currentList = Array.isArray(attendance) ? attendance : [];
     const updatedList = [newAtt, ...currentList.filter(a => !(a.staffId === staff.id && a.date === addDate))];
     setAttendance(updatedList);
-    db.saveAttendance(updatedList);
+    try { db.saveAttendance(updatedList); } catch {}
 
     // Auto-align view filters so the newly created manual record is immediately visible on screen
     setSelectedDate(addDate);
@@ -651,11 +675,11 @@ export default function AttendanceView({
 
     // Immediate asynchronous push to cloud server & Supabase
     try {
-      fetch('/api/sync-data', {
+      await fetch('/api/sync-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ attendance: updatedList })
-      }).catch(() => {});
+      });
 
       await fetch('/api/admin/attendance', {
         method: 'POST',
@@ -732,6 +756,7 @@ export default function AttendanceView({
 
     const updated = attendance.filter(a => a.id !== attId);
     setAttendance(updated);
+    try { db.saveAttendance(updated); } catch {}
 
     try {
       const res = await fetch('/api/sync-data', {
