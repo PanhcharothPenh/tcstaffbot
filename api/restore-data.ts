@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { BASELINE_ATTENDANCE_74 } from '../src/data/baselineAttendance';
+import { BASELINE_ATTENDANCE_74 } from './data/baselineAttendance';
 
 function getSupabase() {
   const url = (process.env.SUPABASE_URL || '').replace(/['"]/g, '').trim();
