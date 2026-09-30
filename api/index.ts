@@ -2191,10 +2191,29 @@ export default async function handler(req: any, res: any) {
       );
 
       const isTodayDateMatch = (recordDate?: string, recordCreatedAt?: string): boolean => {
-        if (!recordDate && !recordCreatedAt) return false;
-        if (recordDate) {
+        if (recordDate && String(recordDate).trim()) {
           const r = String(recordDate).trim();
           if (r === todayStr || r.startsWith(todayStr)) return true;
+          const cleanR = r.replace(/[\/\.]/g, '-');
+          const parts = cleanR.split('-');
+          if (parts.length === 3) {
+            const [yStr, mStr, dStr] = todayStr.split('-');
+            const curY = parseInt(yStr, 10);
+            const curM = parseInt(mStr, 10);
+            const curD = parseInt(dStr, 10);
+            if (parts[0].length === 4) {
+              const py = parseInt(parts[0], 10);
+              const pm = parseInt(parts[1], 10);
+              const pd = parseInt(parts[2], 10);
+              if (py === curY && pm === curM && pd === curD) return true;
+            } else {
+              const pd = parseInt(parts[0], 10);
+              const pm = parseInt(parts[1], 10);
+              const py = parseInt(parts[2], 10);
+              if (py === curY && pm === curM && pd === curD) return true;
+            }
+          }
+          return false;
         }
         if (recordCreatedAt) {
           try {

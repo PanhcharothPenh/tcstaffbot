@@ -490,8 +490,7 @@ export default async function handler(req: any, res: any) {
 
       // Shared attendance helpers available throughout the request lifecycle
       const isTodayDateMatch = (recordDate?: string, recordCreatedAt?: string): boolean => {
-        if (!recordDate && !recordCreatedAt) return false;
-        if (recordDate) {
+        if (recordDate && String(recordDate).trim()) {
           const r = String(recordDate).trim();
           if (r === phnomPenhDateStr || r.startsWith(phnomPenhDateStr)) return true;
           if (r === `${d}-${m}-${y}` || r === `${d}/${m}/${y}`) return true;
@@ -510,6 +509,7 @@ export default async function handler(req: any, res: any) {
               if (py === curYear && pm === curMonth && pd === parseInt(d, 10)) return true;
             }
           }
+          return false;
         }
         if (recordCreatedAt) {
           try {
