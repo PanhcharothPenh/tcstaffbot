@@ -5447,113 +5447,238 @@ function getMissingAttendanceReportData(targetDateStr?: string) {
 }
 
 function buildMissingAttendanceTelegramMessage(data: ReturnType<typeof getMissingAttendanceReportData>): string {
-  const { todayStr, timeStrPhnomPenh, missingCheckIns, missingCheckOuts, permissions, currentlyWorking } = data;
+  const { todayStr, timeStrPhnomPenh, missingCheckIns, missingCheckOuts, permissions, currentlyWorking, completedToday } = data;
 
   const missingCheckInsShift1 = missingCheckIns.filter(i => (i.shiftName || '').includes('វេនទី 1'));
   const missingCheckOutsShift1 = missingCheckOuts.filter(i => (i.shiftName || '').includes('វេនទី 1'));
   const missingCheckInsShift2 = missingCheckIns.filter(i => (i.shiftName || '').includes('វេនទី 2'));
   const missingCheckOutsShift2 = missingCheckOuts.filter(i => (i.shiftName || '').includes('វេនទី 2'));
 
-  const hasShift1 = missingCheckInsShift1.length > 0 || missingCheckOutsShift1.length > 0;
-  const hasShift2 = missingCheckInsShift2.length > 0 || missingCheckOutsShift2.length > 0;
-  const totalMissing = missingCheckIns.length + missingCheckOuts.length;
+  const workingShift1 = currentlyWorking.filter(i => (i.shiftName || '').includes('វេនទី 1'));
+  const workingShift2 = currentlyWorking.filter(i => (i.shiftName || '').includes('វេនទី 2'));
 
-  let shiftBadge = '';
-  if (hasShift1 && !hasShift2) shiftBadge = ' — ☀️ វេនទី 1';
-  else if (!hasShift1 && hasShift2) shiftBadge = ' — 🌙 វេនទី 2';
-  else if (hasShift1 && hasShift2) shiftBadge = ' — ☀️ វេនទី 1 & 🌙 វេនទី 2';
+  const completedShift1 = (completedToday || []).filter(i => (i.shiftRange || i.shiftName || '').includes('វេនទី 1') || !((i.shiftRange || i.shiftName || '').includes('វេនទី 2')));
+  const completedShift2 = (completedToday || []).filter(i => (i.shiftRange || i.shiftName || '').includes('វេនទី 2'));
 
-  let msg = `⚠️ <b>[របាយការណ៍បុគ្គលិកមិនទាន់ Check In / Out${shiftBadge}]</b>\n` +
-    `📅 <b>កាលបរិច្ឆេទ:</b> <code>${todayStr}</code>\n` +
-    `⏰ <b>ម៉ោងពិនិត្យ:</b> <code>${timeStrPhnomPenh}</code>\n\n`;
+  const permissionsShift1 = permissions.filter(i => (i.shiftName || '').includes('វេនទី 1') || !((i.shiftName || '').includes('វេនទី 2')));
+  const permissionsShift2 = permissions.filter(i => (i.shiftName || '').includes('វេនទី 2'));
 
-  if (totalMissing === 0) {
-    msg += `🎉 <b>ពុំមានបុគ្គលិកណាខកខាន ឬភ្លេច Check In/Out លើស 30 នាទីឡើយ!</b>\n\n`;
-  } else {
-    // ==================== វេនទី 1 (Shift 1) ====================
-    if (hasShift1) {
-      msg += `☀️ <b>══════ [ វេនទី 1 (Shift 1) ] ══════</b>\n`;
-      if (missingCheckInsShift1.length > 0) {
-        msg += `🔴 <b>មិនទាន់ Check In (${missingCheckInsShift1.length} នាក់)៖</b>\n`;
-        missingCheckInsShift1.forEach((item, idx) => {
-          msg += `${idx + 1}. <b>${item.fullName}</b> (${item.position})\n` +
-            `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-            `   ⏳ យឺត៖ <b>${formatMinutesKhmer(item.overdueMinutes)}</b> ${item.phone ? `| 📞 <code>${item.phone}</code>` : ''}\n`;
+  const [yStr, mStr2, dStr2] = todayStr.includes('-') ? todayStr.split('-') : ['', '', ''];
+  const displayDate = yStr && mStr2 && dStr2 ? `${dStr2}-${mStr2}-${yStr}` : todayStr;
+
+  const getShortBranchName = (name?: string): string => {
+    const n = String(name || '').toLowerCase().trim();
+    if (n === 'b2' || n.includes('corner') || n.includes('coffee')) return 'Coffee Corner';
+    if (n === 'b1' || n.includes('toto') || n.includes('chi')) return 'Toto';
+    return name || 'ទូទៅ';
+  };
+
+  const formatDurationShortKhmer = (mins: number): string => {
+    if (mins <= 0) return '0នាទី';
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h > 0 && m > 0) return `${h}ម៉ ${m}នាទី`;
+    if (h > 0) return `${h}ម៉`;
+    return `${m}នាទី`;
+  };
+
+  const formatPhoneNumber = (p?: string): string => {
+    if (!p) return '';
+    const digits = String(p).replace(/\D/g, '');
+    if (digits.length === 9 && digits.startsWith('0')) {
+      return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+    }
+    if (digits.length === 10 && digits.startsWith('0')) {
+      return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+    }
+    return p.trim();
+  };
+
+  const groupByBranch = (items: any[]) => {
+    const map = new Map<string, any[]>();
+    for (const item of items) {
+      const rawBName = item.branchName || item.staff?.branchName || item.staff?.branchId || '';
+      const bName = getShortBranchName(rawBName);
+      if (!map.has(bName)) map.set(bName, []);
+      map.get(bName)!.push(item);
+    }
+    return map;
+  };
+
+  let summaryText = `⚠️ <b>របាយការណ៍ Check In / Out</b>\n` +
+    `📅 ${displayDate} | ⏰ ${timeStrPhnomPenh}\n\n`;
+
+  const buildShiftSection = (
+    shiftTitle: string,
+    missingIn: any[],
+    missingOut: any[],
+    working: any[],
+    completed: any[],
+    perms: any[]
+  ): string => {
+    const totalStaff = missingIn.length + missingOut.length + working.length + completed.length + perms.length;
+    if (totalStaff === 0) return '';
+
+    let out = `<b>${shiftTitle}</b>\n\n`;
+
+    // 1. មិនទាន់ Check In
+    if (missingIn.length > 0) {
+      out += `🔴 <b>មិនទាន់ Check In — ${missingIn.length} នាក់</b>\n\n`;
+      const branchMap = groupByBranch(missingIn);
+      for (const [bName, list] of branchMap.entries()) {
+        out += `<b>${bName} — ${list.length} នាក់</b>\n`;
+        list.forEach((item, idx) => {
+          const durStr = formatDurationShortKhmer(item.overdueMinutes || item.overdueMins || 0);
+          const stName = item.staff?.fullName || item.fullName || 'Staff';
+          const ph = formatPhoneNumber(item.phone || item.staff?.phone);
+          out += `${idx + 1}. ${stName} — យឺត <b>${durStr}</b>${ph ? ` | ${ph}` : ''}\n`;
         });
-        msg += `\n`;
-      }
-
-      if (missingCheckOutsShift1.length > 0) {
-        msg += `🟠 <b>មិនទាន់ Check Out (${missingCheckOutsShift1.length} នាក់)៖</b>\n`;
-        missingCheckOutsShift1.forEach((item, idx) => {
-          msg += `${idx + 1}. <b>${item.fullName}</b> (${item.position})\n` +
-            `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-            `   🚪 ចូលម៉ោង៖ <code>${item.checkInTime}</code> | ⏳ ហួសម៉ោង៖ <b>${formatMinutesKhmer(item.overdueMinutes)}</b>\n`;
-        });
-        msg += `\n`;
+        out += `\n`;
       }
     }
 
-    // ==================== វេនទី 2 (Shift 2) ====================
-    if (hasShift2) {
-      msg += `🌙 <b>══════ [ វេនទី 2 (Shift 2) ] ══════</b>\n`;
-      if (missingCheckInsShift2.length > 0) {
-        msg += `🔴 <b>មិនទាន់ Check In (${missingCheckInsShift2.length} នាក់)៖</b>\n`;
-        missingCheckInsShift2.forEach((item, idx) => {
-          msg += `${idx + 1}. <b>${item.fullName}</b> (${item.position})\n` +
-            `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-            `   ⏳ យឺត៖ <b>${formatMinutesKhmer(item.overdueMinutes)}</b> ${item.phone ? `| 📞 <code>${item.phone}</code>` : ''}\n`;
+    // 2. មិនទាន់ Check Out (ហួសម៉ោងចេញ)
+    if (missingOut.length > 0) {
+      out += `🟠 <b>មិនទាន់ Check Out — ${missingOut.length} នាក់</b>\n\n`;
+      const branchMap = groupByBranch(missingOut);
+      for (const [bName, list] of branchMap.entries()) {
+        out += `<b>${bName} — ${list.length} នាក់</b>\n`;
+        list.forEach((item, idx) => {
+          const durStr = formatDurationShortKhmer(item.overdueMinutes || item.overdueMins || 0);
+          const stName = item.staff?.fullName || item.fullName || 'Staff';
+          const cIn = item.checkInTime || item.checkIn || '--';
+          out += `${idx + 1}. ${stName} — ហួស <b>${durStr}</b> | ចូល <b>${cIn}</b>\n`;
         });
-        msg += `\n`;
-      }
-
-      if (missingCheckOutsShift2.length > 0) {
-        msg += `🟠 <b>មិនទាន់ Check Out (${missingCheckOutsShift2.length} នាក់)៖</b>\n`;
-        missingCheckOutsShift2.forEach((item, idx) => {
-          msg += `${idx + 1}. <b>${item.fullName}</b> (${item.position})\n` +
-            `   🏢 ${item.branchName} | ⏱️ ${item.shiftName}\n` +
-            `   🚪 ចូលម៉ោង៖ <code>${item.checkInTime}</code> | ⏳ ហួសម៉ោង៖ <b>${formatMinutesKhmer(item.overdueMinutes)}</b>\n`;
-        });
-        msg += `\n`;
+        out += `\n`;
       }
     }
 
-    msg += `<i>💡 ការជូនដំណឹងនេះលោតតែម្តងគត់ក្នុងមួយវេន (មិនរំខានរៀងរាល់ 30 នាទីឡើយ)។</i>\n\n`;
+    // 3. កំពុងបំពេញការងារ
+    if (working.length > 0) {
+      out += `🟢 <b>កំពុងបំពេញការងារ — ${working.length} នាក់</b>\n\n`;
+      const branchMap = groupByBranch(working);
+      for (const [bName, list] of branchMap.entries()) {
+        out += `<b>${bName} — ${list.length} នាក់</b>\n`;
+        list.forEach((w, idx) => {
+          const stName = w.staff?.fullName || w.fullName || 'Staff';
+          const cIn = w.checkIn || w.checkInTime || '--';
+          out += `${idx + 1}. ${stName} — Check In <b>${cIn}</b>\n`;
+        });
+        out += `\n`;
+      }
+    }
+
+    // 4. បាន Check Out រួចរាល់
+    if (completed.length > 0) {
+      out += `🔵 <b>បាន Check Out — ${completed.length} នាក់</b>\n\n`;
+      const branchMap = groupByBranch(completed);
+      for (const [bName, list] of branchMap.entries()) {
+        out += `<b>${bName} — ${list.length} នាក់</b>\n`;
+        list.forEach((c, idx) => {
+          const stName = c.staff?.fullName || c.fullName || 'Staff';
+          const cIn = c.checkIn || c.checkInTime || '--';
+          const cOut = c.checkOut || c.checkOutTime || '--';
+          out += `${idx + 1}. ${stName} — ចូល <b>${cIn}</b> ➔ ចេញ <b>${cOut}</b>\n`;
+        });
+        out += `\n`;
+      }
+    }
+
+    // 5. ច្បាប់ឈប់សម្រាក
+    if (perms.length > 0) {
+      out += `🏖️ <b>ច្បាប់ឈប់សម្រាក — ${perms.length} នាក់</b>\n\n`;
+      const branchMap = groupByBranch(perms);
+      for (const [bName, list] of branchMap.entries()) {
+        out += `<b>${bName} — ${list.length} នាក់</b>\n`;
+        list.forEach((p, idx) => {
+          const stName = p.staff?.fullName || p.fullName || 'Staff';
+          const note = p.note || p.reason || 'ច្បាប់ឈប់សម្រាក';
+          out += `${idx + 1}. ${stName} — ${note}\n`;
+        });
+        out += `\n`;
+      }
+    }
+
+    // 6. សរុបវេន
+    const shiftSummaryParts: string[] = [];
+    if (working.length > 0) shiftSummaryParts.push(`🟢 កំពុងធ្វើការ ${working.length}`);
+    if (completed.length > 0) shiftSummaryParts.push(`🔵 Check Out ${completed.length}`);
+    if (missingIn.length > 0) shiftSummaryParts.push(`🔴 មិនទាន់ Check In ${missingIn.length}`);
+    if (missingOut.length > 0) shiftSummaryParts.push(`🟠 មិនទាន់ Check Out ${missingOut.length}`);
+    if (perms.length > 0) shiftSummaryParts.push(`🏖️ ច្បាប់ ${perms.length}`);
+
+    out += `<b>សរុប${shiftTitle}៖ ${totalStaff} នាក់</b> — ${shiftSummaryParts.join(' | ')}\n\n`;
+
+    return out;
+  };
+
+  const shift1Block = buildShiftSection('វេនទី 1', missingCheckInsShift1, missingCheckOutsShift1, workingShift1, completedShift1, permissionsShift1);
+  const shift2Block = buildShiftSection('វេនទី 2', missingCheckInsShift2, missingCheckOutsShift2, workingShift2, completedShift2, permissionsShift2);
+
+  if (shift1Block) summaryText += shift1Block;
+  if (shift1Block && shift2Block) summaryText += `──────────────\n\n`;
+  if (shift2Block) summaryText += shift2Block;
+
+  const totalShift1Staff = missingCheckInsShift1.length + missingCheckOutsShift1.length + workingShift1.length + completedShift1.length + permissionsShift1.length;
+  const totalShift2Staff = missingCheckInsShift2.length + missingCheckOutsShift2.length + workingShift2.length + completedShift2.length + permissionsShift2.length;
+  const grandTotal = totalShift1Staff + totalShift2Staff;
+  const grandWorking = workingShift1.length + workingShift2.length;
+  const grandCompleted = completedShift1.length + completedShift2.length;
+  const grandMissingIn = missingCheckInsShift1.length + missingCheckInsShift2.length;
+  const grandMissingOut = missingCheckOutsShift1.length + missingCheckOutsShift2.length;
+  const grandPerms = permissionsShift1.length + permissionsShift2.length;
+
+  const allReportItems = [
+    ...missingCheckInsShift1.map(i => ({ ...i, category: 'missingIn' })),
+    ...missingCheckInsShift2.map(i => ({ ...i, category: 'missingIn' })),
+    ...missingCheckOutsShift1.map(i => ({ ...i, category: 'missingOut' })),
+    ...missingCheckOutsShift2.map(i => ({ ...i, category: 'missingOut' })),
+    ...workingShift1.map(i => ({ ...i, category: 'working' })),
+    ...workingShift2.map(i => ({ ...i, category: 'working' })),
+    ...completedShift1.map(i => ({ ...i, category: 'completed' })),
+    ...completedShift2.map(i => ({ ...i, category: 'completed' })),
+    ...permissionsShift1.map(i => ({ ...i, category: 'perm' })),
+    ...permissionsShift2.map(i => ({ ...i, category: 'perm' }))
+  ];
+
+  const branchSummaryMap = new Map<string, { total: number; working: number; completed: number; missingIn: number; missingOut: number; perm: number }>();
+  for (const it of allReportItems) {
+    const bName = getShortBranchName(it.branchName || it.staff?.branchName || it.staff?.branchId);
+    if (!branchSummaryMap.has(bName)) {
+      branchSummaryMap.set(bName, { total: 0, working: 0, completed: 0, missingIn: 0, missingOut: 0, perm: 0 });
+    }
+    const sObj = branchSummaryMap.get(bName)!;
+    sObj.total++;
+    if (it.category === 'working') sObj.working++;
+    else if (it.category === 'completed') sObj.completed++;
+    else if (it.category === 'missingIn') sObj.missingIn++;
+    else if (it.category === 'missingOut') sObj.missingOut++;
+    else if (it.category === 'perm') sObj.perm++;
   }
 
-  if (permissions.length > 0) {
-    msg += `🏖️ <b>ច្បាប់ឈប់សម្រាក (${permissions.length} នាក់)៖</b>\n`;
-    permissions.forEach((p: any) => {
-      msg += `- <b>${p.staff.fullName}</b> (${p.branchName}): ${p.note}\n`;
-    });
-    msg += `\n`;
+  if (grandTotal > 0) {
+    summaryText += `──────────────\n\n` +
+      `<b>សរុបតាមសាខា</b>\n\n`;
+    for (const [bName, stats] of branchSummaryMap.entries()) {
+      summaryText += `<b>${bName}:</b> ${stats.total} នាក់\n`;
+      const parts: string[] = [];
+      if (stats.working > 0) parts.push(`🟢 កំពុងធ្វើការ ${stats.working}`);
+      if (stats.completed > 0) parts.push(`🔵 Check Out ${stats.completed}`);
+      if (stats.missingIn > 0) parts.push(`🔴 មិនទាន់ Check In ${stats.missingIn}`);
+      if (stats.missingOut > 0) parts.push(`🟠 មិនទាន់ Check Out ${stats.missingOut}`);
+      if (stats.perm > 0) parts.push(`🏖️ ច្បាប់ ${stats.perm}`);
+      summaryText += `${parts.join(' | ')}\n\n`;
+    }
+
+    summaryText += `<b>សរុបទាំងអស់៖ ${grandTotal} នាក់</b>\n`;
+    if (grandWorking > 0) summaryText += `🟢 កំពុងបំពេញការងារ៖ <b>${grandWorking} នាក់</b>\n`;
+    if (grandCompleted > 0) summaryText += `🔵 បាន Check Out៖ <b>${grandCompleted} នាក់</b>\n`;
+    if (grandMissingIn > 0) summaryText += `🔴 មិនទាន់ Check In៖ <b>${grandMissingIn} នាក់</b>\n`;
+    if (grandMissingOut > 0) summaryText += `🟠 មិនទាន់ Check Out៖ <b>${grandMissingOut} នាក់</b>\n`;
+    if (grandPerms > 0) summaryText += `🏖️ ច្បាប់ឈប់សម្រាក៖ <b>${grandPerms} នាក់</b>\n`;
   }
 
-  if (currentlyWorking.length > 0) {
-    msg += `🟢 <b>បុគ្គលិកកំពុងបំពេញការងារ (${currentlyWorking.length} នាក់)</b>\n\n`;
-    const workingByBranch = new Map<string, any[]>();
-    for (const w of currentlyWorking) {
-      const bName = w.branchName || 'ទូទៅ';
-      if (!workingByBranch.has(bName)) workingByBranch.set(bName, []);
-      workingByBranch.get(bName)!.push(w);
-    }
-    if (workingByBranch.size > 1) {
-      for (const [bName, list] of workingByBranch.entries()) {
-        msg += `🏢 <b>${bName} (${list.length} នាក់)៖</b>\n`;
-        list.forEach((w: any, idx: number) => {
-          msg += `${idx + 1}. <b>${w.staff.fullName}</b> — <code>${w.checkIn}</code>\n`;
-        });
-        msg += `\n`;
-      }
-    } else {
-      currentlyWorking.forEach((w: any, idx: number) => {
-        msg += `${idx + 1}. <b>${w.staff.fullName}</b> — <code>${w.checkIn}</code>\n`;
-      });
-      msg += `\n`;
-    }
-  }
-
-  return msg.trim();
+  return summaryText.trim();
 }
 
 const sentMissingSlotAlerts: Record<string, boolean> = {};
