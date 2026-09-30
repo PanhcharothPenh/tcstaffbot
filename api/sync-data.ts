@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { BASELINE_ATTENDANCE_74 } from '../src/data/baselineAttendance';
 
 let lastSupabaseErrorTime = 0;
 
@@ -516,7 +517,7 @@ const DEFAULT_PAYLOAD: Record<string, any> = {
   users: DEFAULT_USERS,
   staff: DEFAULT_STAFF,
   salaries: [],
-  attendance: [],
+  attendance: BASELINE_ATTENDANCE_74,
   incomes: [],
   expenses: [],
   inventory: [],
@@ -674,6 +675,22 @@ export default async function handler(req: any, res: any) {
         if (!existingRowIds.has('leaveRequests') && (!Array.isArray(db.leaveRequests) || db.leaveRequests.length === 0)) {
           db.leaveRequests = DEFAULT_LEAVE_REQUESTS;
           rowsToHeal.push({ id: 'leaveRequests', data: DEFAULT_LEAVE_REQUESTS, updated_at: new Date().toISOString() });
+          needsDbHeal = true;
+        }
+
+        if (!Array.isArray(db.attendance) || db.attendance.length < 10) {
+          const currentAtt = Array.isArray(db.attendance) ? db.attendance : [];
+          const mergedMap = new Map<string, any>();
+          for (const b of BASELINE_ATTENDANCE_74) {
+            if (b && b.id) mergedMap.set(String(b.id), b);
+            else if (b && b.staffId && b.date) mergedMap.set(`${b.staffId}_${b.date}`, b);
+          }
+          for (const a of currentAtt) {
+            if (a && a.id) mergedMap.set(String(a.id), a);
+            else if (a && a.staffId && a.date) mergedMap.set(`${a.staffId}_${a.date}`, a);
+          }
+          db.attendance = Array.from(mergedMap.values());
+          rowsToHeal.push({ id: 'attendance', data: db.attendance, updated_at: new Date().toISOString() });
           needsDbHeal = true;
         }
 

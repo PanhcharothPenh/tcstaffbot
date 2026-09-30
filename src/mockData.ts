@@ -32,6 +32,7 @@ import {
   SalarySchedule,
   SalaryAdvance
 } from './types';
+import { BASELINE_ATTENDANCE_74 } from './data/baselineAttendance';
 
 // Translation Dictionary for English and Khmer
 export const translations = {
@@ -760,8 +761,8 @@ export const initialStaff: Staff[] = [
 // Initial Salaries Paid
 export const initialSalaries: Salary[] = [];
 
-// Initial Attendance Records
-export const initialAttendance: Attendance[] = [];
+// Initial Attendance Records (Baseline 74 records restored)
+export const initialAttendance: Attendance[] = BASELINE_ATTENDANCE_74 as Attendance[];
 
 // Initial Incomes
 export const initialIncomes: Income[] = [];
