@@ -453,6 +453,206 @@ export function formatLateMinutes(mins?: number, lang: 'kh' | 'en' = 'kh'): stri
 }
 
 /**
+ * Smart Non-Wiping Attendance Merge
+ * 
+ * Merges two attendance records safely:
+ * - Never overwrites a valid checkIn/checkOut with '--' or empty
+ * - Recalculates workHours dynamically
+ * - Sets status to 'Completed' if checkOut is valid
+ * - Merges audit histories, photos, GPS coords, Face scores
+ */
+export function mergeAttendanceRecords(
+  localList: any[] = [],
+  incomingList: any[] = []
+): { mergedList: any[]; hasLocalWins: boolean; isChangedFromLocal: boolean } {
+  const safeLocal = Array.isArray(localList) ? localList : [];
+  const safeIncoming = Array.isArray(incomingList) ? incomingList : [];
+
+  if (safeIncoming.length === 0) {
+    return { mergedList: safeLocal, hasLocalWins: safeLocal.length > 0, isChangedFromLocal: false };
+  }
+  if (safeLocal.length === 0) {
+    const fixed = safeIncoming.map(item => {
+      if (item && item.checkIn && item.checkOut && item.checkIn !== '--' && item.checkOut !== '--' && item.status !== 'Absent' && item.status !== 'Permission') {
+        if (!item.workHours || item.workHours <= 0) {
+          item.workHours = calculateWorkHours(item.checkIn, item.checkOut, item.status);
+        }
+      }
+      return item;
+    });
+    return { mergedList: fixed, hasLocalWins: false, isChangedFromLocal: true };
+  }
+
+  const isValidTime = (t: any): boolean => {
+    if (!t || t === '--' || typeof t !== 'string') return false;
+    return /\d/.test(t.trim()) && !t.toLowerCase().includes('absent');
+  };
+
+  const getRecordTimestamp = (item: any): number => {
+    if (!item) return 0;
+    if (item.updatedAt) {
+      const t = new Date(item.updatedAt).getTime();
+      if (!isNaN(t)) return t;
+    }
+    if (item.auditHistory && Array.isArray(item.auditHistory) && item.auditHistory.length > 0) {
+      const last = item.auditHistory[item.auditHistory.length - 1];
+      if (last?.changedAt) {
+        const t = new Date(last.changedAt).getTime();
+        if (!isNaN(t)) return t;
+      }
+    }
+    if (item.createdAt) {
+      const t = new Date(item.createdAt).getTime();
+      if (!isNaN(t)) return t;
+    }
+    return 0;
+  };
+
+  const mergedMap = new Map<string, any>();
+  let hasLocalWins = false;
+
+  const getRecordKey = (item: any): string => {
+    if (!item) return '';
+    if (item.id) return String(item.id);
+    if (item.staffId && item.date) return `${item.staffId}_${item.date}`;
+    return JSON.stringify(item);
+  };
+
+  const getAltKey = (item: any): string => {
+    if (!item) return '';
+    if (item.staffId && item.date) return `${item.staffId}_${item.date}`;
+    if (item.staffName && item.date) return `${item.staffName}_${item.date}`;
+    return '';
+  };
+
+  // 1. Index incoming server records
+  for (const inc of safeIncoming) {
+    if (!inc) continue;
+    const key = getRecordKey(inc);
+    if (key) mergedMap.set(key, { ...inc });
+  }
+
+  // Helper to find match in mergedMap
+  const findMatchInMap = (loc: any): { matchedKey: string; existing: any } | null => {
+    const directKey = getRecordKey(loc);
+    if (mergedMap.has(directKey)) {
+      return { matchedKey: directKey, existing: mergedMap.get(directKey) };
+    }
+    const altKey = getAltKey(loc);
+    if (altKey) {
+      for (const [k, v] of mergedMap.entries()) {
+        if (getAltKey(v) === altKey) {
+          return { matchedKey: k, existing: v };
+        }
+      }
+    }
+    return null;
+  };
+
+  const mergeTwo = (loc: any, inc: any) => {
+    const locTime = getRecordTimestamp(loc);
+    const incTime = getRecordTimestamp(inc);
+    const isLocNewer = locTime >= incTime;
+
+    const base = isLocNewer ? { ...inc, ...loc } : { ...loc, ...inc };
+
+    // Resolve checkIn: Never wipe a valid checkIn with empty or '--'
+    if (isValidTime(loc.checkIn) && !isValidTime(inc.checkIn)) {
+      base.checkIn = loc.checkIn;
+    } else if (isValidTime(inc.checkIn) && !isValidTime(loc.checkIn)) {
+      base.checkIn = inc.checkIn;
+    } else if (isValidTime(loc.checkIn) && isValidTime(inc.checkIn)) {
+      base.checkIn = isLocNewer ? loc.checkIn : inc.checkIn;
+    } else {
+      base.checkIn = loc.checkIn || inc.checkIn || '--';
+    }
+
+    // Resolve checkOut: Never wipe a valid checkOut with empty or '--'
+    if (isValidTime(loc.checkOut) && !isValidTime(inc.checkOut)) {
+      base.checkOut = loc.checkOut;
+      base.status = (base.status === 'Working' || !base.status) ? 'Completed' : base.status;
+    } else if (isValidTime(inc.checkOut) && !isValidTime(loc.checkOut)) {
+      base.checkOut = inc.checkOut;
+      base.status = (base.status === 'Working' || !base.status) ? 'Completed' : base.status;
+    } else if (isValidTime(loc.checkOut) && isValidTime(inc.checkOut)) {
+      base.checkOut = isLocNewer ? loc.checkOut : inc.checkOut;
+    } else {
+      base.checkOut = loc.checkOut || inc.checkOut || '--';
+    }
+
+    // Resolve status: If checkOut exists and status is 'Working', it is Completed
+    if (isValidTime(base.checkOut) && (base.status === 'Working' || !base.status)) {
+      base.status = 'Completed';
+    }
+
+    // Calculate workHours
+    if (isValidTime(base.checkIn) && isValidTime(base.checkOut) && base.status !== 'Absent' && base.status !== 'Permission') {
+      base.workHours = calculateWorkHours(base.checkIn, base.checkOut, base.status);
+    } else if (base.status === 'Absent' || base.status === 'Permission') {
+      base.workHours = 0;
+    } else {
+      base.workHours = base.workHours ?? 0;
+    }
+
+    // Preserve photos, Face, GPS
+    base.checkInPhoto = loc.checkInPhoto || inc.checkInPhoto;
+    base.checkOutPhoto = loc.checkOutPhoto || inc.checkOutPhoto;
+    base.checkInFaceScore = loc.checkInFaceScore ?? inc.checkInFaceScore;
+    base.checkOutFaceScore = loc.checkOutFaceScore ?? inc.checkOutFaceScore;
+    base.checkInLatitude = loc.checkInLatitude ?? inc.checkInLatitude;
+    base.checkInLongitude = loc.checkInLongitude ?? inc.checkInLongitude;
+    base.checkOutLatitude = loc.checkOutLatitude ?? inc.checkOutLatitude;
+    base.checkOutLongitude = loc.checkOutLongitude ?? inc.checkOutLongitude;
+
+    // Merge auditHistory
+    const histMap = new Map<string, any>();
+    (inc.auditHistory || []).forEach((h: any) => histMap.set(h.changedAt || JSON.stringify(h), h));
+    (loc.auditHistory || []).forEach((h: any) => histMap.set(h.changedAt || JSON.stringify(h), h));
+    base.auditHistory = Array.from(histMap.values());
+
+    base.updatedAt = new Date(Math.max(locTime, incTime, isLocNewer ? Date.now() : 0)).toISOString();
+
+    return base;
+  };
+
+  // 2. Merge local records
+  for (const loc of safeLocal) {
+    if (!loc) continue;
+    const match = findMatchInMap(loc);
+
+    if (!match) {
+      // Local record not in server -> KEEP IT
+      const key = getRecordKey(loc);
+      mergedMap.set(key, { ...loc });
+      hasLocalWins = true;
+    } else {
+      const merged = mergeTwo(loc, match.existing);
+      mergedMap.set(match.matchedKey, merged);
+      if (JSON.stringify(match.existing) !== JSON.stringify(merged)) {
+        hasLocalWins = true;
+      }
+    }
+  }
+
+  const mergedList = Array.from(mergedMap.values()).map(item => {
+    if (item && isValidTime(item.checkIn) && isValidTime(item.checkOut) && item.status !== 'Absent' && item.status !== 'Permission') {
+      if (item.workHours === undefined || item.workHours === null || item.workHours <= 0) {
+        item.workHours = calculateWorkHours(item.checkIn, item.checkOut, item.status);
+      }
+    }
+    return item;
+  });
+
+  const isChangedFromLocal = JSON.stringify(safeLocal) !== JSON.stringify(mergedList);
+
+  return {
+    mergedList,
+    hasLocalWins,
+    isChangedFromLocal
+  };
+}
+
+/**
  * Smart Bidirectional Timestamp-Aware Merge for Collections
  * 
  * Merges incoming server records with local client records without losing
@@ -467,6 +667,10 @@ export function mergeCollectionRecords<T extends Record<string, any>>(
   incomingList: T[] = [],
   keyType: 'id' | 'attendance' | 'custom' = 'id'
 ): { mergedList: T[]; hasLocalWins: boolean; isChangedFromLocal: boolean } {
+  if (keyType === 'attendance') {
+    return mergeAttendanceRecords(localList, incomingList);
+  }
+
   const safeLocal = Array.isArray(localList) ? localList : [];
   const safeIncoming = Array.isArray(incomingList) ? incomingList : [];
 
@@ -488,10 +692,6 @@ export function mergeCollectionRecords<T extends Record<string, any>>(
 
   const getItemKey = (item: any): string => {
     if (!item) return '';
-    if (keyType === 'attendance') {
-      if (item.id) return String(item.id);
-      if (item.staffId && item.date) return `${item.staffId}_${item.date}`;
-    }
     return item.id ? String(item.id) : (item._id ? String(item._id) : JSON.stringify(item));
   };
 
@@ -548,46 +748,14 @@ export function mergeCollectionRecords<T extends Record<string, any>>(
 
       if (locTime >= incTime) {
         // Local is newer or equal
-        let mergedItem = { ...inc, ...loc };
-        if (keyType === 'attendance') {
-          mergedItem.checkInPhoto = loc.checkInPhoto || inc.checkInPhoto;
-          mergedItem.checkOutPhoto = loc.checkOutPhoto || inc.checkOutPhoto;
-          mergedItem.checkInFaceScore = loc.checkInFaceScore ?? inc.checkInFaceScore;
-          mergedItem.checkOutFaceScore = loc.checkOutFaceScore ?? inc.checkOutFaceScore;
-          mergedItem.checkInLatitude = loc.checkInLatitude ?? inc.checkInLatitude;
-          mergedItem.checkInLongitude = loc.checkInLongitude ?? inc.checkInLongitude;
-          mergedItem.checkOutLatitude = loc.checkOutLatitude ?? inc.checkOutLatitude;
-          mergedItem.checkOutLongitude = loc.checkOutLongitude ?? inc.checkOutLongitude;
-
-          if (loc.auditHistory || inc.auditHistory) {
-            const historyMap = new Map<string, any>();
-            (inc.auditHistory || []).forEach((h: any) => historyMap.set(h.changedAt || JSON.stringify(h), h));
-            (loc.auditHistory || []).forEach((h: any) => historyMap.set(h.changedAt || JSON.stringify(h), h));
-            mergedItem.auditHistory = Array.from(historyMap.values());
-          }
-        }
-
-        // Auto calculate workHours if checkIn and checkOut exist and workHours is missing/0
-        if (keyType === 'attendance' && (mergedItem.workHours === undefined || mergedItem.workHours === null || mergedItem.workHours <= 0)) {
-          if (mergedItem.checkIn && mergedItem.checkOut && mergedItem.checkIn !== '--' && mergedItem.checkOut !== '--' && mergedItem.status !== 'Absent' && mergedItem.status !== 'Permission') {
-            mergedItem.workHours = calculateWorkHours(mergedItem.checkIn, mergedItem.checkOut, mergedItem.status);
-          }
-        }
-
+        const mergedItem = { ...inc, ...loc };
         mergedMap.set(key, mergedItem);
         if (JSON.stringify(loc) !== JSON.stringify(inc)) {
           hasLocalWins = true;
         }
       } else {
         // Server is strictly newer
-        let mergedItem = { ...loc, ...inc };
-        if (keyType === 'attendance') {
-          if (mergedItem.workHours === undefined || mergedItem.workHours === null || mergedItem.workHours <= 0) {
-            if (mergedItem.checkIn && mergedItem.checkOut && mergedItem.checkIn !== '--' && mergedItem.checkOut !== '--' && mergedItem.status !== 'Absent' && mergedItem.status !== 'Permission') {
-              mergedItem.workHours = calculateWorkHours(mergedItem.checkIn, mergedItem.checkOut, mergedItem.status);
-            }
-          }
-        }
+        const mergedItem = { ...loc, ...inc };
         mergedMap.set(key, mergedItem);
       }
     }

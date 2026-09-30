@@ -621,7 +621,9 @@ export default async function handler(req: any, res: any) {
   const supabase = await getSupabaseClient();
 
   if (req.method === 'GET') {
-    res.setHeader('Cache-Control', 'public, s-maxage=2, stale-while-revalidate=15');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     let lastError = null;
     try {
       if (supabase) {
@@ -807,28 +809,71 @@ export default async function handler(req: any, res: any) {
             }
           }
 
-          // Smart-merge attendance: Never erase live scan records created via mobile/Telegram/Face
+          // Smart-merge attendance: Never erase live scan records created via mobile/Telegram/Face or admin edits
           if (collectionId === 'attendance' && Array.isArray(collectionData)) {
-            const mergeAttendance = (serverItem: any, clientItem: any) => {
-              const clientTime = new Date(clientItem.updatedAt || 0).getTime();
-              const serverTime = new Date(serverItem.updatedAt || 0).getTime();
+            const isValidTime = (t: any): boolean => {
+              if (!t || t === '--' || typeof t !== 'string') return false;
+              return /\d/.test(t.trim()) && !t.toLowerCase().includes('absent');
+            };
 
-              // If client edited this record (newer updatedAt or explicit admin edit), client values take precedence
-              if (clientTime >= serverTime) {
-                return {
-                  ...serverItem,
-                  ...clientItem,
-                  checkInPhoto: clientItem.checkInPhoto || serverItem.checkInPhoto,
-                  checkOutPhoto: clientItem.checkOutPhoto || serverItem.checkOutPhoto,
-                  checkInFaceScore: clientItem.checkInFaceScore ?? serverItem.checkInFaceScore,
-                  checkOutFaceScore: clientItem.checkOutFaceScore ?? serverItem.checkOutFaceScore,
-                  checkInLatitude: clientItem.checkInLatitude ?? serverItem.checkInLatitude,
-                  checkInLongitude: clientItem.checkInLongitude ?? serverItem.checkInLongitude,
-                  checkOutLatitude: clientItem.checkOutLatitude ?? serverItem.checkOutLatitude,
-                  checkOutLongitude: clientItem.checkOutLongitude ?? serverItem.checkOutLongitude,
-                };
+            const mergeAttendance = (serverItem: any, clientItem: any) => {
+              const clientTime = new Date(clientItem.updatedAt || clientItem.createdAt || 0).getTime();
+              const serverTime = new Date(serverItem.updatedAt || serverItem.createdAt || 0).getTime();
+              const isClientNewer = clientTime >= serverTime;
+
+              const base = isClientNewer ? { ...serverItem, ...clientItem } : { ...clientItem, ...serverItem };
+
+              // Resolve checkIn: Never wipe a valid checkIn with empty or '--'
+              if (isValidTime(clientItem.checkIn) && !isValidTime(serverItem.checkIn)) {
+                base.checkIn = clientItem.checkIn;
+              } else if (isValidTime(serverItem.checkIn) && !isValidTime(clientItem.checkIn)) {
+                base.checkIn = serverItem.checkIn;
+              } else if (isValidTime(clientItem.checkIn) && isValidTime(serverItem.checkIn)) {
+                base.checkIn = isClientNewer ? clientItem.checkIn : serverItem.checkIn;
+              } else {
+                base.checkIn = clientItem.checkIn || serverItem.checkIn || '--';
               }
-              return { ...clientItem, ...serverItem };
+
+              // Resolve checkOut: Never wipe a valid checkOut with empty or '--'
+              if (isValidTime(clientItem.checkOut) && !isValidTime(serverItem.checkOut)) {
+                base.checkOut = clientItem.checkOut;
+                base.status = (base.status === 'Working' || !base.status) ? 'Completed' : base.status;
+              } else if (isValidTime(serverItem.checkOut) && !isValidTime(clientItem.checkOut)) {
+                base.checkOut = serverItem.checkOut;
+                base.status = (base.status === 'Working' || !base.status) ? 'Completed' : base.status;
+              } else if (isValidTime(clientItem.checkOut) && isValidTime(serverItem.checkOut)) {
+                base.checkOut = isClientNewer ? clientItem.checkOut : serverItem.checkOut;
+              } else {
+                base.checkOut = clientItem.checkOut || serverItem.checkOut || '--';
+              }
+
+              if (isValidTime(base.checkOut) && (base.status === 'Working' || !base.status)) {
+                base.status = 'Completed';
+              }
+
+              if (isValidTime(base.checkIn) && isValidTime(base.checkOut) && base.status !== 'Absent' && base.status !== 'Permission') {
+                base.workHours = calculateWorkHours(base.checkIn, base.checkOut, base.status);
+              } else if (base.status === 'Absent' || base.status === 'Permission') {
+                base.workHours = 0;
+              }
+
+              base.checkInPhoto = clientItem.checkInPhoto || serverItem.checkInPhoto;
+              base.checkOutPhoto = clientItem.checkOutPhoto || serverItem.checkOutPhoto;
+              base.checkInFaceScore = clientItem.checkInFaceScore ?? serverItem.checkInFaceScore;
+              base.checkOutFaceScore = clientItem.checkOutFaceScore ?? serverItem.checkOutFaceScore;
+              base.checkInLatitude = clientItem.checkInLatitude ?? serverItem.checkInLatitude;
+              base.checkInLongitude = clientItem.checkInLongitude ?? serverItem.checkInLongitude;
+              base.checkOutLatitude = clientItem.checkOutLatitude ?? serverItem.checkOutLatitude;
+              base.checkOutLongitude = clientItem.checkOutLongitude ?? serverItem.checkOutLongitude;
+
+              const historyMap = new Map<string, any>();
+              (serverItem.auditHistory || []).forEach((h: any) => historyMap.set(h.changedAt || JSON.stringify(h), h));
+              (clientItem.auditHistory || []).forEach((h: any) => historyMap.set(h.changedAt || JSON.stringify(h), h));
+              base.auditHistory = Array.from(historyMap.values());
+
+              base.updatedAt = new Date(Math.max(clientTime, serverTime, Date.now())).toISOString();
+
+              return base;
             };
 
             const serverAtt = Array.isArray(existingMap['attendance']) ? existingMap['attendance'] : [];
@@ -868,7 +913,7 @@ export default async function handler(req: any, res: any) {
             }
 
             finalData = Array.from(mergedMap.values()).map(item => {
-              if (item && item.checkIn && item.checkOut && item.checkIn !== '--' && item.checkOut !== '--' && item.status !== 'Absent' && item.status !== 'Permission') {
+              if (item && isValidTime(item.checkIn) && isValidTime(item.checkOut) && item.status !== 'Absent' && item.status !== 'Permission') {
                 if (item.workHours === undefined || item.workHours === null || item.workHours <= 0) {
                   item.workHours = calculateWorkHours(item.checkIn, item.checkOut, item.status);
                 }

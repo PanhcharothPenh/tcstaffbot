@@ -2588,49 +2588,64 @@ app.post('/api/sync-data', async (req, res) => {
     
     // Smart merge attendance so mobile scan check-ins/outs are not wiped out
     if (payload.attendance && Array.isArray(payload.attendance)) {
-      const isRealTime = (t?: any) => Boolean(t && t !== '--' && /\d/.test(String(t)) && !String(t).toLowerCase().includes('absent'));
-      const isCompletedAtt = (r?: any) => Boolean(
-        r && (
-          isRealTime(r.checkOut) ||
-          String(r.status || '').toLowerCase() === 'completed' ||
-          String(r.status || '').toLowerCase() === 'checkedout'
-        )
-      );
+      const isValidTime = (t?: any) => Boolean(t && t !== '--' && /\d/.test(String(t)) && !String(t).toLowerCase().includes('absent'));
 
       const mergeAttendance = (serverItem: any, clientItem: any) => {
-        const clientTime = new Date(clientItem.updatedAt || 0).getTime();
-        const serverTime = new Date(serverItem.updatedAt || 0).getTime();
-        const base = (clientTime >= serverTime) ? { ...serverItem, ...clientItem } : { ...clientItem, ...serverItem };
+        const clientTime = new Date(clientItem.updatedAt || clientItem.createdAt || 0).getTime();
+        const serverTime = new Date(serverItem.updatedAt || serverItem.createdAt || 0).getTime();
+        const isClientNewer = clientTime >= serverTime;
 
-        // Never overwrite real checkIn with empty/--
-        if (isRealTime(serverItem.checkIn) && !isRealTime(clientItem.checkIn)) {
-          base.checkIn = serverItem.checkIn;
-          base.checkInPhoto = serverItem.checkInPhoto || clientItem.checkInPhoto;
-          base.checkInFaceScore = serverItem.checkInFaceScore ?? clientItem.checkInFaceScore;
-          base.checkInLatitude = serverItem.checkInLatitude ?? clientItem.checkInLatitude;
-          base.checkInLongitude = serverItem.checkInLongitude ?? clientItem.checkInLongitude;
-        } else if (isRealTime(clientItem.checkIn)) {
+        const base = isClientNewer ? { ...serverItem, ...clientItem } : { ...clientItem, ...serverItem };
+
+        // Resolve checkIn: Never wipe a valid checkIn with empty/--
+        if (isValidTime(clientItem.checkIn) && !isValidTime(serverItem.checkIn)) {
           base.checkIn = clientItem.checkIn;
+        } else if (isValidTime(serverItem.checkIn) && !isValidTime(clientItem.checkIn)) {
+          base.checkIn = serverItem.checkIn;
+        } else if (isValidTime(clientItem.checkIn) && isValidTime(serverItem.checkIn)) {
+          base.checkIn = isClientNewer ? clientItem.checkIn : serverItem.checkIn;
+        } else {
+          base.checkIn = clientItem.checkIn || serverItem.checkIn || '--';
         }
 
-        // Never overwrite real checkOut with empty/--
-        if (isRealTime(serverItem.checkOut) && !isRealTime(clientItem.checkOut)) {
-          base.checkOut = serverItem.checkOut;
-          base.checkOutPhoto = serverItem.checkOutPhoto || clientItem.checkOutPhoto;
-          base.checkOutFaceScore = serverItem.checkOutFaceScore ?? clientItem.checkOutFaceScore;
-          base.checkOutLatitude = serverItem.checkOutLatitude ?? clientItem.checkOutLatitude;
-          base.checkOutLongitude = serverItem.checkOutLongitude ?? clientItem.checkOutLongitude;
-          base.status = 'Completed';
-        } else if (isRealTime(clientItem.checkOut)) {
+        // Resolve checkOut: Never wipe a valid checkOut with empty/--
+        if (isValidTime(clientItem.checkOut) && !isValidTime(serverItem.checkOut)) {
           base.checkOut = clientItem.checkOut;
+          base.status = (base.status === 'Working' || !base.status) ? 'Completed' : base.status;
+        } else if (isValidTime(serverItem.checkOut) && !isValidTime(clientItem.checkOut)) {
+          base.checkOut = serverItem.checkOut;
+          base.status = (base.status === 'Working' || !base.status) ? 'Completed' : base.status;
+        } else if (isValidTime(clientItem.checkOut) && isValidTime(serverItem.checkOut)) {
+          base.checkOut = isClientNewer ? clientItem.checkOut : serverItem.checkOut;
+        } else {
+          base.checkOut = clientItem.checkOut || serverItem.checkOut || '--';
         }
 
-        if (isCompletedAtt(serverItem) && !isRealTime(clientItem.checkOut)) {
+        if (isValidTime(base.checkOut) && (base.status === 'Working' || !base.status)) {
           base.status = 'Completed';
-          if (serverItem.checkOut && !isRealTime(base.checkOut)) {
-            base.checkOut = serverItem.checkOut;
-          }
         }
+
+        if (isValidTime(base.checkIn) && isValidTime(base.checkOut) && base.status !== 'Absent' && base.status !== 'Permission') {
+          base.workHours = calculateWorkHours(base.checkIn, base.checkOut, base.status);
+        } else if (base.status === 'Absent' || base.status === 'Permission') {
+          base.workHours = 0;
+        }
+
+        base.checkInPhoto = clientItem.checkInPhoto || serverItem.checkInPhoto;
+        base.checkOutPhoto = clientItem.checkOutPhoto || serverItem.checkOutPhoto;
+        base.checkInFaceScore = clientItem.checkInFaceScore ?? serverItem.checkInFaceScore;
+        base.checkOutFaceScore = clientItem.checkOutFaceScore ?? serverItem.checkOutFaceScore;
+        base.checkInLatitude = clientItem.checkInLatitude ?? serverItem.checkInLatitude;
+        base.checkInLongitude = clientItem.checkInLongitude ?? serverItem.checkInLongitude;
+        base.checkOutLatitude = clientItem.checkOutLatitude ?? serverItem.checkOutLatitude;
+        base.checkOutLongitude = clientItem.checkOutLongitude ?? serverItem.checkOutLongitude;
+
+        const historyMap = new Map<string, any>();
+        (serverItem.auditHistory || []).forEach((h: any) => historyMap.set(h.changedAt || JSON.stringify(h), h));
+        (clientItem.auditHistory || []).forEach((h: any) => historyMap.set(h.changedAt || JSON.stringify(h), h));
+        base.auditHistory = Array.from(historyMap.values());
+
+        base.updatedAt = new Date(Math.max(clientTime, serverTime, Date.now())).toISOString();
 
         return base;
       };
@@ -2651,7 +2666,14 @@ app.post('/api/sync-data', async (req, res) => {
           mergedMap.set(key, mergeAttendance(existingItem, clientItem));
         }
       }
-      payload.attendance = Array.from(mergedMap.values());
+      payload.attendance = Array.from(mergedMap.values()).map(item => {
+        if (item && isValidTime(item.checkIn) && isValidTime(item.checkOut) && item.status !== 'Absent' && item.status !== 'Permission') {
+          if (item.workHours === undefined || item.workHours === null || item.workHours <= 0) {
+            item.workHours = calculateWorkHours(item.checkIn, item.checkOut, item.status);
+          }
+        }
+        return item;
+      });
     }
 
     localDb = { ...localDb, ...payload };
