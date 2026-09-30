@@ -17,13 +17,14 @@
       // Instantly notify Telegram that webview is ready to dismiss 4-square skeleton placeholder
       try {
         if (window.Telegram && window.Telegram.WebApp) {
-          window.Telegram.WebApp.ready();
-          window.Telegram.WebApp.expand();
-          if (window.Telegram.WebApp.enableClosingConfirmation) {
-            window.Telegram.WebApp.enableClosingConfirmation();
+          var twa = window.Telegram.WebApp;
+          twa.ready();
+          twa.expand();
+          if (twa.isVersionAtLeast && twa.isVersionAtLeast('6.2') && twa.enableClosingConfirmation) {
+            twa.enableClosingConfirmation();
           }
-          if (window.Telegram.WebApp.disableVerticalSwipes) {
-            window.Telegram.WebApp.disableVerticalSwipes();
+          if (twa.isVersionAtLeast && twa.isVersionAtLeast('7.7') && twa.disableVerticalSwipes) {
+            twa.disableVerticalSwipes();
           }
         }
       } catch (e) {}

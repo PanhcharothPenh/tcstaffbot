@@ -301,8 +301,12 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
         creds.tg.ready?.();
         creds.tg.expand?.();
         // Prevent accidental swipe-to-close on Android gesture navigation & pull-down dismiss
-        creds.tg.enableClosingConfirmation?.();
-        creds.tg.disableVerticalSwipes?.();
+        if (creds.tg.isVersionAtLeast?.('6.2')) {
+          creds.tg.enableClosingConfirmation?.();
+        }
+        if (creds.tg.isVersionAtLeast?.('7.7')) {
+          creds.tg.disableVerticalSwipes?.();
+        }
       } catch (_) {}
       setIsTelegramWebview(true);
     }
