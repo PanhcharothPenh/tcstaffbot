@@ -88,7 +88,7 @@ const CashDrawerView = lazy(() => import('./components/CashDrawerView'));
 const MonthClosingView = lazy(() => import('./components/MonthClosingView'));
 const AuditLogsView = lazy(() => import('./components/AuditLogsView'));
 import { encryptLiveUrl, decryptLiveUrl } from './utils/urlSecurity';
-import { mergeCollectionRecords } from './utils';
+import { mergeCollectionRecords, sanitizeCollectionForBatchSync } from './utils';
 
 const getTabFromUrl = (): ActiveTab => {
   if (typeof window === 'undefined') return 'staff';
@@ -370,10 +370,11 @@ export default function App() {
             }
 
             if (hasLocalWins && collectionName) {
+              const sanitizedData = sanitizeCollectionForBatchSync(collectionName, mergedList);
               fetch('/api/sync-data', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ [collectionName]: mergedList })
+                body: JSON.stringify({ [collectionName]: sanitizedData })
               }).catch(() => {});
             }
           };
@@ -469,10 +470,11 @@ export default function App() {
   const pushCollection = useCallback((collection: string, data: any) => {
     if (!isLoadedFromServer || isPullingRef.current) return;
     try {
+      const sanitizedData = sanitizeCollectionForBatchSync(collection, data);
       fetch('/api/sync-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [collection]: data })
+        body: JSON.stringify({ [collection]: sanitizedData })
       })
       .then(res => res.json())
       .then(resData => {

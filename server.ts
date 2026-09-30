@@ -2584,7 +2584,136 @@ app.get('/api/sync-data', async (req, res) => {
 
 app.post('/api/sync-data', async (req, res) => {
   try {
-    const payload = req.body as Partial<SyncPayload>;
+    const body = req.body || {};
+    const nowIso = new Date().toISOString();
+
+    // 1. Explicit item deletion from a collection
+    if (body.deleteCollectionItem && body.collection && body.itemId) {
+      const { collection, itemId } = body;
+      const existingList = Array.isArray(localDb[collection]) ? localDb[collection] : [];
+      const clientList = Array.isArray(body[collection]) ? body[collection] : null;
+      const baseList = clientList || existingList;
+      const filtered = baseList.filter((item: any) => item && item.id !== itemId);
+
+      localDb[collection] = filtered;
+      saveLocalDb();
+
+      if (supabase) {
+        pushCollectionToSupabase(collection).catch(() => {});
+      }
+
+      return res.json({
+        success: true,
+        collection,
+        remainingCount: filtered.length,
+        deletedItemId: itemId,
+        data: filtered
+      });
+    }
+
+    // 2. Single item upsert (< 5KB payload)
+    if (body.updateCollectionItem && body.updateCollectionItem.collection && body.updateCollectionItem.item) {
+      const { collection, item } = body.updateCollectionItem;
+      let list = Array.isArray(localDb[collection]) ? [...localDb[collection]] : [];
+
+      if (collection === 'attendance') {
+        const isValidTime = (t: any) => Boolean(t && t !== '--' && String(t).trim().length > 0 && !String(t).toLowerCase().includes('absent'));
+        const idx = list.findIndex((a: any) => (a && item) && (a.id === item.id || (a.staffId === item.staffId && a.date === item.date)));
+        if (idx >= 0) {
+          const existing = list[idx];
+          const checkIn = isValidTime(item.checkIn) ? item.checkIn : (isValidTime(existing.checkIn) ? existing.checkIn : (item.checkIn || '--'));
+          const checkOut = isValidTime(item.checkOut) ? item.checkOut : (isValidTime(existing.checkOut) ? existing.checkOut : (item.checkOut || '--'));
+          let status = item.status || existing.status || 'Present';
+          if (isValidTime(checkOut) && (status === 'Working' || !status)) status = 'Completed';
+          let workHours = item.workHours;
+          if (workHours === undefined || workHours === null || workHours <= 0) {
+            if (isValidTime(checkIn) && isValidTime(checkOut) && status !== 'Absent' && status !== 'Permission') {
+              workHours = calculateWorkHours(checkIn, checkOut, status);
+            }
+          }
+          list[idx] = {
+            ...existing,
+            ...item,
+            checkIn,
+            checkOut,
+            status,
+            workHours: workHours ?? 0,
+            checkInPhoto: item.checkInPhoto || existing.checkInPhoto,
+            checkOutPhoto: item.checkOutPhoto || existing.checkOutPhoto,
+            updatedAt: nowIso
+          };
+        } else {
+          const checkIn = item.checkIn || '--';
+          const checkOut = item.checkOut || '--';
+          let status = item.status || (isValidTime(checkOut) ? 'Completed' : (isValidTime(checkIn) ? 'Present' : 'Absent'));
+          if (isValidTime(checkOut) && (status === 'Working' || !status)) status = 'Completed';
+          let workHours = item.workHours;
+          if (workHours === undefined || workHours === null || workHours <= 0) {
+            if (isValidTime(checkIn) && isValidTime(checkOut) && status !== 'Absent' && status !== 'Permission') {
+              workHours = calculateWorkHours(checkIn, checkOut, status);
+            } else {
+              workHours = 0;
+            }
+          }
+          list.unshift({
+            ...item,
+            checkIn,
+            checkOut,
+            status,
+            workHours: workHours ?? 0,
+            updatedAt: nowIso
+          });
+        }
+      } else {
+        const idx = list.findIndex((x: any) => x && item && x.id === item.id);
+        if (idx >= 0) {
+          list[idx] = { ...list[idx], ...item, updatedAt: nowIso };
+        } else {
+          list.unshift(item);
+        }
+      }
+
+      localDb[collection] = list;
+      saveLocalDb();
+
+      if (supabase) {
+        pushCollectionToSupabase(collection).catch(() => {});
+      }
+
+      return res.json({
+        success: true,
+        collection,
+        updatedItem: item,
+        totalCount: list.length
+      });
+    }
+
+    // 3. Attendance Delta Upsert
+    if (body.attendanceDelta && Array.isArray(body.attendanceDelta) && body.attendanceDelta.length > 0) {
+      let list = Array.isArray(localDb.attendance) ? [...localDb.attendance] : [];
+      for (const item of body.attendanceDelta) {
+        if (!item) continue;
+        const idx = list.findIndex((a: any) => a && (a.id === item.id || (a.staffId === item.staffId && a.date === item.date)));
+        if (idx >= 0) {
+          list[idx] = { ...list[idx], ...item, updatedAt: nowIso };
+        } else {
+          list.unshift(item);
+        }
+      }
+      localDb.attendance = list;
+      saveLocalDb();
+      if (supabase) {
+        pushCollectionToSupabase('attendance').catch(() => {});
+      }
+      return res.json({
+        success: true,
+        collection: 'attendance',
+        updatedCount: body.attendanceDelta.length,
+        totalCount: list.length
+      });
+    }
+
+    const payload = body as Partial<SyncPayload>;
     
     // Smart merge attendance so mobile scan check-ins/outs are not wiped out
     if (payload.attendance && Array.isArray(payload.attendance)) {
@@ -2674,6 +2803,30 @@ app.post('/api/sync-data', async (req, res) => {
         }
         return item;
       });
+    }
+
+    // Smart-merge staff to preserve photos and face embeddings
+    if (payload.staff && Array.isArray(payload.staff)) {
+      const existingStaff = Array.isArray(localDb.staff) ? localDb.staff : [];
+      const staffMap = new Map<string, any>();
+      for (const s of existingStaff) if (s && s.id) staffMap.set(String(s.id), s);
+      for (const s of payload.staff) {
+        if (s && s.id) {
+          const exist = staffMap.get(String(s.id));
+          if (exist) {
+            staffMap.set(String(s.id), {
+              ...exist,
+              ...s,
+              photoUrl: s.photoUrl || exist.photoUrl,
+              faceReference: s.faceReference || exist.faceReference,
+              updatedAt: s.updatedAt || exist.updatedAt || nowIso
+            });
+          } else {
+            staffMap.set(String(s.id), s);
+          }
+        }
+      }
+      payload.staff = Array.from(staffMap.values());
     }
 
     localDb = { ...localDb, ...payload };

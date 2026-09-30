@@ -771,4 +771,41 @@ export function mergeCollectionRecords<T extends Record<string, any>>(
   };
 }
 
+/**
+ * Sanitizes collection data before batch network push to ensure the JSON payload
+ * is always compact (< 300KB) and never triggers HTTP 413 (Content Too Large).
+ */
+export function sanitizeCollectionForBatchSync(collectionName: string, data: any): any {
+  if (!Array.isArray(data)) return data;
+
+  if (collectionName === 'attendance') {
+    return data.map((item: any) => {
+      if (!item || typeof item !== 'object') return item;
+      const clean = { ...item };
+      // Strip oversized raw base64 data URLs (> 25KB) from batch array payload
+      if (clean.checkInPhoto && typeof clean.checkInPhoto === 'string' && clean.checkInPhoto.startsWith('data:image/') && clean.checkInPhoto.length > 25000) {
+        delete clean.checkInPhoto;
+      }
+      if (clean.checkOutPhoto && typeof clean.checkOutPhoto === 'string' && clean.checkOutPhoto.startsWith('data:image/') && clean.checkOutPhoto.length > 25000) {
+        delete clean.checkOutPhoto;
+      }
+      return clean;
+    });
+  }
+
+  if (collectionName === 'staff') {
+    return data.map((item: any) => {
+      if (!item || typeof item !== 'object') return item;
+      const clean = { ...item };
+      if (clean.photoUrl && typeof clean.photoUrl === 'string' && clean.photoUrl.startsWith('data:image/') && clean.photoUrl.length > 50000) {
+        delete clean.photoUrl;
+      }
+      return clean;
+    });
+  }
+
+  return data;
+}
+
+
 

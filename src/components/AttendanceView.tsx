@@ -49,7 +49,8 @@ import {
   formatWorkDuration, 
   formatLateMinutes,
   normalizeKhmerDigits,
-  mergeCollectionRecords
+  mergeCollectionRecords,
+  sanitizeCollectionForBatchSync
 } from '../utils';
 import { generateAttendancePdf } from '../utils/AttendancePdfService';
 
@@ -160,10 +161,11 @@ export default function AttendanceView({
             try { db.saveAttendance(mergedList); } catch {}
           }
           if (hasLocalWins) {
+            const sanitizedAtt = sanitizeCollectionForBatchSync('attendance', mergedList);
             fetch('/api/sync-data', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ attendance: mergedList })
+              body: JSON.stringify({ attendance: sanitizedAtt })
             }).catch(() => {});
           }
           if (showLog) {
@@ -575,12 +577,17 @@ export default function AttendanceView({
       setAttendance(updatedList);
       try { db.saveAttendance(updatedList); } catch {}
 
-      // 2. Direct save to Supabase with the entire updated attendance roster
+      // 2. Direct save to Supabase via lightweight single-item upsert
       try {
         await fetch('/api/sync-data', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ attendance: updatedList })
+          body: JSON.stringify({
+            updateCollectionItem: {
+              collection: 'attendance',
+              item: updatedRecord
+            }
+          })
         });
 
         await fetch('/api/admin/attendance', {
@@ -678,7 +685,12 @@ export default function AttendanceView({
       await fetch('/api/sync-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attendance: updatedList })
+        body: JSON.stringify({
+          updateCollectionItem: {
+            collection: 'attendance',
+            item: newAtt
+          }
+        })
       });
 
       await fetch('/api/admin/attendance', {
@@ -763,7 +775,6 @@ export default function AttendanceView({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          attendance: updated,
           deleteCollectionItem: true,
           collection: 'attendance',
           itemId: attId

@@ -779,6 +779,121 @@ export default async function handler(req: any, res: any) {
           });
         }
 
+        // 1b. Ultra-lightweight Single Item Upsert (< 5KB payload)
+        if (body.updateCollectionItem && body.updateCollectionItem.collection && body.updateCollectionItem.item) {
+          const { collection, item } = body.updateCollectionItem;
+          const { data: row } = await supabase.from('tc_collections').select('data').eq('id', collection).maybeSingle();
+          let list = (row && Array.isArray(row.data)) ? [...row.data] : [];
+
+          if (collection === 'attendance') {
+            const idx = list.findIndex((a: any) => (a && item) && (a.id === item.id || (a.staffId === item.staffId && a.date === item.date)));
+            if (idx >= 0) {
+              const existing = list[idx];
+              const isValidTime = (t: any) => Boolean(t && t !== '--' && String(t).trim().length > 0 && !String(t).toLowerCase().includes('absent'));
+              const checkIn = isValidTime(item.checkIn) ? item.checkIn : (isValidTime(existing.checkIn) ? existing.checkIn : (item.checkIn || '--'));
+              const checkOut = isValidTime(item.checkOut) ? item.checkOut : (isValidTime(existing.checkOut) ? existing.checkOut : (item.checkOut || '--'));
+              let status = item.status || existing.status || 'Present';
+              if (isValidTime(checkOut) && (status === 'Working' || !status)) status = 'Completed';
+              let workHours = item.workHours;
+              if (workHours === undefined || workHours === null || workHours <= 0) {
+                if (isValidTime(checkIn) && isValidTime(checkOut) && status !== 'Absent' && status !== 'Permission') {
+                  workHours = calculateWorkHours(checkIn, checkOut, status);
+                }
+              }
+              list[idx] = {
+                ...existing,
+                ...item,
+                checkIn,
+                checkOut,
+                status,
+                workHours: workHours ?? 0,
+                checkInPhoto: item.checkInPhoto || existing.checkInPhoto,
+                checkOutPhoto: item.checkOutPhoto || existing.checkOutPhoto,
+                updatedAt: nowIso
+              };
+            } else {
+              const isValidTime = (t: any) => Boolean(t && t !== '--' && String(t).trim().length > 0 && !String(t).toLowerCase().includes('absent'));
+              const checkIn = item.checkIn || '--';
+              const checkOut = item.checkOut || '--';
+              let status = item.status || (isValidTime(checkOut) ? 'Completed' : (isValidTime(checkIn) ? 'Present' : 'Absent'));
+              if (isValidTime(checkOut) && (status === 'Working' || !status)) status = 'Completed';
+              let workHours = item.workHours;
+              if (workHours === undefined || workHours === null || workHours <= 0) {
+                if (isValidTime(checkIn) && isValidTime(checkOut) && status !== 'Absent' && status !== 'Permission') {
+                  workHours = calculateWorkHours(checkIn, checkOut, status);
+                } else {
+                  workHours = 0;
+                }
+              }
+              list.unshift({
+                ...item,
+                checkIn,
+                checkOut,
+                status,
+                workHours: workHours ?? 0,
+                updatedAt: nowIso
+              });
+            }
+          } else {
+            const idx = list.findIndex((x: any) => x && item && x.id === item.id);
+            if (idx >= 0) {
+              list[idx] = { ...list[idx], ...item, updatedAt: nowIso };
+            } else {
+              list.unshift(item);
+            }
+          }
+
+          const ok = await saveOrUpdateRow({
+            id: collection,
+            data: list,
+            updated_at: nowIso
+          });
+
+          if (!ok) {
+            return res.status(500).json({ success: false, error: `Failed to update item in ${collection}` });
+          }
+
+          return res.status(200).json({
+            success: true,
+            collection,
+            updatedItem: item,
+            totalCount: list.length
+          });
+        }
+
+        // 1c. Attendance Delta Upsert (Array of modified records)
+        if (body.attendanceDelta && Array.isArray(body.attendanceDelta) && body.attendanceDelta.length > 0) {
+          const { data: row } = await supabase.from('tc_collections').select('data').eq('id', 'attendance').maybeSingle();
+          let list = (row && Array.isArray(row.data)) ? [...row.data] : [];
+
+          for (const item of body.attendanceDelta) {
+            if (!item) continue;
+            const idx = list.findIndex((a: any) => a && (a.id === item.id || (a.staffId === item.staffId && a.date === item.date)));
+            if (idx >= 0) {
+              list[idx] = { ...list[idx], ...item, updatedAt: nowIso };
+            } else {
+              list.unshift(item);
+            }
+          }
+
+          const ok = await saveOrUpdateRow({
+            id: 'attendance',
+            data: list,
+            updated_at: nowIso
+          });
+
+          if (!ok) {
+            return res.status(500).json({ success: false, error: 'Failed to save attendance delta' });
+          }
+
+          return res.status(200).json({
+            success: true,
+            collection: 'attendance',
+            updatedCount: body.attendanceDelta.length,
+            totalCount: list.length
+          });
+        }
+
         // 2. Fetch existing collections
         const { data: existingRows } = await supabase.from('tc_collections').select('id, data');
         const existingMap: Record<string, any> = {};
@@ -934,6 +1049,32 @@ export default async function handler(req: any, res: any) {
                 const exist = mergedMap.get(String(clientItem.id));
                 if (!exist || new Date(clientItem.updatedAt || 0).getTime() >= new Date(exist.updatedAt || 0).getTime()) {
                   mergedMap.set(String(clientItem.id), { ...(exist || {}), ...clientItem });
+                }
+              }
+            }
+            finalData = Array.from(mergedMap.values());
+          }
+
+          // Smart-merge staff (Preserve photoUrl and faceReference when sanitized payload is pushed)
+          if (collectionId === 'staff' && Array.isArray(collectionData)) {
+            const serverStaff = Array.isArray(existingMap['staff']) ? existingMap['staff'] : [];
+            const mergedMap = new Map<string, any>();
+            for (const item of serverStaff) {
+              if (item && item.id) mergedMap.set(String(item.id), item);
+            }
+            for (const clientItem of collectionData) {
+              if (clientItem && clientItem.id) {
+                const exist = mergedMap.get(String(clientItem.id));
+                if (exist) {
+                  mergedMap.set(String(clientItem.id), {
+                    ...exist,
+                    ...clientItem,
+                    photoUrl: clientItem.photoUrl || exist.photoUrl,
+                    faceReference: clientItem.faceReference || exist.faceReference,
+                    updatedAt: clientItem.updatedAt || exist.updatedAt || nowIso
+                  });
+                } else {
+                  mergedMap.set(String(clientItem.id), clientItem);
                 }
               }
             }
