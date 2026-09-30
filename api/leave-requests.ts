@@ -28,14 +28,15 @@ export default async function handler(req: any, res: any) {
   const supabase = getSupabase();
 
   // Helper to load collection from production Supabase
-  const loadCollection = async (id: string): Promise<any[]> => {
-    if (!supabase) return [];
+  const loadCollection = async (id: string): Promise<any> => {
+    if (!supabase) return id === 'telegramConfig' ? {} : [];
     try {
       const { data: tcRow } = await supabase.from('tc_collections').select('data').eq('id', id).maybeSingle();
-      return Array.isArray(tcRow?.data) ? tcRow.data : [];
+      if (tcRow && tcRow.data !== undefined) return tcRow.data;
+      return id === 'telegramConfig' ? {} : [];
     } catch (err: any) {
       console.error(`[leave-requests] Exception loading ${id}:`, err?.message);
-      return [];
+      return id === 'telegramConfig' ? {} : [];
     }
   };
 

@@ -2,18 +2,47 @@ import { createClient } from '@supabase/supabase-js';
 
 let lastUsersErrorTime = 0;
 
-const DEFAULT_USERS = [
+const DEFAULT_USERS: any[] = [
   {
-    id: 'usr_owner',
-    username: 'roth',
-    email: 'roth@p2bkh.tech',
-    fullName: 'Roth (Executive Owner)',
+    id: 'usr_root',
+    username: 'root',
+    email: 'root@p2bkh.tech',
+    fullName: 'Root (Executive Owner)',
     role: 'Owner',
     roleId: 'owner',
     status: 'Active',
-    assignedBranchIds: [],
-    telegramUsername: '',
+    assignedBranchIds: ['b1', 'b2'],
+    telegramUsername: '@root',
     telegramChatId: '',
+    phone: '',
+    twoFactorMethod: 'telegram'
+  },
+  {
+    id: 'usr_penh',
+    username: 'penh',
+    email: 'penh@p2bkh.tech',
+    fullName: 'Penh (Owner)',
+    role: 'Owner',
+    roleId: 'owner',
+    status: 'Active',
+    assignedBranchIds: ['b1', 'b2'],
+    telegramUsername: '@mrknowitall56',
+    telegramChatId: '508412077',
+    phone: '',
+    twoFactorMethod: 'telegram'
+  },
+  {
+    id: 'usr_miller',
+    username: 'miller',
+    email: 'miller@p2bkh.tech',
+    fullName: 'Miller (Owner)',
+    role: 'Owner',
+    roleId: 'owner',
+    status: 'Active',
+    assignedBranchIds: ['b1', 'b2'],
+    telegramUsername: '@millerppc',
+    telegramChatId: '7818150707',
+    phone: '',
     twoFactorMethod: 'telegram'
   }
 ];
@@ -218,7 +247,7 @@ export default async function handler(req: any, res: any) {
 
   if (req.method === 'DELETE') {
     if (!targetId) return res.status(400).json({ error: 'User ID is required' });
-    if (targetId === 'usr_owner') return res.status(403).json({ error: 'Cannot delete primary owner' });
+    if (targetId === 'usr_root' || targetId === 'usr_owner') return res.status(403).json({ error: 'Cannot delete primary owner' });
 
     const filtered = users.filter(u => u.id !== targetId);
     await saveUsers(filtered);

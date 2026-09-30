@@ -308,7 +308,7 @@ export default function BranchManagementView({
   };
 
   const toggleStatus = (b: Branch) => {
-    const nextStatus = b.status === 'Active' ? 'Inactive' : 'Active';
+    const nextStatus: 'Active' | 'Inactive' = b.status === 'Active' ? 'Inactive' : 'Active';
     const updated = branches.map(x => x.id === b.id ? { ...x, status: nextStatus, updatedAt: new Date().toISOString() } : x);
     setBranches(updated);
     db.saveBranches(updated);

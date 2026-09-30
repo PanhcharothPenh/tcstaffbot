@@ -344,6 +344,12 @@ export default function UserManagementView({
   }[lang];
 
   useEffect(() => {
+    if (Array.isArray(initialExternalUsers) && initialExternalUsers.length > 0) {
+      setUsers(initialExternalUsers);
+    }
+  }, [initialExternalUsers]);
+
+  useEffect(() => {
     if (isOwner) {
       loadData();
     }

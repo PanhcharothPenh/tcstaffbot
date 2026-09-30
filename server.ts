@@ -52,6 +52,8 @@ interface SyncPayload {
   salarySchedules?: any[];
   salaryAdvances?: any[];
   leaveRequests?: any[];
+  telegramConfig?: any;
+  [key: string]: any;
 }
 
 const app = express();
@@ -313,11 +315,11 @@ if (!localDb.leaveRequests) localDb.leaveRequests = [];
 if (!localDb.users || localDb.users.length === 0) {
   localDb.users = [
     {
-      id: 'usr_owner',
+      id: 'usr_root',
       role: 'Owner',
-      username: process.env.INITIAL_OWNER_USERNAME || 'owner',
-      email: process.env.INITIAL_OWNER_EMAIL || 'owner@p2bkh.tech',
-      fullName: 'Executive Owner',
+      username: 'root',
+      email: 'root@p2bkh.tech',
+      fullName: 'Root (Executive Owner)',
       phone: '',
       passwordHash: '',
       roleId: 'owner',
@@ -328,10 +330,52 @@ if (!localDb.users || localDb.users.length === 0) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       forcePasswordChange: false,
-      telegramUsername: '',
+      telegramUsername: '@root',
       telegramChatId: '',
       twoFactorMethod: 'telegram',
-      assignedBranchIds: []
+      assignedBranchIds: ['b1', 'b2']
+    },
+    {
+      id: 'usr_penh',
+      role: 'Owner',
+      username: 'penh',
+      email: 'penh@p2bkh.tech',
+      fullName: 'Penh (Owner)',
+      phone: '',
+      passwordHash: '',
+      roleId: 'owner',
+      status: 'Active',
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      lastLoginAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      forcePasswordChange: false,
+      telegramUsername: '@mrknowitall56',
+      telegramChatId: '508412077',
+      twoFactorMethod: 'telegram',
+      assignedBranchIds: ['b1', 'b2']
+    },
+    {
+      id: 'usr_miller',
+      role: 'Owner',
+      username: 'miller',
+      email: 'miller@p2bkh.tech',
+      fullName: 'Miller (Owner)',
+      phone: '',
+      passwordHash: '',
+      roleId: 'owner',
+      status: 'Active',
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      lastLoginAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      forcePasswordChange: false,
+      telegramUsername: '@millerppc',
+      telegramChatId: '7818150707',
+      twoFactorMethod: 'telegram',
+      assignedBranchIds: ['b1', 'b2']
     }
   ];
   saveLocalDb();

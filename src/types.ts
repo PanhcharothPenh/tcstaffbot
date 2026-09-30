@@ -93,6 +93,9 @@ export interface Staff {
   id: string;
   branchId: string;
   fullName: string;
+  username?: string;
+  role?: Role;
+  roleId?: string;
   gender: 'Male' | 'Female' | 'Other';
   dob: string;
   phone: string;
@@ -237,7 +240,7 @@ export interface Attendance {
   shiftType: string;
   workHours: number;
   overtimeHours: number;
-  status: 'Present' | 'Working' | 'Completed' | 'Late' | 'Absent' | 'Missing Check-Out' | 'Manual' | 'Day Off';
+  status: 'Present' | 'Working' | 'Completed' | 'Late' | 'Absent' | 'Missing Check-Out' | 'Manual' | 'Day Off' | 'Permission';
   source?: 'telegram' | 'manual' | 'web';
   checkInPhoto?: string;
   checkOutPhoto?: string;

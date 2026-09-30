@@ -239,18 +239,46 @@ export const authApi = {
 
 const SEED_USERS: User[] = [
   {
-    id: 'usr_owner',
+    id: 'usr_root',
     role: 'Owner',
-    username: 'roth',
-    email: 'roth@p2bkh.tech',
-    fullName: 'Roth (Executive Owner)',
+    username: 'root',
+    email: 'root@p2bkh.tech',
+    fullName: 'Root (Executive Owner)',
     phone: '012 888 999',
     roleId: 'owner',
     status: 'Active',
-    telegramUsername: '',
+    telegramUsername: '@root',
     telegramChatId: '',
     twoFactorMethod: 'telegram',
-    assignedBranchIds: []
+    assignedBranchIds: ['b1', 'b2']
+  },
+  {
+    id: 'usr_penh',
+    role: 'Owner',
+    username: 'penh',
+    email: 'penh@p2bkh.tech',
+    fullName: 'Penh (Owner)',
+    phone: '',
+    roleId: 'owner',
+    status: 'Active',
+    telegramUsername: '@mrknowitall56',
+    telegramChatId: '508412077',
+    twoFactorMethod: 'telegram',
+    assignedBranchIds: ['b1', 'b2']
+  },
+  {
+    id: 'usr_miller',
+    role: 'Owner',
+    username: 'miller',
+    email: 'miller@p2bkh.tech',
+    fullName: 'Miller (Owner)',
+    phone: '',
+    roleId: 'owner',
+    status: 'Active',
+    telegramUsername: '@millerppc',
+    telegramChatId: '7818150707',
+    twoFactorMethod: 'telegram',
+    assignedBranchIds: ['b1', 'b2']
   }
 ];
 
@@ -260,28 +288,7 @@ function getCachedUsers(): User[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        const sanitized = parsed
-          .filter(u => u.username !== 'root' && u.id !== 'usr_root' && !u.email?.includes('root@'))
-          .map(u => {
-            if (u.id === 'usr_owner' || u.username === 'owner') {
-              return {
-                ...u,
-                id: 'usr_owner',
-                username: 'roth',
-                fullName: u.fullName || 'Roth (Executive Owner)',
-                email: u.email || 'roth@p2bkh.tech',
-                phone: u.phone || '012 888 999',
-                role: 'Owner',
-                roleId: 'owner',
-                status: 'Active'
-              };
-            }
-            return u;
-          });
-        if (sanitized.length > 0) {
-          saveCachedUsers(sanitized);
-          return sanitized;
-        }
+        return parsed;
       }
     }
   } catch (e) {}

@@ -381,7 +381,9 @@ export const translations = {
 
 // Initial Production Users
 export const initialUsers: User[] = [
-  { id: 'usr_owner', username: 'roth', email: 'roth@p2bkh.tech', fullName: 'Roth (Executive Owner)', role: 'Owner', roleId: 'owner', assignedBranchIds: [], status: 'Active' }
+  { id: 'usr_root', username: 'root', email: 'root@p2bkh.tech', fullName: 'Root (Executive Owner)', role: 'Owner', roleId: 'owner', assignedBranchIds: ['b1', 'b2'], telegramUsername: '@root', status: 'Active' },
+  { id: 'usr_penh', username: 'penh', email: 'penh@p2bkh.tech', fullName: 'Penh (Owner)', role: 'Owner', roleId: 'owner', assignedBranchIds: ['b1', 'b2'], telegramUsername: '@mrknowitall56', telegramChatId: '508412077', status: 'Active' },
+  { id: 'usr_miller', username: 'miller', email: 'miller@p2bkh.tech', fullName: 'Miller (Owner)', role: 'Owner', roleId: 'owner', assignedBranchIds: ['b1', 'b2'], telegramUsername: '@millerppc', telegramChatId: '7818150707', status: 'Active' }
 ];
 
 // Initial Production Branches

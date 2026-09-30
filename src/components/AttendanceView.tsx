@@ -630,6 +630,12 @@ export default function AttendanceView({
 
     // Immediate asynchronous push to cloud server & Supabase
     try {
+      fetch('/api/sync-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attendance: updatedList })
+      }).catch(() => {});
+
       await fetch('/api/admin/attendance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

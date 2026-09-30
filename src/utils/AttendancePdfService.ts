@@ -171,7 +171,7 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const dayOfWeek = isNaN(d.getTime()) ? '' : dayNames[d.getDay()];
 
-    let statusDisplay = r.status || 'Present';
+    let statusDisplay: string = r.status || 'Present';
     if (r.status === 'Late' || Number(r.lateMinutes || 0) > 0) {
       statusDisplay = r.lateMinutes && r.lateMinutes > 0 
         ? `Late (${formatLatePdf(r.lateMinutes)})` 

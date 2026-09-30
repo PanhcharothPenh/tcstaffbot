@@ -94,17 +94,7 @@ async function loadMultipleCollections(supabase: any, ids: string[], ttlMs = 300
   }
   return result;
 }
-        result[id] = chosenData;
-        const itemTtl = (id === 'attendance' || id === 'leaveRequests') ? 2000 : ttlMs;
-        MEM_CACHE[id] = { data: chosenData, expires: now + itemTtl };
-      }
-    }
-  } catch (e) {
-    console.warn('Batch load error:', e);
-  }
 
-  return result;
-}
 
 function formatWorkDuration(hours: number): string {
   if (!hours || isNaN(hours) || hours <= 0) return '0 ម៉ោង';
@@ -731,12 +721,11 @@ export default async function handler(req: any, res: any) {
 
           if (!matchedStaff && !matchedUser && !matchedRecipient && isConfigOwner) {
             matchedUser = allUsers.find((u: any) => 
-              (u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_owner' || u.username === 'roth') &&
-              u.username !== 'root' && u.id !== 'usr_root'
+              u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_root' || u.username === 'root' || u.id === 'usr_owner' || u.username === 'roth'
             ) || {
-              id: 'usr_owner',
-              username: 'roth',
-              fullName: firstName && firstName !== 'Barista' ? firstName : 'Roth (Executive Owner)',
+              id: 'usr_root',
+              username: 'root',
+              fullName: firstName && firstName !== 'Barista' ? firstName : 'Root (Executive Owner)',
               role: 'Owner',
               roleId: 'owner',
               status: 'Active',

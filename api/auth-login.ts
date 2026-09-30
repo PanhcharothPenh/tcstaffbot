@@ -1,18 +1,50 @@
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
-const DEFAULT_USERS = [
+const DEFAULT_USERS: any[] = [
   {
-    id: 'usr_owner',
-    username: 'roth',
-    email: 'roth@p2bkh.tech',
-    fullName: 'Roth (Executive Owner)',
+    id: 'usr_root',
+    username: 'root',
+    email: 'root@p2bkh.tech',
+    fullName: 'Root (Executive Owner)',
     role: 'Owner',
     roleId: 'owner',
     status: 'Active',
-    assignedBranchIds: [],
-    telegramUsername: '',
+    assignedBranchIds: ['b1', 'b2'],
+    telegramUsername: '@root',
     telegramChatId: '',
+    phone: '',
+    password: '',
+    twoFactorMethod: 'telegram'
+  },
+  {
+    id: 'usr_penh',
+    username: 'penh',
+    email: 'penh@p2bkh.tech',
+    fullName: 'Penh (Owner)',
+    role: 'Owner',
+    roleId: 'owner',
+    status: 'Active',
+    assignedBranchIds: ['b1', 'b2'],
+    telegramUsername: '@mrknowitall56',
+    telegramChatId: '508412077',
+    phone: '',
+    password: '',
+    twoFactorMethod: 'telegram'
+  },
+  {
+    id: 'usr_miller',
+    username: 'miller',
+    email: 'miller@p2bkh.tech',
+    fullName: 'Miller (Owner)',
+    role: 'Owner',
+    roleId: 'owner',
+    status: 'Active',
+    assignedBranchIds: ['b1', 'b2'],
+    telegramUsername: '@millerppc',
+    telegramChatId: '7818150707',
+    phone: '',
+    password: '',
     twoFactorMethod: 'telegram'
   }
 ];
@@ -71,10 +103,6 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'សូមបញ្ចូលឈ្មោះគណនី និងលេខសម្ងាត់ (Username and password are required)' });
     }
 
-    if (identifier === 'root' || identifier === 'root@tcstaff.com' || identifier === 'root@laundry.com' || identifier === 'usr_root') {
-      return res.status(401).json({ error: 'គណនី root ត្រូវបានលុបចេញពីប្រព័ន្ធជាស្ថាពរ' });
-    }
-
     // Load registered users from Supabase Cloud Database
     const supabase = getSupabase();
     let users = DEFAULT_USERS;
@@ -103,7 +131,7 @@ export default async function handler(req: any, res: any) {
              (uPhone && cleanPhone && uPhone === cleanPhone);
     });
 
-    if (!matchedUser && (cleanId === 'roth' || cleanId === 'owner')) {
+    if (!matchedUser && (cleanId === 'root' || cleanId === 'roth' || cleanId === 'owner')) {
       matchedUser = DEFAULT_USERS[0];
     }
 
@@ -137,8 +165,8 @@ export default async function handler(req: any, res: any) {
       ''
     ).trim();
 
-    // Primary owner check: ONLY Roth (usr_owner) is primary owner. Other users with role Owner are distinct accounts!
-    const isPrimaryOwner = cleanUsername === 'roth' || matchedUser.id === 'usr_owner';
+    // Primary owner check: root, roth, usr_root, or usr_owner
+    const isPrimaryOwner = cleanUsername === 'root' || cleanUsername === 'roth' || matchedUser.id === 'usr_root' || matchedUser.id === 'usr_owner';
     
     // Check if user has numeric Telegram Chat ID or handle
     const userTgChat = String(matchedUser.telegramChatId || (matchedUser as any)?.telegramId || '').trim();

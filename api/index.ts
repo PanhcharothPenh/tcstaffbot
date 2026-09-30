@@ -380,13 +380,12 @@ export default async function handler(req: any, res: any) {
       // 2. All Users with role 'Owner' or 'Admin' in users collection
       if (Array.isArray(allUsers)) {
         for (const u of allUsers) {
-          if (u.username === 'root' || u.id === 'usr_root') continue;
           const r = String(u.role || u.roleId || '').toLowerCase();
           const tgId = String(u.telegramChatId || u.telegramId || '').trim();
           if (!tgId || !/^-?\d+$/.test(tgId)) continue;
 
           // Owners always get alerted
-          if (r === 'owner' || u.id === 'usr_owner' || u.username === 'roth' || u.username === 'millerppc') {
+          if (r === 'owner' || u.id === 'usr_root' || u.username === 'root' || u.id === 'usr_owner' || u.username === 'roth' || u.username === 'millerppc') {
             recipients.add(tgId);
           } else if (r === 'admin' || r === 'manager') {
             // Admin / Manager: check branch assignment
@@ -695,13 +694,12 @@ export default async function handler(req: any, res: any) {
 
           if (isConfigOwner) {
             const ownerUser = allUsers.find((u: any) => 
-              (u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_owner' || u.username === 'roth') &&
-              u.username !== 'root' && u.id !== 'usr_root'
+              u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_root' || u.username === 'root' || u.id === 'usr_owner' || u.username === 'roth'
             );
             if (ownerUser) {
               matchedStaff = {
-                id: 'staff_usr_' + (ownerUser.id || 'owner'),
-                fullName: ownerUser.fullName || ownerUser.username || 'Roth (Owner)',
+                id: 'staff_usr_' + (ownerUser.id || 'root'),
+                fullName: ownerUser.fullName || ownerUser.username || 'Root (Owner)',
                 position: 'ម្ចាស់ហាង (Store Owner)',
                 role: 'Owner',
                 roleId: 'owner',
@@ -905,13 +903,12 @@ export default async function handler(req: any, res: any) {
       // Owner fallback recognition (Only known master developer / configured owner)
       if (!staff && (tgId === '7818150707' || tgName === 'millerppc')) {
         const ownerUser = allUsers.find((u: any) => 
-          (u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_owner' || u.username === 'roth') &&
-          u.username !== 'root' && u.id !== 'usr_root'
+          u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_root' || u.username === 'root' || u.id === 'usr_owner' || u.username === 'roth'
         );
         if (ownerUser) {
           staff = {
-            id: 'staff_usr_' + (ownerUser.id || 'owner'),
-            fullName: ownerUser.fullName || ownerUser.username || 'Roth (Owner)',
+            id: 'staff_usr_' + (ownerUser.id || 'root'),
+            fullName: ownerUser.fullName || ownerUser.username || 'Root (Owner)',
             position: 'ម្ចាស់ហាង (Store Owner)',
             role: 'Owner',
             roleId: 'owner',
@@ -1284,13 +1281,12 @@ export default async function handler(req: any, res: any) {
       // Owner fallback recognition (Only known master developer / configured owner)
       if (!staff && (tgId === '7818150707' || tgName === 'millerppc')) {
         const ownerUser = allUsers.find((u: any) => 
-          (u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_owner' || u.username === 'roth') &&
-          u.username !== 'root' && u.id !== 'usr_root'
+          u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_root' || u.username === 'root' || u.id === 'usr_owner' || u.username === 'roth'
         );
         if (ownerUser) {
           staff = {
-            id: 'staff_usr_' + (ownerUser.id || 'owner'),
-            fullName: ownerUser.fullName || ownerUser.username || 'Roth (Owner)',
+            id: 'staff_usr_' + (ownerUser.id || 'root'),
+            fullName: ownerUser.fullName || ownerUser.username || 'Root (Owner)',
             position: 'ម្ាស់ហាង (Store Owner)',
             role: 'Owner',
             roleId: 'owner',
