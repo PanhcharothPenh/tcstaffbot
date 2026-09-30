@@ -30,3 +30,15 @@ dist-ssr
 .env.*.local
 *.env
 *.env.*
+
+# Database dumps, SQL exports & sensitive backups
+*.sql
+*.sql.gz
+*.dump
+*.backup
+*.bak
+*.db
+*.sqlite
+*.sqlite3
+*.csv
+*.tsv
