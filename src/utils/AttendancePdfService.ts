@@ -96,78 +96,60 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
     return `${h}h ${m}m`;
   };
 
-  // 3. Official Kingdom & Organization Header (No color boxes)
-  // Left: Enterprise
-  pdf.setTextColor(15, 23, 42);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(11);
-  pdf.text('TC COFFEE & MANAGEMENT SYSTEM', 14, 15);
-
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(8.5);
-  pdf.setTextColor(71, 85, 105);
-  const branchNameStr = branch ? branch.branchName : 'All Branches';
-  pdf.text(`Branch: ${branchNameStr}`, 14, 20);
-  pdf.text(`Address: Phnom Penh, Kingdom of Cambodia`, 14, 24.5);
-
-  // Right: Kingdom of Cambodia Motto
+  // 3. Official Kingdom Motto (Centered, no system name, branch, address, phone on header)
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(11);
   pdf.setTextColor(15, 23, 42);
-  pdf.text('KINGDOM OF CAMBODIA', pageWidth - 14, 15, { align: 'right' });
+  pdf.text('KINGDOM OF CAMBODIA', pageWidth / 2, 14, { align: 'center' });
 
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(8.5);
   pdf.setTextColor(51, 65, 85);
-  pdf.text('Nation  Religion  King', pageWidth - 14, 20, { align: 'right' });
-  pdf.text('***', pageWidth - 14, 24.5, { align: 'right' });
-
-  // Divider line
-  pdf.setDrawColor(203, 213, 225);
-  pdf.setLineWidth(0.4);
-  pdf.line(14, 28, pageWidth - 14, 28);
+  pdf.text('Nation  Religion  King', pageWidth / 2, 18.5, { align: 'center' });
+  pdf.text('***', pageWidth / 2, 22.5, { align: 'center' });
 
   // 4. Document Title
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(12);
   pdf.setTextColor(15, 23, 42);
-  pdf.text('STAFF ATTENDANCE & WORKING HOURS LEDGER', pageWidth / 2, 35, { align: 'center' });
+  pdf.text('STAFF ATTENDANCE & WORKING HOURS LEDGER', pageWidth / 2, 29, { align: 'center' });
 
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(8.5);
   pdf.setTextColor(71, 85, 105);
-  pdf.text(`Period: ${periodText}`, pageWidth / 2, 40, { align: 'center' });
+  pdf.text(`Period: ${periodText}`, pageWidth / 2, 34, { align: 'center' });
 
   // 5. Staff / Report Scope Metadata (Clean Line, NO BOXES)
-  pdf.setDrawColor(226, 232, 240);
+  pdf.setDrawColor(203, 213, 225);
   pdf.setLineWidth(0.3);
-  pdf.line(14, 43.5, pageWidth - 14, 43.5);
+  pdf.line(14, 38, pageWidth - 14, 38);
 
   pdf.setFontSize(8);
   pdf.setTextColor(100, 116, 139);
-  pdf.text('Staff Name: ', 14, 48);
+  pdf.text('Staff Name: ', 14, 43);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(15, 23, 42);
   const staffNameStr = staff ? `${staff.fullName} (${staff.position || 'Staff'})` : 'All Staff';
-  pdf.text(staffNameStr, 32, 48);
+  pdf.text(staffNameStr, 32, 43);
 
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(100, 116, 139);
-  pdf.text('ID / Phone: ', pageWidth / 2, 48);
+  pdf.text('Branch: ', pageWidth / 2 - 25, 43);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(15, 23, 42);
-  pdf.text(staff?.idCardNumber || staff?.phone || 'N/A', pageWidth / 2 + 18, 48);
+  const branchNameStr = branch ? branch.branchName : 'All Branches';
+  pdf.text(branchNameStr, pageWidth / 2 - 12, 43);
 
   pdf.setFont('helvetica', 'normal');
   pdf.setTextColor(100, 116, 139);
-  pdf.text('Generated: ', pageWidth - 42, 48);
+  pdf.text('Generated: ', pageWidth - 42, 43);
   pdf.setFont('helvetica', 'bold');
   pdf.setTextColor(15, 23, 42);
-  pdf.text(new Date().toLocaleDateString('en-GB'), pageWidth - 14, 48, { align: 'right' });
+  pdf.text(new Date().toLocaleDateString('en-GB'), pageWidth - 14, 43, { align: 'right' });
 
-  pdf.line(14, 51.5, pageWidth - 14, 51.5);
+  pdf.line(14, 46.5, pageWidth - 14, 46.5);
 
-  // 6. Attendance Records Table (Starts directly at Y=54, NO SUMMARY BOXES)
+  // 6. Attendance Records Table (Starts directly at Y=49, NO SUMMARY BOXES)
   const tableRows = records.map((r, index) => {
     const d = new Date(r.date);
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -194,7 +176,7 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
   });
 
   autoTable(pdf, {
-    startY: 54,
+    startY: 49,
     margin: { left: 14, right: 14 },
     head: [[
       '#',

@@ -2016,40 +2016,24 @@ export default function AttendanceView({
               id="attendance-printable-a4-ledger"
               className="w-full max-w-[840px] bg-white text-slate-900 p-8 sm:p-10 shadow-xl rounded-2xl space-y-6 font-sans antialiased border border-slate-100"
             >
-              {/* Official Kingdom Header & Enterprise Info */}
+              {/* Official Kingdom Header & Document Title */}
               <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-4 border-b-2 border-slate-900">
-                  {/* Left Side: Enterprise / Branch Info */}
-                  <div className="space-y-1 text-left">
-                    <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight uppercase font-serif">
-                      TC COFFEE &amp; MANAGEMENT SYSTEM
-                    </h1>
-                    <div className="text-xs font-bold text-slate-800">
-                      សាខាប្រតិបត្តិការ៖ {printableBranchObj ? printableBranchObj.branchName : 'គ្រប់សាខា (All Branches)'}
-                    </div>
-                    <div className="text-[11px] text-slate-600 pt-0.5 space-y-0.5">
-                      <div><b>អាសយដ្ឋាន៖</b> {printableBranchObj?.address || 'រាជធានីភ្នំពេញ, ព្រះរាជាណាចក្រកម្ពុជា'}</div>
-                      <div><b>ទូរស័ព្ទ៖</b> {printableBranchObj?.phone || '012 345 678'}</div>
-                    </div>
+                {/* Official Kingdom of Cambodia Motto (Centered) */}
+                <div className="text-center space-y-1">
+                  <div className="text-base sm:text-lg font-black text-slate-900 tracking-wider font-serif">
+                    ព្រះរាជាណាចក្រកម្ពុជា
                   </div>
-
-                  {/* Right Side: Official Kingdom of Cambodia Motto */}
-                  <div className="text-center sm:text-right self-center sm:self-start">
-                    <div className="text-base sm:text-lg font-black text-slate-900 tracking-wider font-serif">
-                      ព្រះរាជាណាចក្រកម្ពុជា
-                    </div>
-                    <div className="text-xs sm:text-sm font-black text-slate-900 tracking-widest mt-1">
-                      ជាតិ  សាសនា  ព្រះមហាក្សត្រ
-                    </div>
-                    {/* Traditional ornamental flourish symbol */}
-                    <div className="flex items-center justify-center sm:justify-end gap-1.5 mt-1.5 text-slate-700">
-                      <span className="text-xs tracking-widest select-none font-serif">៚ ໒ ໒ ໒ ៚</span>
-                    </div>
+                  <div className="text-xs sm:text-sm font-black text-slate-900 tracking-widest">
+                    ជាតិ  សាសនា  ព្រះមហាក្សត្រ
+                  </div>
+                  {/* Traditional ornamental flourish symbol */}
+                  <div className="flex items-center justify-center gap-1.5 pt-0.5 text-slate-700">
+                    <span className="text-xs tracking-widest select-none font-serif">៚ ໒ ໒ ໒ ៚</span>
                   </div>
                 </div>
 
                 {/* Document Title */}
-                <div className="text-center pt-2 pb-1 space-y-1">
+                <div className="text-center pt-1 pb-1 space-y-1">
                   <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-wide uppercase font-serif">
                     សៀវភៅបញ្ជីវត្តមាន និងម៉ោងធ្វើការបុគ្គលិក
                   </h2>
