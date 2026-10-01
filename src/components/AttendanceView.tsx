@@ -2015,20 +2015,21 @@ export default function AttendanceView({
           <div className="flex justify-center overflow-x-auto p-4 bg-slate-200/60 rounded-3xl border border-slate-300">
             <div 
               id="attendance-printable-a4-ledger"
-              className="w-full max-w-[840px] bg-white text-slate-900 p-8 sm:p-10 shadow-xl rounded-2xl space-y-6 font-sans antialiased border border-slate-100"
+              className="w-full max-w-[840px] bg-white text-slate-900 p-8 sm:p-10 shadow-xl rounded-2xl space-y-6 antialiased border border-slate-100"
+              style={{ fontFamily: "'MiSansKhmer', sans-serif" }}
             >
               {/* Official Kingdom Header & Document Title */}
               <div className="space-y-3">
-                {/* Official Kingdom of Cambodia Motto (Centered) */}
+                {/* Official Kingdom of Cambodia Motto (Centered with MiSans Khmer) */}
                 <div className="text-center space-y-1">
-                  <div className="text-base sm:text-xl font-black text-slate-900 tracking-wider font-serif">
+                  <div className="text-lg sm:text-xl font-bold text-slate-900 tracking-wide" style={{ fontFamily: "'MiSansKhmer', sans-serif" }}>
                     ព្រះរាជាណាចក្រកម្ពុជា
                   </div>
-                  <div className="text-xs sm:text-sm font-black text-slate-900 tracking-widest">
+                  <div className="text-sm sm:text-base font-medium text-slate-900 tracking-wider" style={{ fontFamily: "'MiSansKhmer', sans-serif" }}>
                     ជាតិ  សាសនា  ព្រះមហាក្សត្រ
                   </div>
                   {/* Traditional ornamental flourish symbol requested by user */}
-                  <div className="flex items-center justify-center pt-1 pb-1 select-none">
+                  <div className="flex items-center justify-center pt-1.5 pb-1 select-none">
                     <img 
                       src={KHMER_ORNAMENT_BASE64} 
                       alt="Ornate Divider" 
@@ -2039,13 +2040,13 @@ export default function AttendanceView({
 
                 {/* Document Title */}
                 <div className="text-center pt-1 space-y-1">
-                  <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-wide uppercase font-serif">
+                  <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-wide uppercase" style={{ fontFamily: "'MiSansKhmer', sans-serif" }}>
                     សៀវភៅបញ្ជីវត្តមាន និងម៉ោងធ្វើការបុគ្គលិក
                   </h2>
-                  <h3 className="text-xs font-bold text-slate-600 tracking-widest uppercase">
+                  <h3 className="text-xs font-semibold text-slate-600 tracking-widest uppercase">
                     STAFF ATTENDANCE &amp; WORKING HOURS LEDGER
                   </h3>
-                  <div className="text-xs font-bold text-slate-800 mt-1">
+                  <div className="text-xs font-medium text-slate-800 mt-1">
                     ប្រចាំខែ៖ <b>{monthNamesKh[selectedMonth - 1]} ឆ្នាំ {selectedYear}</b> ({monthNamesEn[selectedMonth - 1]} {selectedYear})
                   </div>
                 </div>
