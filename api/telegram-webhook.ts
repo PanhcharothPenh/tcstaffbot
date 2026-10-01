@@ -572,17 +572,10 @@ export default async function handler(req: any, res: any) {
           if (normalizeStaffId(aId) === normalizeStaffId(sId)) return true;
         }
         if (s.telegramId && a.telegramId && String(s.telegramId).trim() === String(a.telegramId).trim()) return true;
-        const aNames = [a.staffName, a.name, a.fullName, a.employeeName].filter(Boolean);
-        const sNames = [s.fullName, s.name, s.staffName].filter(Boolean);
-        for (const an of aNames) {
-          for (const sn of sNames) {
-            if (isNameMatch(an, sn)) return true;
-          }
-        }
-        if (s.phone && a.phone) {
-          const p1 = cleanPhone(s.phone);
-          const p2 = cleanPhone(a.phone);
-          if (p1 && p2 && p1 === p2) return true;
+        const cleanS = cleanStaffName(s.fullName || s.name || s.staffName);
+        const cleanA = cleanStaffName(a.staffName || a.name || a.fullName || a.employeeName);
+        if (cleanS && cleanA && cleanS === cleanA) {
+          return true;
         }
         return false;
       };
@@ -653,28 +646,25 @@ export default async function handler(req: any, res: any) {
           };
 
           const normalizeTg = (str: any) => String(str || '').replace(/^@/, '').toLowerCase().trim();
-          const normalizePhone = (p: any) => String(p || '').replace(/[\s\-\+]/g, '').replace(/^855/, '0');
 
-          const isTgMatch = (storedId: any, storedUser: any, storedPhone?: any, storedUsername?: any) => {
+          const isTgMatch = (storedId: any, storedUser: any) => {
             const sId = String(storedId || '').trim();
             const sUser = normalizeTg(storedUser);
-            const sPhone = normalizePhone(storedPhone);
-            const sUname = normalizeTg(storedUsername);
 
-            if (telegramId) {
-              if (sId === telegramId || sUser === telegramId) return true;
+            if (telegramId && sId && sId === telegramId) {
+              return true;
             }
-            if (cleanTgHandle) {
-              if (sUser === cleanTgHandle || sId === cleanTgHandle || (sUname && sUname === cleanTgHandle)) return true;
+            if (cleanTgHandle && sUser && sUser === cleanTgHandle) {
+              return true;
             }
             return false;
           };
 
-          // 1. Search in rawStaff (includes both normal staff and any staff assigned as Owner/Admin)
-          matchedStaff = rawStaff.find((s: any) => isNotInactive(s) && isTgMatch(s.telegramId, s.telegramUsername, s.phone));
+          // 1. Search in rawStaff (exact Telegram ID or exact @username)
+          matchedStaff = rawStaff.find((s: any) => isNotInactive(s) && isTgMatch(s.telegramId, s.telegramUsername));
 
           // 2. Search in allUsers (User Management: Owner, Admin, Manager)
-          matchedUser = allUsers.find((u: any) => isNotInactive(u) && isTgMatch(u.telegramChatId || u.telegramId, u.telegramUsername, u.phone, u.username));
+          matchedUser = allUsers.find((u: any) => isNotInactive(u) && isTgMatch(u.telegramChatId || u.telegramId, u.telegramUsername));
 
           // 3. Search in storedRecipients (Configured notification recipients)
           matchedRecipient = storedRecipients.find((r: any) => isNotInactive(r) && String(r.chatId) === telegramId);
@@ -698,8 +688,8 @@ export default async function handler(req: any, res: any) {
                     updateMemCache('telegramConfig', storedConfig);
                   }
                 }
-                matchedStaff = rawStaff.find((s: any) => isNotInactive(s) && isTgMatch(s.telegramId, s.telegramUsername, s.phone));
-                matchedUser = allUsers.find((u: any) => isNotInactive(u) && isTgMatch(u.telegramChatId || u.telegramId, u.telegramUsername, u.phone, u.username));
+                matchedStaff = rawStaff.find((s: any) => isNotInactive(s) && isTgMatch(s.telegramId, s.telegramUsername));
+                matchedUser = allUsers.find((u: any) => isNotInactive(u) && isTgMatch(u.telegramChatId || u.telegramId, u.telegramUsername));
               }
             } catch (freshErr) {
               console.warn('Live direct check error:', freshErr);
@@ -805,15 +795,18 @@ export default async function handler(req: any, res: any) {
             };
           }
 
-          // If matchedStaff found and numeric Telegram ID was missing in staff record, auto-bind
-          if (matchedStaff && telegramId && /^-?\d+$/.test(telegramId) && (!matchedStaff.telegramId || matchedStaff.telegramId !== telegramId)) {
-            matchedStaff.telegramId = telegramId;
-            matchedStaff.telegramLinked = true;
-            const sIdx = rawStaff.findIndex((s: any) => s.id === matchedStaff.id);
-            if (sIdx >= 0) {
-              rawStaff[sIdx] = { ...rawStaff[sIdx], telegramId, telegramLinked: true };
-              updateMemCache('staff', rawStaff);
-              saveDbCollection(supabase, 'staff', rawStaff).catch(() => {});
+          // Safely auto-bind numeric Telegram ID ONLY if staff had no telegramId set, was matched by exact username, and no other staff has this ID
+          if (matchedStaff && telegramId && /^-?\d+$/.test(telegramId) && !matchedStaff.telegramId) {
+            const alreadyBound = rawStaff.some((s: any) => s.id !== matchedStaff.id && String(s.telegramId || '').trim() === telegramId);
+            if (!alreadyBound) {
+              matchedStaff.telegramId = telegramId;
+              matchedStaff.telegramLinked = true;
+              const sIdx = rawStaff.findIndex((s: any) => s.id === matchedStaff.id);
+              if (sIdx >= 0) {
+                rawStaff[sIdx] = { ...rawStaff[sIdx], telegramId, telegramLinked: true };
+                updateMemCache('staff', rawStaff);
+                saveDbCollection(supabase, 'staff', rawStaff).catch(() => {});
+              }
             }
           }
 

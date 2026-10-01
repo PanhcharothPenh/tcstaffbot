@@ -691,21 +691,12 @@ export default async function handler(req: any, res: any) {
         return st !== 'inactive' && st !== 'terminated' && st !== 'resigned' && st !== 'disabled' && st !== 'locked';
       };
 
-      const isMatchingTg = (storedId: any, storedUser: any, storedPhone?: any) => {
+      const isMatchingTg = (storedId: any, storedUser: any) => {
         const sId = String(storedId || '').trim();
         const sUser = String(storedUser || '').replace(/^@/, '').toLowerCase().trim();
-        const sPhone = String(storedPhone || '').replace(/\D/g, '');
-        const targetPhone = cleanTgId.replace(/\D/g, '');
 
-        if (cleanTgId) {
-          if (sId === cleanTgId) return true;
-          if (sUser === cleanTgId.toLowerCase()) return true;
-          if (targetPhone.length >= 8 && sPhone && sPhone.endsWith(targetPhone.slice(-8))) return true;
-        }
-        if (cleanTgName) {
-          if (sUser === cleanTgName) return true;
-          if (sId.replace(/^@/, '').toLowerCase().trim() === cleanTgName) return true;
-        }
+        if (cleanTgId && sId && sId === cleanTgId) return true;
+        if (cleanTgName && sUser && sUser === cleanTgName) return true;
         return false;
       };
 
