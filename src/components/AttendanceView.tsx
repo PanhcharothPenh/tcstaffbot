@@ -53,6 +53,7 @@ import {
   sanitizeCollectionForBatchSync
 } from '../utils';
 import { generateAttendancePdf } from '../utils/AttendancePdfService';
+import { KHMER_ORNAMENT_BASE64 } from '../khmerOrnamentBase64';
 
 interface AttendanceViewProps {
   currentRole: Role;
@@ -2017,23 +2018,27 @@ export default function AttendanceView({
               className="w-full max-w-[840px] bg-white text-slate-900 p-8 sm:p-10 shadow-xl rounded-2xl space-y-6 font-sans antialiased border border-slate-100"
             >
               {/* Official Kingdom Header & Document Title */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {/* Official Kingdom of Cambodia Motto (Centered) */}
                 <div className="text-center space-y-1">
-                  <div className="text-base sm:text-lg font-black text-slate-900 tracking-wider font-serif">
+                  <div className="text-base sm:text-xl font-black text-slate-900 tracking-wider font-serif">
                     ព្រះរាជាណាចក្រកម្ពុជា
                   </div>
                   <div className="text-xs sm:text-sm font-black text-slate-900 tracking-widest">
                     ជាតិ  សាសនា  ព្រះមហាក្សត្រ
                   </div>
-                  {/* Traditional ornamental flourish symbol */}
-                  <div className="flex items-center justify-center gap-1.5 pt-0.5 text-slate-700">
-                    <span className="text-xs tracking-widest select-none font-serif">៚ ໒ ໒ ໒ ៚</span>
+                  {/* Traditional ornamental flourish symbol requested by user */}
+                  <div className="flex items-center justify-center pt-1 pb-1 select-none">
+                    <img 
+                      src={KHMER_ORNAMENT_BASE64} 
+                      alt="Ornate Divider" 
+                      className="h-3.5 sm:h-4 w-auto max-w-[200px] object-contain select-none opacity-90" 
+                    />
                   </div>
                 </div>
 
                 {/* Document Title */}
-                <div className="text-center pt-1 pb-1 space-y-1">
+                <div className="text-center pt-1 space-y-1">
                   <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-wide uppercase font-serif">
                     សៀវភៅបញ្ជីវត្តមាន និងម៉ោងធ្វើការបុគ្គលិក
                   </h2>
@@ -2046,7 +2051,7 @@ export default function AttendanceView({
                 </div>
               </div>
 
-              {/* Official Staff & Scope Details (Clean lines, NO BOXES) */}
+              {/* Official Staff & Scope Details (Clean lines, structured, easy to read) */}
               <div className="border-t border-b border-slate-400 py-2.5 my-2 grid grid-cols-2 sm:grid-cols-4 gap-y-1.5 gap-x-4 text-xs text-slate-800">
                 <div>
                   <span className="text-slate-600 font-medium">ឈ្មោះបុគ្គលិក៖ </span>

@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Attendance, Staff, Branch } from '../types';
 import { calculateWorkHours } from '../utils';
+import { KHMER_ORNAMENT_BASE64 } from '../khmerOrnamentBase64';
 
 export interface AttendancePdfParams {
   title?: string;
@@ -100,13 +101,17 @@ export async function generateAttendancePdf(params: AttendancePdfParams) {
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(11);
   pdf.setTextColor(15, 23, 42);
-  pdf.text('KINGDOM OF CAMBODIA', pageWidth / 2, 14, { align: 'center' });
+  pdf.text('KINGDOM OF CAMBODIA', pageWidth / 2, 13, { align: 'center' });
 
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(8.5);
   pdf.setTextColor(51, 65, 85);
-  pdf.text('Nation  Religion  King', pageWidth / 2, 18.5, { align: 'center' });
-  pdf.text('***', pageWidth / 2, 22.5, { align: 'center' });
+  pdf.text('Nation  Religion  King', pageWidth / 2, 17, { align: 'center' });
+  
+  // Ornate Divider Image
+  const ornamentWidth = 36;
+  const ornamentHeight = (22 / 231) * ornamentWidth; // ~3.4mm
+  pdf.addImage(KHMER_ORNAMENT_BASE64, 'PNG', (pageWidth - ornamentWidth) / 2, 18.5, ornamentWidth, ornamentHeight);
 
   // 4. Document Title
   pdf.setFont('helvetica', 'bold');
