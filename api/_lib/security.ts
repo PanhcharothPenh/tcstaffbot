@@ -301,3 +301,25 @@ export function validateInitData(
 export function escHtml(s: any): string {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
+
+// ─── Signed Mini App links ──────────────────────────────────────────────────
+// The bot adds `tg_sig` to the Mini App buttons it sends to a user. Only the bot (server) can create it,
+// and it is only ever sent into that user's own chat, so it proves the Telegram id when initData is absent.
+function tgLinkMac(id: string, exp: number): string {
+  return crypto.createHmac('sha256', getJwtSecret()).update(`tglink:${id}.${exp}`).digest('base64url');
+}
+
+export function signTgLink(tgId: string | number, ttlSec = 7 * 24 * 3600): string {
+  const exp = Math.floor(Date.now() / 1000) + ttlSec;
+  return `${exp}.${tgLinkMac(String(tgId), exp)}`;
+}
+
+export function verifyTgLink(tgId: string, token: string): boolean {
+  if (!tgId || !token || typeof token !== 'string') return false;
+  const [expStr, mac] = token.split('.');
+  const exp = Number(expStr);
+  if (!exp || !mac || exp < Date.now() / 1000) return false;
+  const a = Buffer.from(tgLinkMac(String(tgId), exp));
+  const b = Buffer.from(mac);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}

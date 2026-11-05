@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
-import { applySecurityHeaders, getSession, verifyCron, validateInitData, MANAGER_ROLES, escHtml } from './_lib/security.js';
+import { applySecurityHeaders, getSession, verifyCron, validateInitData, verifyTgLink, MANAGER_ROLES, escHtml } from './_lib/security.js';
 const OWNER_CHAT_ID = (process.env.OWNER_TELEGRAM_CHAT_ID || '').trim() || '__unset__';
 
 // In-memory cache to prevent duplicate Telegram alerts across invocations
@@ -312,10 +312,21 @@ export default async function handler(req: any, res: any) {
   /** Telegram user proven by a valid, fresh, signed initData (body or header). */
   const verifiedTg = (initData?: any): any | null => {
     const raw = String(initData || req.headers['x-telegram-init-data'] || '');
-    if (!raw) { _tgReason = 'no-initdata'; return null; }
-    const v = validateInitData(raw, allBotTokens);
-    if (!v.valid) _tgReason = String(v.error || 'invalid').replace(/\s+/g, '-');
-    return v.valid ? v.user : null;
+    if (raw) {
+      const v = validateInitData(raw, allBotTokens);
+      if (v.valid) return v.user;
+      _tgReason = String(v.error || 'invalid').replace(/\s+/g, '-');
+    } else {
+      _tgReason = 'no-initdata';
+    }
+    // Fallback: link signed by the bot for exactly this Telegram id.
+    const linkId = String(req.body?.telegramId || req.headers['x-tg-id'] || '').trim();
+    const linkSig = String(req.body?.tgSig || req.headers['x-tg-sig'] || '').trim();
+    if (linkId && linkSig && verifyTgLink(linkId, linkSig)) {
+      _tgReason = '';
+      return { id: linkId, username: String(req.body?.telegramUsername || '').replace(/^@/, '') };
+    }
+    return null;
   };
 
   // Global In-Memory Cache for Supabase Collections (speeds up reads from seconds to sub-milliseconds)

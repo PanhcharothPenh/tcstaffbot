@@ -31,6 +31,15 @@ interface TelegramAttendanceMiniAppProps {
   initialAction?: 'checkin' | 'checkout' | 'history';
 }
 
+// Signed link proof added by the bot to the Mini App URL (used when Telegram does not provide initData)
+const getTgSig = (): string => {
+  try {
+    const fromUrl = new URLSearchParams(window.location.search).get('tg_sig') || '';
+    if (fromUrl) { sessionStorage.setItem('tc_tg_sig', fromUrl); return fromUrl; }
+    return sessionStorage.getItem('tc_tg_sig') || '';
+  } catch { return ''; }
+};
+
 export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAttendanceMiniAppProps) {
   // Query parameters or initial action
   const searchParams = new URLSearchParams(window.location.search);
@@ -377,6 +386,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           initData: dataStr || creds.rawInitData,
+          tgSig: getTgSig(),
           unsafeUser: tgUser,
           telegramId: effectiveId,
           telegramUsername: effectiveName
@@ -870,6 +880,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           initData,
+          tgSig: getTgSig(),
           staffId: staffInfo?.id,
           branchId: selectedBranchId || branchInfo?.id,
           telegramId: detectedTgUser?.id ? String(detectedTgUser.id) : undefined,
@@ -914,7 +925,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     if (!staffInfo?.id) return;
     setIsLoadingHistory(true);
     try {
-      const res = await fetch(`/api/attendance/history?staffId=${staffInfo.id}&month=${m}&year=${y}`, { headers: { 'X-Telegram-Init-Data': initData || '' } });
+      const res = await fetch(`/api/attendance/history?staffId=${staffInfo.id}&month=${m}&year=${y}`, { headers: { 'X-Telegram-Init-Data': initData || '', 'X-Tg-Sig': getTgSig(), 'X-Tg-Id': detectedTgUser?.id ? String(detectedTgUser.id) : '' } });
       const data = await res.json();
       if (data.success) {
         setHistoryRecords(data.records || []);

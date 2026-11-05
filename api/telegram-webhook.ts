@@ -1,4 +1,4 @@
-import { applySecurityHeaders, requireAuth, ADMIN_ROLES, verifyWebhookSecret } from './_lib/security.js';
+import { applySecurityHeaders, requireAuth, ADMIN_ROLES, verifyWebhookSecret, signTgLink } from './_lib/security.js';
 import { createClient } from '@supabase/supabase-js';
 const OWNER_CHAT_ID = (process.env.OWNER_TELEGRAM_CHAT_ID || '').trim() || '__unset__';
 
@@ -1031,11 +1031,11 @@ export default async function handler(req: any, res: any) {
       const staffReplyKeyboard = isPrivateChat ? {
         keyboard: [
           [
-            { text: '📸 ចុះវត្តមានចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
-            { text: '🚪 ចុះវត្តមានចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+            { text: '📸 ចុះវត្តមានចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}&tg_sig=${signTgLink(telegramId)}` } },
+            { text: '🚪 ចុះវត្តមានចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}&tg_sig=${signTgLink(telegramId)}` } }
           ],
           [
-            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
+            { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}&tg_sig=${signTgLink(telegramId)}` } },
             { text: '📝 សុំច្បាប់' }
           ],
           [
@@ -1067,15 +1067,15 @@ export default async function handler(req: any, res: any) {
       const ownerReplyKeyboard = isPrivateChat ? {
         keyboard: [
           [
-            { text: '📸 ចុះវត្តមានចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
-            { text: '🚪 ចុះវត្តមានចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+            { text: '📸 ចុះវត្តមានចូល', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}&tg_sig=${signTgLink(telegramId)}` } },
+            { text: '🚪 ចុះវត្តមានចេញ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}&tg_sig=${signTgLink(telegramId)}` } }
           ],
           [
             { text: 'របាយការណ៍វត្តមាន' },
             { text: '📑 ពាក្យសុំច្បាប់ទាំងអស់' }
           ],
           [
-            { text: '📈 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
+            { text: '📈 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}&tg_sig=${signTgLink(telegramId)}` } },
             { text: '📝 សុំច្បាប់' }
           ],
           [
@@ -1537,10 +1537,10 @@ export default async function handler(req: any, res: any) {
           const permButtons = {
             inline_keyboard: [
               [
-                { text: '📸 ចុះវត្តមានចូលបំពេញការងារ (Check In)', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+                { text: '📸 ចុះវត្តមានចូលបំពេញការងារ (Check In)', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}&tg_sig=${signTgLink(telegramId)}` } }
               ],
               [
-                { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+                { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}&tg_sig=${signTgLink(telegramId)}` } }
               ]
             ]
           };
@@ -1566,8 +1566,8 @@ export default async function handler(req: any, res: any) {
           const startedButtons = {
             inline_keyboard: [
               [
-                { text: '🚪 ចុះវត្តមានចេញ (Check Out)', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } },
-                { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+                { text: '🚪 ចុះវត្តមានចេញ (Check Out)', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}&tg_sig=${signTgLink(telegramId)}` } },
+                { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}&tg_sig=${signTgLink(telegramId)}` } }
               ]
             ]
           };
@@ -1589,7 +1589,7 @@ export default async function handler(req: any, res: any) {
         const checkinInlineButtons = {
           inline_keyboard: [
             [
-              { text: '📸 ចុះវត្តមានចូលឥឡូវនេះ', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+              { text: '📸 ចុះវត្តមានចូលឥឡូវនេះ', web_app: { url: `${baseUrl}/attendance-app?action=checkin&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}&tg_sig=${signTgLink(telegramId)}` } }
             ]
           ]
         };
@@ -1633,7 +1633,7 @@ export default async function handler(req: any, res: any) {
           const completedButtons = {
             inline_keyboard: [
               [
-                { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+                { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}&tg_sig=${signTgLink(telegramId)}` } }
               ]
             ]
           };
@@ -1667,7 +1667,7 @@ export default async function handler(req: any, res: any) {
         const checkoutInlineButtons = {
           inline_keyboard: [
             [
-              { text: '🚪 ចុះវត្តមានចេញឥឡូវនេះ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+              { text: '🚪 ចុះវត្តមានចេញឥឡូវនេះ', web_app: { url: `${baseUrl}/attendance-app?action=checkout&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}&tg_sig=${signTgLink(telegramId)}` } }
             ]
           ]
         };
@@ -2756,7 +2756,7 @@ export default async function handler(req: any, res: any) {
         const reportButtons = {
           inline_keyboard: [
             [
-              { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}` } }
+              { text: '📊 មើលប្រវត្តិវត្តមាន', web_app: { url: `${baseUrl}/attendance-app?action=history&tg_id=${telegramId}&tg_user=${cleanTgHandle || ''}&tg_sig=${signTgLink(telegramId)}` } }
             ]
           ]
         };
