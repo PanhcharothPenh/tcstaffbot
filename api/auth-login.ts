@@ -38,7 +38,7 @@ export default async function handler(req: any, res: any) {
       String(u.email || '').toLowerCase().trim() === identifier
     );
 
-    const stored = String(user?.password || '');
+    const stored = String(user?.password || user?.passwordHash || '');
     const check = verifyPassword(inputPass, stored || '');
     if (!stored) verifyPassword(inputPass, decoyHash()); // equalise timing
     if (!user || !stored || !check.ok) {
@@ -53,7 +53,8 @@ export default async function handler(req: any, res: any) {
       try {
         const idx = users.findIndex(u => u.id === user.id);
         if (idx !== -1) {
-          users[idx] = { ...users[idx], password: hashPassword(inputPass), passwordChangedAt: new Date().toISOString() };
+          const { passwordHash: _legacy, ...restUser } = users[idx] as any;
+          users[idx] = { ...restUser, password: hashPassword(inputPass), passwordChangedAt: new Date().toISOString() };
           await saveUsers(users);
         }
       } catch { /* non-fatal */ }
