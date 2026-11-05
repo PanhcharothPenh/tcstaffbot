@@ -31,7 +31,7 @@ interface TelegramAttendanceMiniAppProps {
   initialAction?: 'checkin' | 'checkout' | 'history';
 }
 
-const APP_VERSION = '2026-11-05.5';
+const APP_VERSION = '2026-11-05.6';
 
 // Signed link proof added by the bot to the Mini App URL (used when Telegram does not provide initData)
 const getTgSig = (): string => {
@@ -1350,6 +1350,11 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                   </div>
                   <h2 className="text-lg font-black text-slate-900">{resultData.message}</h2>
                   <p className="text-sm font-bold text-slate-700 mt-0.5">{staffInfo?.fullName}</p>
+                  <p className="text-xs font-medium text-emerald-700 mt-2 leading-relaxed">
+                    {currentAction === 'checkout'
+                      ? '🌙 អរគុណសម្រាប់ការខិតខំថ្ងៃនេះ! សូមធ្វើដំណើរដោយសុវត្ថិភាព និងសម្រាកឱ្យបានល្អ។ 🙏'
+                      : '🌸 ជូនពរអ្នកមានថ្ងៃថ្មីដ៏ល្អ សុខភាពល្អ និងការងារដំណើរការរលូន! 💪'}
+                  </p>
                 </div>
 
                 <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-xs space-y-2 text-left">
@@ -1597,11 +1602,6 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                         className="absolute inset-0 w-full h-full object-cover"
                         style={{ transform: isMirrored ? 'scaleX(-1)' : 'none' }}
                       />
-                      {/* Face guide */}
-                      <div className="absolute left-1/2 top-[44%] -translate-x-1/2 -translate-y-1/2 w-[62%] aspect-[3/4] border-[3px] border-white/85 rounded-[50%] pointer-events-none shadow-[0_0_0_9999px_rgba(0,0,0,0.38)]" />
-                      <div className="absolute top-3 left-0 right-0 flex justify-center pointer-events-none">
-                        <span className="bg-black/55 text-white text-xs font-bold px-3.5 py-1.5 rounded-full">ដាក់មុខក្នុងរង្វង់ រួចចុចប៊ូតុងថត</span>
-                      </div>
                       {/* Bottom control bar */}
                       <div className="absolute bottom-0 inset-x-0 pt-10 pb-4 px-5 bg-gradient-to-t from-black/75 to-transparent flex items-center justify-between">
                         <button
@@ -1657,6 +1657,25 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     </div>
                   )}
                 </div>
+
+                {/* Smile prompt while the camera is open */}
+                {isCameraActive && (
+                  <div className="text-center py-1">
+                    <p className="text-xl font-black text-slate-800">😊 សូមញញឹម!</p>
+                    <p className="text-xs font-medium text-slate-500 mt-0.5">រួចចុចប៊ូតុងមូលដើម្បីថតរូប</p>
+                  </div>
+                )}
+
+                {/* Blessing after the photo is taken */}
+                {!isCameraActive && capturedImage && !isVerifying && (
+                  <div className="text-center px-4 py-3 rounded-2xl bg-emerald-50 border border-emerald-200">
+                    <p className="text-sm font-black text-emerald-800">
+                      {currentAction === 'checkin'
+                        ? '🌸 ជូនពរអ្នកមានថ្ងៃថ្មីដ៏ល្អ សុខភាពល្អ និងការងារដំណើរការរលូន! 💪'
+                        : '🌙 អរគុណសម្រាប់ការខិតខំថ្ងៃនេះ! សូមធ្វើដំណើរដោយសុវត្ថិភាព និងសម្រាកឱ្យបានល្អ។ 🙏'}
+                    </p>
+                  </div>
+                )}
 
                 {/* Big primary action button under the viewport */}
                 {!isCameraActive && (
