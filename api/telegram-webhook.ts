@@ -1527,6 +1527,7 @@ export default async function handler(req: any, res: any) {
       // NOTICE: ⚠️ គណនីមិនទាន់បានភ្ជាប់ (Item 1 ខ)
       // =================================================================================
       const cleanUsername = cleanTgHandle ? `@${cleanTgHandle}` : 'គ្មាន';
+      const unlinkedMarkup = { inline_keyboard: [[{ text: '📨 ស្នើសុំ Admin ភ្ជាប់គណនីខ្ញុំ', callback_data: 'reqlink' }]] };
       const unlinkedStaffNotice = `👋 <b>សួស្តី ${firstName}!</b>\n\n` +
         `⚠️ <b>គណនីមិនទាន់បានភ្ជាប់ក្នុងប្រព័ន្ធ (Not Connected)</b>\n\n` +
         `គណនី Telegram របស់អ្នកមិនទាន់បានភ្ជាប់ជាមួយព័ត៌មានបុគ្គលិក ឬអ្នកគ្រប់គ្រងក្នុងប្រព័ន្ធនៅឡើយទេ។\n\n` +
@@ -1546,7 +1547,7 @@ export default async function handler(req: any, res: any) {
 
       if (isCheckInCmd) {
         if (!matchedStaff) {
-          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML', reply_markup: persistentReplyKeyboard });
+          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML', reply_markup: unlinkedMarkup });
         }
 
         // If staff has approved permission for today and hasn't checked in with real time
@@ -1642,7 +1643,7 @@ export default async function handler(req: any, res: any) {
 
       if (isCheckOutCmd) {
         if (!matchedStaff) {
-          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML', reply_markup: persistentReplyKeyboard });
+          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML', reply_markup: unlinkedMarkup });
         }
 
         const isRealTime = (t?: string) => Boolean(t && t !== '--' && /\d/.test(t));
@@ -2756,7 +2757,7 @@ export default async function handler(req: any, res: any) {
         userText.toLowerCase().includes('report')
       ) {
         if (!matchedStaff) {
-          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML', reply_markup: persistentReplyKeyboard });
+          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML', reply_markup: unlinkedMarkup });
         }
         const monthRecords = allAtt.filter((a: any) => {
           if (!a.date) return false;
@@ -2809,7 +2810,7 @@ export default async function handler(req: any, res: any) {
         userText === 'profile'
       ) {
         if (!matchedStaff) {
-          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML', reply_markup: persistentReplyKeyboard });
+          return sendOrReply(res, botToken, { chat_id: chatId, text: unlinkedStaffNotice, parse_mode: 'HTML', reply_markup: unlinkedMarkup });
         }
         const staffName = matchedStaff?.fullName || firstName;
         const staffPosition = matchedStaff?.position || 'Staff';
@@ -2902,7 +2903,7 @@ export default async function handler(req: any, res: any) {
             chat_id: chatId,
             text: unlinkedStaffNotice,
             parse_mode: 'HTML',
-            reply_markup: persistentReplyKeyboard
+            reply_markup: unlinkedMarkup
           });
         }
 
@@ -3117,7 +3118,7 @@ export default async function handler(req: any, res: any) {
             chat_id: chatId,
             text: unlinkedStaffNotice,
             parse_mode: 'HTML',
-            reply_markup: persistentReplyKeyboard
+            reply_markup: unlinkedMarkup
           });
       }
 
