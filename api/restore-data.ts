@@ -8,7 +8,7 @@ const BASELINE_ATTENDANCE_74: any[] = [];
 
 function getSupabase() {
   const url = (process.env.SUPABASE_URL || '').replace(/['"]/g, '').trim();
-  const key = (process.env.SUPABASE_ANON_KEY || '').replace(/['"]/g, '').trim();
+  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '').replace(/['"]/g, '').trim();
   return (url && key) ? createClient(url, key) : null;
 }
 

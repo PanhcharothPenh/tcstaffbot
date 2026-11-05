@@ -191,7 +191,7 @@ let pendingSupabasePushes: Promise<any>[] = [];
 let lastPushedDbJson: Record<string, string> = {};
 try {
   const supabaseUrl = (process.env.SUPABASE_URL || '').replace(/['"]/g, '').trim();
-  const supabaseKey = (process.env.SUPABASE_ANON_KEY || '').replace(/['"]/g, '').trim();
+  const supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '').replace(/['"]/g, '').trim();
   if (supabaseUrl && supabaseKey) {
     supabase = createClient(supabaseUrl, supabaseKey);
   }

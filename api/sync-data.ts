@@ -554,7 +554,7 @@ function calculateWorkHours(checkIn?: string, checkOut?: string, status?: string
 
 function getSupabaseClient() {
   const supabaseUrl = (process.env.SUPABASE_URL || '').replace(/['"]/g, '').trim();
-  const supabaseKey = (process.env.SUPABASE_ANON_KEY || '').replace(/['"]/g, '').trim();
+  const supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '').replace(/['"]/g, '').trim();
   return (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 }
 
