@@ -31,7 +31,7 @@ interface TelegramAttendanceMiniAppProps {
   initialAction?: 'checkin' | 'checkout' | 'history';
 }
 
-const APP_VERSION = '2026-11-05.1';
+const APP_VERSION = '2026-11-05.2';
 
 // Signed link proof added by the bot to the Mini App URL (used when Telegram does not provide initData)
 const getTgSig = (): string => {
@@ -1096,6 +1096,35 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
         {/* VIEW 1: ATTENDANCE CHECK-IN / CHECK-OUT */}
         {activeView === 'action' && (
           <div className="space-y-4">
+            {/* Step guide: shows what is done and what is next */}
+            {!resultData && (() => {
+              const steps = [
+                { label: 'បើក GPS', done: Boolean(locationCoords) },
+                { label: 'ថតរូបមុខ', done: Boolean(capturedImage) },
+                { label: currentAction === 'checkout' ? 'បញ្ជាក់ចេញ' : 'បញ្ជាក់ចូល', done: false }
+              ];
+              const nextIdx = steps.findIndex(st => !st.done);
+              return (
+                <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-xs">
+                  <div className="flex items-center justify-between gap-1">
+                    {steps.map((st, i) => (
+                      <React.Fragment key={st.label}>
+                        <div className="flex flex-col items-center gap-1 flex-1 min-w-0">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-black border ${
+                            st.done ? 'bg-emerald-500 border-emerald-500 text-white' : i === nextIdx ? 'bg-blue-600 border-blue-600 text-white' : 'bg-slate-50 border-slate-200 text-slate-400'
+                          }`}>
+                            {st.done ? '✓' : i + 1}
+                          </div>
+                          <span className={`text-[10.5px] font-bold text-center leading-tight ${i === nextIdx ? 'text-blue-700' : st.done ? 'text-emerald-700' : 'text-slate-400'}`}>{st.label}</span>
+                        </div>
+                        {i < steps.length - 1 && <div className={`h-0.5 flex-1 mb-4 rounded ${st.done ? 'bg-emerald-400' : 'bg-slate-200'}`} />}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Staff & Today's Status Header Card */}
             <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-3">
               <div className="flex items-center justify-between text-xs pb-2.5 border-b border-slate-100">
