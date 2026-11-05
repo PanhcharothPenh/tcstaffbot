@@ -118,6 +118,10 @@
       "destination": "/api/index"
     },
     {
+      "source": "/api/telegram/request-link",
+      "destination": "/api/index"
+    },
+    {
       "source": "/api/telegram/send-attendance-report",
       "destination": "/api/index"
     },

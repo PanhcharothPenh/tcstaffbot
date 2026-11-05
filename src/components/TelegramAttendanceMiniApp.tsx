@@ -31,6 +31,8 @@ interface TelegramAttendanceMiniAppProps {
   initialAction?: 'checkin' | 'checkout' | 'history';
 }
 
+const APP_VERSION = '2026-11-05.1';
+
 // Signed link proof added by the bot to the Mini App URL (used when Telegram does not provide initData)
 const getTgSig = (): string => {
   try {
@@ -251,6 +253,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   // Result state
   const [resultData, setResultData] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [linkRequestState, setLinkRequestState] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
   const [lateReason, setLateReason] = useState('');
   const [earlyReason, setEarlyReason] = useState('');
 
@@ -987,15 +990,30 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
   }
 
   if (authError) {
+    const isVerifyProblem = /unauthorized|forbidden/i.test(authError);
+    const sendLinkRequest = async () => {
+      setLinkRequestState('sending');
+      try {
+        const r = await fetch('/api/telegram/request-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData, tgSig: getTgSig(), telegramId: detectedTgUser?.id ? String(detectedTgUser.id) : undefined, telegramUsername: detectedTgUser?.username || undefined })
+        });
+        const j = await r.json().catch(() => ({}));
+        setLinkRequestState(j.success ? 'sent' : 'failed');
+      } catch { setLinkRequestState('failed'); }
+    };
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-6 text-center">
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl max-w-sm w-full space-y-4 animate-in fade-in">
           <div className="w-16 h-16 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto text-amber-600">
             <AlertCircle size={36} />
           </div>
-          <h2 className="text-base font-black text-slate-900">គណនីមិនទាន់បានភ្ជាប់ / Unlinked</h2>
+          <h2 className="text-base font-black text-slate-900">{isVerifyProblem ? 'មិនអាចផ្ទៀងផ្ទាត់ Telegram បានទេ' : 'គណនីមិនទាន់បានភ្ជាប់'}</h2>
           <div className="p-3 bg-amber-50/70 border border-amber-200/60 rounded-2xl text-xs text-amber-950 font-medium leading-relaxed text-left">
-            {authError}
+            {isVerifyProblem
+              ? 'សូមបិទកម្មវិធីនេះ ហើយបើកឡើងវិញពីប៊ូតុងក្នុង Bot។ បើនៅតែមិនបាន សូមផ្ញើ /start ទៅ Bot ដើម្បីទទួលប៊ូតុងថ្មី។'
+              : authError}
           </div>
           {detectedTgUser && (detectedTgUser.id || detectedTgUser.username) ? (
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 space-y-1.5 text-left font-mono">
@@ -1012,35 +1030,22 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                 </div>
               ) : null}
             </div>
-          ) : (
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-600 space-y-2 text-left">
-              <label className="text-[11px] font-bold text-slate-500">បញ្ចូល Telegram ID ឬ លេខទូរស័ព្ទដើម្បីភ្ជាប់៖</label>
-              <div className="flex gap-1.5">
-                <input
-                  type="text"
-                  placeholder="ឧ. 7818150707 ឬ 012888999"
-                  id="manual_link_input"
-                  className="flex-1 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 font-mono focus:outline-none focus:border-blue-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const el = document.getElementById('manual_link_input') as HTMLInputElement;
-                    const val = el?.value?.trim();
-                    if (val) {
-                      validateSession('', false, { id: val, username: val });
-                    }
-                  }}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition cursor-pointer"
-                >
-                  ភ្ជាប់
-                </button>
-              </div>
-            </div>
-          )}
+          ) : null}
           <p className="text-[11px] text-slate-500 leading-relaxed">
             សូមទាក់ទង <b>Admin ឬ Manager</b> របស់អ្នកដើម្បីចុះឈ្មោះ និងភ្ជាប់គណនី Telegram នេះទៅកាន់ប្រព័ន្ធ TC Staff មុនពេលចុះវត្តមាន។
           </p>
+          {!isVerifyProblem && (
+            <button
+              onClick={sendLinkRequest}
+              disabled={linkRequestState === 'sending' || linkRequestState === 'sent'}
+              className="w-full py-2.5 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 rounded-xl text-xs font-bold cursor-pointer transition"
+            >
+              {linkRequestState === 'sent' ? '✓ បានផ្ញើសំណើទៅ Admin ហើយ' : linkRequestState === 'sending' ? 'កំពុងផ្ញើ...' : 'ស្នើសុំ Admin ភ្ជាប់គណនីខ្ញុំ'}
+            </button>
+          )}
+          {linkRequestState === 'failed' && (
+            <p className="text-[11px] text-rose-600">មិនអាចផ្ញើបានទេ សូមទាក់ទង Admin ដោយផ្ទាល់។</p>
+          )}
           <div className="flex gap-2 pt-2">
             <button 
               onClick={() => validateSession(initData)}
@@ -1055,6 +1060,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
               ចាកចេញ
             </button>
           </div>
+          <p className="text-[10px] text-slate-400 pt-1">កំណែ {APP_VERSION}</p>
         </div>
       </div>
     );

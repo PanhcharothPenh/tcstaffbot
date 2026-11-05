@@ -175,7 +175,7 @@ mount([/^\/api\/telegram-send-2fa\/?$/], tgSend2faHandler);
 mount([/^\/api\/health\/?$/], healthHandler);
 mount([
   /^\/api\/attendance(\/.*)?$/, /^\/api\/admin\/attendance(\/.*)?$/, /^\/api\/face(\/.*)?$/,
-  /^\/api\/telegram\/(link|unlink|validate-init-data|send-attendance-report)\/?$/, /^\/api\/resolve-maps-url\/?$/
+  /^\/api\/telegram\/(link|unlink|validate-init-data|request-link|send-attendance-report)\/?$/, /^\/api\/resolve-maps-url\/?$/
 ], indexHandler);
 
 
