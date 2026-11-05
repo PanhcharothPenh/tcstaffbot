@@ -1,3 +1,4 @@
+import { applySecurityHeaders, requireAuth, ADMIN_ROLES, MANAGER_ROLES } from './_lib/security';
 import { createClient } from '@supabase/supabase-js';
 
 
@@ -2113,64 +2114,8 @@ const BASELINE_ATTENDANCE_74: any[] = [
   }
 ];
 
-const DEFAULT_USERS = [
-  {
-    id: 'usr_root',
-    username: 'root',
-    email: 'root@p2bkh.tech',
-    fullName: 'Root (Executive Owner)',
-    role: 'Owner',
-    roleId: 'owner',
-    status: 'Active',
-    assignedBranchIds: ['b1', 'b2'],
-    telegramUsername: '@root',
-    telegramChatId: '',
-    phone: '',
-    twoFactorMethod: 'telegram'
-  },
-  {
-    id: 'usr_penh',
-    username: 'penh',
-    email: 'penh@p2bkh.tech',
-    fullName: 'Penh (Owner)',
-    role: 'Owner',
-    roleId: 'owner',
-    status: 'Active',
-    assignedBranchIds: ['b1', 'b2'],
-    telegramUsername: '@mrknowitall56',
-    telegramChatId: '508412077',
-    phone: '',
-    twoFactorMethod: 'telegram'
-  },
-  {
-    id: 'usr_miller',
-    username: 'miller',
-    email: 'miller@p2bkh.tech',
-    fullName: 'Miller (Owner)',
-    role: 'Owner',
-    roleId: 'owner',
-    status: 'Active',
-    assignedBranchIds: ['b1', 'b2'],
-    telegramUsername: '@millerppc',
-    telegramChatId: '7818150707',
-    phone: '',
-    twoFactorMethod: 'telegram'
-  },
-  {
-    id: 'usr_theary',
-    username: 'theary',
-    email: 'theary@p2bkh.tech',
-    fullName: 'Tha Theary (Owner)',
-    role: 'Owner',
-    roleId: 'owner',
-    status: 'Active',
-    assignedBranchIds: ['b1', 'b2'],
-    telegramUsername: '@theary5686',
-    telegramChatId: '719054686',
-    phone: '',
-    twoFactorMethod: 'telegram'
-  }
-];
+// Users are never seeded from source code; see /api/users and BOOTSTRAP_OWNER_* env vars.
+const DEFAULT_USERS: any[] = [];
 
 const DEFAULT_BRANCHES = [
   {
@@ -2719,15 +2664,31 @@ function getSupabaseClient() {
   return (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 }
 
+const PROTECTED_WRITE = new Set(['users', 'loginHistory']);
+const ADMIN_ONLY_COLLECTIONS = new Set(['telegramConfig', 'telegram_chat_registry', 'telegramRecentUsers', 'telegramPermissions']);
+
+function scrubDb(db: Record<string, any>, roleId: string) {
+  const isAdmin = roleId === 'owner' || roleId === 'admin';
+  if (Array.isArray(db.users)) {
+    db.users = isAdmin ? db.users.map((u: any) => { const { password, passwordHash, ...rest } = u || {}; return rest; }) : [];
+  }
+  if (!isAdmin) {
+    delete db.loginHistory;
+    for (const k of ADMIN_ONLY_COLLECTIONS) delete db[k];
+  } else if (db.telegramConfig && typeof db.telegramConfig === 'object') {
+    db.telegramConfig = { ...db.telegramConfig, botToken: db.telegramConfig.botToken ? '••••' : '' };
+  }
+}
+
 export default async function handler(req: any, res: any) {
-  // CORS Headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  applySecurityHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(204).end();
   }
+
+  const session = requireAuth(req, res, req.method === 'GET' ? undefined : MANAGER_ROLES);
+  if (!session) return;
 
   const supabase = await getSupabaseClient();
 
@@ -2770,7 +2731,7 @@ export default async function handler(req: any, res: any) {
           needsDbHeal = true;
         }
 
-        if (!existingRowIds.has('users') && (!Array.isArray(db.users) || db.users.length === 0)) {
+        if (false) {
           db.users = DEFAULT_USERS;
           rowsToHeal.push({ id: 'users', data: DEFAULT_USERS, updated_at: new Date().toISOString() });
           needsDbHeal = true;
@@ -2808,6 +2769,7 @@ export default async function handler(req: any, res: any) {
           supabase.from('tc_collections').upsert(rowsToHeal, { onConflict: 'id' }).catch((e: any) => console.warn('Auto-heal upsert error:', e?.message));
         }
 
+        scrubDb(db, String(session.roleId || '').toLowerCase());
         const keys = Object.keys(db);
         if (keys.length > 0) {
           return res.status(200).json({
@@ -2824,10 +2786,12 @@ export default async function handler(req: any, res: any) {
       lastError = err.message;
     }
 
+    const fallback = { ...DEFAULT_PAYLOAD };
+    scrubDb(fallback, String(session.roleId || '').toLowerCase());
     return res.status(200).json({
       success: true,
-      data: DEFAULT_PAYLOAD,
-      db: DEFAULT_PAYLOAD,
+      data: fallback,
+      db: fallback,
       source: 'fallback',
       supabaseError: lastError
     });
@@ -2838,6 +2802,12 @@ export default async function handler(req: any, res: any) {
     if (typeof body === 'string') {
       try { body = JSON.parse(body); } catch (e) {}
     }
+    const roleLc = String(session.roleId || '').toLowerCase();
+    const isAdminRole = roleLc === 'owner' || roleLc === 'admin';
+    const blocked = (c: any) => PROTECTED_WRITE.has(String(c)) || (ADMIN_ONLY_COLLECTIONS.has(String(c)) && !isAdminRole);
+    for (const k of Object.keys(body)) { if (blocked(k)) delete body[k]; }
+    if (body.collection && blocked(body.collection)) return res.status(403).json({ success: false, error: 'Forbidden collection' });
+    if (body.updateCollectionItem?.collection && blocked(body.updateCollectionItem.collection)) return res.status(403).json({ success: false, error: 'Forbidden collection' });
     try {
       if (supabase) {
         const nowIso = new Date().toISOString();

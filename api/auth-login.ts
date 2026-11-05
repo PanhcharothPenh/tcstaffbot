@@ -1,355 +1,94 @@
-import crypto from 'crypto';
-import { createClient } from '@supabase/supabase-js';
+import {
+  applySecurityHeaders, limit, verifyPassword, hashPassword, createMfaToken, generateOtp, issueSession,
+  sanitizeUser, ADMIN_ROLES
+} from './_lib/security';
+import { loadUsers, saveUsers, chatIdForUser, sendTelegram, parseBody } from './_lib/users-store';
 
-const DEFAULT_USERS: any[] = [
-  {
-    id: 'usr_root',
-    username: 'root',
-    email: 'root@p2bkh.tech',
-    fullName: 'Root (Executive Owner)',
-    role: 'Owner',
-    roleId: 'owner',
-    status: 'Active',
-    assignedBranchIds: ['b1', 'b2'],
-    telegramUsername: '@root',
-    telegramChatId: '',
-    phone: '',
-    password: '',
-    twoFactorMethod: 'telegram'
-  },
-  {
-    id: 'usr_penh',
-    username: 'penh',
-    email: 'penh@p2bkh.tech',
-    fullName: 'Penh (Owner)',
-    role: 'Owner',
-    roleId: 'owner',
-    status: 'Active',
-    assignedBranchIds: ['b1', 'b2'],
-    telegramUsername: '@mrknowitall56',
-    telegramChatId: '508412077',
-    phone: '',
-    password: '',
-    twoFactorMethod: 'telegram'
-  },
-  {
-    id: 'usr_miller',
-    username: 'miller',
-    email: 'miller@p2bkh.tech',
-    fullName: 'Miller (Owner)',
-    role: 'Owner',
-    roleId: 'owner',
-    status: 'Active',
-    assignedBranchIds: ['b1', 'b2'],
-    telegramUsername: '@millerppc',
-    telegramChatId: '7818150707',
-    phone: '',
-    password: '',
-    twoFactorMethod: 'telegram'
-  },
-  {
-    id: 'usr_theary',
-    username: 'theary',
-    email: 'theary@p2bkh.tech',
-    fullName: 'Tha Theary (Owner)',
-    role: 'Owner',
-    roleId: 'owner',
-    status: 'Active',
-    assignedBranchIds: ['b1', 'b2'],
-    telegramUsername: '@theary5686',
-    telegramChatId: '719054686',
-    phone: '',
-    password: '',
-    twoFactorMethod: 'telegram'
-  }
-];
+// Constant-time-ish decoy so unknown users cost the same as wrong passwords.
+let decoy: string | null = null;
+const decoyHash = () => (decoy ||= hashPassword('decoy-' + Math.random()));
 
-function getSupabase() {
-  const url = (process.env.SUPABASE_URL || '').replace(/['"]/g, '').trim();
-  const key = (process.env.SUPABASE_ANON_KEY || '').replace(/['"]/g, '').trim();
-  return (url && key) ? createClient(url, key) : null;
-}
-
-function createSignedMfaToken(userId: string, code: string, username: string): string {
-  const payload = { userId, username, code, expiresAt: Date.now() + 15 * 60 * 1000 };
-  const payloadStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const secret = process.env.JWT_SECRET || 'tc_staff_management_jwt_sec_2026';
-  const sig = crypto.createHmac('sha256', secret).update(payloadStr).digest('base64url');
-  return 'mfa_' + payloadStr + '.' + sig;
-}
-
-function createSessionToken(user: any): string {
-  const payload = {
-    userId: user.id || 'usr_owner',
-    username: user.username || 'roth',
-    role: user.role || 'Staff',
-    roleId: user.roleId || 'staff',
-    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
-  };
-  const payloadStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const secret = process.env.JWT_SECRET || 'tc_staff_management_jwt_sec_2026';
-  const sig = crypto.createHmac('sha256', secret).update(payloadStr).digest('base64url');
-  return `tc_${payloadStr}.${sig}`;
-}
+const GENERIC_FAIL = 'ឈ្មោះគណនី ឬលេខសម្ងាត់មិនត្រឹមត្រូវ (Invalid username or password)';
 
 export default async function handler(req: any, res: any) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
+  applySecurityHeaders(req, res, 'POST, OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
   try {
-    let body = req.body;
-    if (typeof body === 'string') {
-      try { body = JSON.parse(body); } catch (e) {}
-    }
-    const { usernameOrEmail, password } = body || {};
-    const identifier = String(usernameOrEmail || '').trim().toLowerCase();
-    const inputPass = String(password || '').trim();
+    const body = parseBody(req);
+    const identifier = String(body.usernameOrEmail || '').trim().toLowerCase().slice(0, 120);
+    const inputPass = String(body.password || '').slice(0, 256);
 
     if (!identifier || !inputPass) {
-      return res.status(400).json({ error: 'សូមបញ្ចូលឈ្មោះគណនី និងលេខសម្ងាត់ (Username and password are required)' });
+      return res.status(400).json({ error: 'Username and password are required' });
     }
 
-    // Load registered users from Supabase Cloud Database
-    const supabase = getSupabase();
-    let users = DEFAULT_USERS;
-    if (supabase) {
-      try {
-        let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
-        const parsed = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
-        if (parsed.length > 0) users = parsed;
-      } catch (e) {}
-    }
+    // Per-IP and per-account throttling
+    if (!limit(req, res, 'login-ip', 20, 15 * 60_000)) return;
+    if (!limit(req, res, 'login-acct', 5, 15 * 60_000, identifier)) return;
+
+    let users: any[];
+    try { users = await loadUsers(); } catch { return res.status(503).json({ error: 'Service temporarily unavailable' }); }
 
     const cleanId = identifier.replace('@p2bkh.tech', '').trim();
-    let matchedUser = users.find(u => {
-      const uName = (u.username || '').toLowerCase().trim();
-      const uEmail = (u.email || '').toLowerCase().trim();
-      const uFull = (u.fullName || '').toLowerCase().trim();
-      const uTg = (u.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
-      const uPhone = (u.phone || '').replace(/\D/g, '');
-      const cleanPhone = cleanId.replace(/\D/g, '');
+    // Exact match on username or email only.
+    const user = users.find(u =>
+      String(u.username || '').toLowerCase().trim() === cleanId ||
+      String(u.email || '').toLowerCase().trim() === identifier
+    );
 
-      return uName === cleanId || 
-             uEmail === identifier || 
-             uEmail === cleanId ||
-             uFull === cleanId ||
-             (uTg && uTg === cleanId.replace(/^@/, '')) ||
-             (uPhone && cleanPhone && uPhone === cleanPhone);
-    });
-
-    if (!matchedUser && (cleanId === 'root' || cleanId === 'roth' || cleanId === 'owner')) {
-      matchedUser = DEFAULT_USERS[0];
+    const stored = String(user?.password || '');
+    const check = verifyPassword(inputPass, stored || '');
+    if (!stored) verifyPassword(inputPass, decoyHash()); // equalise timing
+    if (!user || !stored || !check.ok) {
+      return res.status(401).json({ error: GENERIC_FAIL });
     }
-
-    if (!matchedUser) {
-      return res.status(401).json({ error: 'រកមិនឃើញឈ្មោះគណនីនេះឡើយ (Account not found. Please check your username)' });
-    }
-
-    // Password validation (if user has password configured)
-    if (matchedUser.password && matchedUser.password !== inputPass && inputPass !== 'p2b@2026' && inputPass !== 'p2b2026') {
-      return res.status(401).json({ error: 'លេខសម្ងាត់មិនត្រឹមត្រូវឡើយ (Incorrect password)' });
-    }
-
-    if (matchedUser.status === 'Locked') {
+    if (user.status === 'Locked' || user.status === 'Inactive') {
       return res.status(403).json({ error: 'គណនីនេះត្រូវបានចាក់សោ (Account is locked. Please contact owner)' });
     }
 
-    const userId = matchedUser.id;
-    const cleanUsername = matchedUser.username || cleanId;
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const mfaToken = createSignedMfaToken(userId, otpCode, cleanUsername);
-
-    // Unified Bot Token resolution - strictly matches telegram-webhook.ts
-    const botToken = (
-      process.env.TELEGRAM_BOT_TOKEN_COFFEE ||
-      process.env.TELEGRAM_BOT_TOKEN ||
-      process.env.TELEGRAM_BOT_TOKEN_CODE ||
-      process.env.BOT_TOKEN ||
-      process.env.TELEGRAM_BOT_TOKEN_ATTENDANCE ||
-      process.env.TELEGRAM_BOT_TOKEN_VENG_SRENG ||
-      process.env.TELEGRAM_BOT_TOKEN_CHOMKA_DOUNG ||
-      ''
-    ).trim();
-
-    // Primary owner check: root, roth, usr_root, or usr_owner
-    const isPrimaryOwner = cleanUsername === 'root' || cleanUsername === 'roth' || matchedUser.id === 'usr_root' || matchedUser.id === 'usr_owner';
-    
-    // Check if user has numeric Telegram Chat ID or handle
-    const userTgChat = String(matchedUser.telegramChatId || (matchedUser as any)?.telegramId || '').trim();
-    const userTgHandle = String(matchedUser.telegramUsername || '').replace(/^@/, '').trim().toLowerCase();
-
-    let resolvedChatId: string | null = null;
-    let dispatchSuccess = false;
-    let tgErrorDetail: string | null = null;
-
-    // 1. Check user direct Chat ID (numeric)
-    if (/^-?\d+$/.test(userTgChat)) {
-      resolvedChatId = userTgChat;
-    }
-
-    // 2. Query Supabase users table specifically for this user's numeric telegramChatId
-    if (!resolvedChatId && supabase) {
+    // Transparently upgrade legacy plaintext passwords to bcrypt.
+    if (check.needsUpgrade) {
       try {
-        let { data: uRow } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
-        const uArr = Array.isArray(uRow?.data) ? uRow.data : [];
-        const found = uArr.find((u: any) => u.id === userId || (u.username && u.username.toLowerCase() === cleanUsername.toLowerCase()));
-        if (found && /^-?\d+$/.test(String(found.telegramChatId || ''))) {
-          resolvedChatId = String(found.telegramChatId);
+        const idx = users.findIndex(u => u.id === user.id);
+        if (idx !== -1) {
+          users[idx] = { ...users[idx], password: hashPassword(inputPass), passwordChangedAt: new Date().toISOString() };
+          await saveUsers(users);
         }
-      } catch (e) {}
+      } catch { /* non-fatal */ }
     }
 
-    // 3. Query Supabase staff table for matching staff record
-    if (!resolvedChatId && supabase) {
-      try {
-        let { data: staffColl } = await supabase.from('tc_collections').select('data').eq('id', 'staff').maybeSingle();
-        const sArr = Array.isArray(staffColl?.data) ? staffColl.data : [];
-        const matchedSt = sArr.find((s: any) => {
-          const sUser = (s.telegramUsername || '').replace(/^@/, '').toLowerCase().trim();
-          const sId = String(s.telegramId || '').trim();
-          return /^-?\d+$/.test(sId) && (
-            (userTgHandle && sUser === userTgHandle) || 
-            (s.fullName && s.fullName.toLowerCase() === (matchedUser.fullName || cleanUsername).toLowerCase())
-          );
-        });
-        if (matchedSt && matchedSt.telegramId) {
-          resolvedChatId = String(matchedSt.telegramId);
-        }
-      } catch (e) {}
+    const roleId = String(user.roleId || user.role || 'staff').toLowerCase();
+    const chatId = chatIdForUser(user);
+    const canSkip2fa = user.twoFactorMethod === 'disabled' && !ADMIN_ROLES.includes(roleId);
+
+    if (canSkip2fa) {
+      const tokens = issueSession(user);
+      return res.status(200).json({ success: true, require2fa: false, ...tokens, user: sanitizeUser(user) });
     }
 
-    // 4. Query telegram_chat_registry for matching user's handle, username, or full name
-    if (!resolvedChatId && supabase) {
-      try {
-        let { data: regRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegram_chat_registry').maybeSingle();
-        const rArr = Array.isArray(regRow?.data) ? regRow.data : [];
-        const matchEntry = rArr.find((r: any) => {
-          const rUser = String(r.username || '').replace(/^@/, '').toLowerCase().trim();
-          const rFirst = String(r.firstName || '').toLowerCase().trim();
-          return (userTgHandle && rUser === userTgHandle) || 
-                 (rUser && rUser === cleanUsername.toLowerCase()) ||
-                 (rFirst && rFirst === cleanUsername.toLowerCase());
-        });
-        if (matchEntry && /^-?\d+$/.test(String(matchEntry.chatId || matchEntry.telegramId))) {
-          resolvedChatId = String(matchEntry.chatId || matchEntry.telegramId);
-        }
-      } catch (e) {}
+    const otp = generateOtp();
+    const mfaToken = createMfaToken(String(user.id), String(user.username), otp, 'login');
+
+    let dispatched = false;
+    if (chatId) {
+      const sent = await sendTelegram(chatId, `លេខកូដផ្ទៀងផ្ទាត់សុវត្ថិភាពរបស់អ្នកគឺ៖ <code>${otp}</code>\n(ផុតកំណត់ក្នុង ៥ នាទី)`);
+      dispatched = sent.ok;
     }
 
-    // 4b. Query telegramRecentUsers for matching recent Telegram user
-    if (!resolvedChatId && supabase) {
-      try {
-        let { data: recentRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegramRecentUsers').maybeSingle();
-        const recent = recentRow?.data;
-        if (recent && recent.chatId && /^-?\d+$/.test(String(recent.chatId))) {
-          const rUser = String(recent.username || '').replace(/^@/, '').toLowerCase().trim();
-          if ((userTgHandle && rUser === userTgHandle) || (rUser && rUser === cleanUsername.toLowerCase())) {
-            resolvedChatId = String(recent.chatId);
-          }
-        }
-      } catch (e) {}
-    }
-
-    // 5. Fall back to Owner chat ID ONLY IF this is Roth (Primary System Owner)
-    if (!resolvedChatId && isPrimaryOwner) {
-      if (supabase) {
-        try {
-          let { data: cfgRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
-          const cfg = cfgRow?.data;
-          const ownerCid = cfg?.chatIds?.owner || cfg?.adminChatId || cfg?.lastPrivateChatId || cfg?.lastChatId;
-          if (ownerCid && /^-?\d+$/.test(String(ownerCid))) {
-            resolvedChatId = String(ownerCid);
-          }
-        } catch (e) {}
-      }
-      if (!resolvedChatId && process.env.TELEGRAM_CHAT_ID && /^-?\d+$/.test(process.env.TELEGRAM_CHAT_ID)) {
-        resolvedChatId = process.env.TELEGRAM_CHAT_ID;
-      }
-    }
-
-    const userRole = matchedUser.role || (matchedUser.roleId === 'owner' ? 'Owner' : 'Staff');
-    const userRoleId = matchedUser.roleId || userRole.toLowerCase();
-    const userPayload = {
-      id: matchedUser?.id || userId,
-      username: cleanUsername,
-      email: matchedUser?.email || `${cleanUsername}@p2bkh.tech`,
-      fullName: matchedUser?.fullName || cleanUsername,
-      role: userRole,
-      roleId: userRoleId,
-      status: matchedUser?.status || 'Active',
-      assignedBranchIds: matchedUser?.assignedBranchIds || [],
-      telegramUsername: matchedUser?.telegramUsername || (userTgHandle ? `@${userTgHandle}` : ''),
-      telegramChatId: resolvedChatId || matchedUser?.telegramChatId || '',
-      twoFactorMethod: matchedUser?.twoFactorMethod || 'telegram'
-    };
-
-    // STRICT 2FA ENFORCEMENT:
-    // Only bypass 2FA if the user account is explicitly set to 'disabled' AND has no telegram configured
-    const isExplicitlyDisabled = matchedUser.twoFactorMethod === 'disabled' && !matchedUser.telegramUsername && !matchedUser.telegramChatId;
-
-    if (isExplicitlyDisabled) {
-      const accessToken = createSessionToken(userPayload);
-      const refreshToken = createSessionToken(userPayload);
-      return res.status(200).json({
-        success: true,
-        require2fa: false,
-        accessToken,
-        refreshToken,
-        user: userPayload
-      });
-    }
-
-    // 7. Dispatch 2FA PIN via Telegram Bot
-    if (botToken && resolvedChatId) {
-      const text = `លេខកូដផ្ទៀងផ្ទាត់សុវត្ថិភាពរបស់អ្នកគឺ៖ <code>${otpCode}</code>`;
-
-      try {
-        const sendRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            chat_id: resolvedChatId, 
-            text, 
-            parse_mode: 'HTML' 
-          })
-        });
-        const sendData = await sendRes.json() as any;
-        if (sendData.ok) {
-          dispatchSuccess = true;
-        } else {
-          console.error('[2FA] Telegram API error:', sendData);
-          tgErrorDetail = sendData.description || 'Telegram API Error';
-        }
-      } catch (tgErr: any) {
-        console.error('[2FA] Telegram fetch exception:', tgErr);
-        tgErrorDetail = tgErr.message || 'Network exception';
-      }
-    }
-
-    // Response with 2FA requirement
     return res.status(200).json({
       require2fa: true,
       mfaToken,
       method: 'telegram',
-      username: cleanUsername,
-      user: userPayload,
-      dispatched: dispatchSuccess,
-      telegramNotice: dispatchSuccess 
-        ? `លេខកូដសុវត្ថិភាព 2FA ត្រូវបានផ្ញើទៅកាន់ Telegram (@TCStaffBot) របស់អ្នករួចរាល់ហើយ។`
-        : (resolvedChatId 
-            ? `មិនអាចផ្ញើលេខកូដទៅ Telegram បានទេ (${tgErrorDetail || 'Unknown Error'})។ សូមចុច /start លើ Bot @TCStaffBot ក្នុង Telegram។`
-            : `រកមិនឃើញគណនី Telegram របស់អ្នកឡើយ។ សូមបើក Telegram រួចចុច /start លើ Bot @TCStaffBot ជាមុនសិន។`)
+      username: String(user.username),
+      dispatched,
+      telegramNotice: dispatched
+        ? 'លេខកូដសុវត្ថិភាព 2FA ត្រូវបានផ្ញើទៅកាន់ Telegram (@TCStaffBot) របស់អ្នករួចរាល់ហើយ។'
+        : 'មិនអាចផ្ញើលេខកូដទៅ Telegram បានទេ។ សូមបើក Telegram រួចចុច /start លើ Bot @TCStaffBot ជាមុនសិន។'
     });
   } catch (err: any) {
-    return res.status(400).json({ error: err?.message || 'Login failed' });
+    console.error('[auth-login]', err?.message);
+    return res.status(500).json({ error: 'Login failed' });
   }
 }

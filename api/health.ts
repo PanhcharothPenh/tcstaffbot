@@ -1,16 +1,7 @@
+import { applySecurityHeaders } from './_lib/security';
+
 export default async function handler(req: any, res: any) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  return res.status(200).json({
-    status: 'healthy',
-    engine: 'Vercel Serverless Function',
-    time: new Date().toISOString(),
-    supabaseConfigured: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY)
-  });
+  applySecurityHeaders(req, res, 'GET, OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  return res.status(200).json({ status: 'healthy' });
 }

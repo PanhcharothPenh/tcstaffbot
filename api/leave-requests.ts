@@ -1,3 +1,4 @@
+import { applySecurityHeaders, requireAuth, ADMIN_ROLES, MANAGER_ROLES } from './_lib/security';
 import { createClient } from '@supabase/supabase-js';
 
 function getSupabase() {
@@ -17,13 +18,14 @@ function resolveBotToken(): string {
 }
 
 export default async function handler(req: any, res: any) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  applySecurityHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(204).end();
   }
+
+  const session = requireAuth(req, res, req.method === 'GET' || req.method === 'POST' ? undefined : MANAGER_ROLES);
+  if (!session) return;
 
   const supabase = getSupabase();
 

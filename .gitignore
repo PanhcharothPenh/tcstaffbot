@@ -42,3 +42,6 @@ dist-ssr
 *.sqlite3
 *.csv
 *.tsv
+
+# keep the template
+!.env.example

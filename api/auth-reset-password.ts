@@ -1,97 +1,41 @@
-import crypto from 'crypto';
-import { createClient } from '@supabase/supabase-js';
-
-function getSupabase() {
-  const url = (process.env.SUPABASE_URL || '').replace(/['"]/g, '').trim();
-  const key = (process.env.SUPABASE_ANON_KEY || '').replace(/['"]/g, '').trim();
-  return (url && key) ? createClient(url, key) : null;
-}
-
-function verifySignedMfaToken(mfaToken: string): any {
-  if (!mfaToken || typeof mfaToken !== 'string' || !mfaToken.startsWith('mfa_')) return null;
-  const raw = mfaToken.replace(/^mfa_/, '');
-  const dotIdx = raw.indexOf('.');
-  if (dotIdx === -1) return null;
-  const payloadStr = raw.substring(0, dotIdx);
-  const sig = raw.substring(dotIdx + 1);
-  const secret = process.env.JWT_SECRET || 'p2b_laundry_sec_2026';
-  const expectedSig = crypto.createHmac('sha256', secret).update(payloadStr).digest('base64url');
-  if (sig !== expectedSig) return null;
-  try {
-    return JSON.parse(Buffer.from(payloadStr, 'base64url').toString('utf8'));
-  } catch (e) {
-    return null;
-  }
-}
+import { applySecurityHeaders, limit, checkMfaToken, hashPassword, validatePasswordStrength } from './_lib/security';
+import { loadUsers, saveUsers, parseBody } from './_lib/users-store';
 
 export default async function handler(req: any, res: any) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  applySecurityHeaders(req, res, 'POST, OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  const body = parseBody(req);
+  const code = String(body.code || body.token || '').trim();
+  const mfaToken = String(body.mfaToken || '');
+  const newPassword = String(body.newPassword || '');
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
+  if (!code || !mfaToken || !newPassword) {
+    return res.status(400).json({ error: 'PIN code, token and new password are required' });
   }
+  if (!limit(req, res, 'reset-ip', 10, 15 * 60_000)) return;
+  if (!limit(req, res, 'reset-tok', 5, 15 * 60_000, mfaToken.slice(-24))) return;
+
+  const weak = validatePasswordStrength(newPassword);
+  if (weak) return res.status(400).json({ error: weak });
+
+  const claims = checkMfaToken(mfaToken, code, 'reset');
+  if (!claims) return res.status(400).json({ error: 'Invalid or expired reset PIN code' });
 
   try {
-    const { token, code, mfaToken, newPassword } = req.body || {};
-    const inputCode = String(code || token || '').trim();
-
-    if (!inputCode || !newPassword) {
-      return res.status(400).json({ error: 'សូមបញ្ចូលលេខកូដ PIN និងលេខសម្ងាត់ថ្មី (PIN code and new password are required)' });
-    }
-
-    if (String(newPassword).length < 4) {
-      return res.status(400).json({ error: 'លេខសម្ងាត់ថ្មីត្រូវមានយ៉ាងហោចណាស់ ៤ ខ្ទង់ (Password must be at least 4 characters)' });
-    }
-
-    let isValid = false;
-    let targetUserId = '';
-
-    if (mfaToken) {
-      const record = verifySignedMfaToken(mfaToken);
-      if (record && (record.code === inputCode || inputCode === '123456')) {
-        if (Date.now() <= (record.expiresAt || Infinity)) {
-          isValid = true;
-          targetUserId = record.userId;
-        }
-      }
-    }
-
-    if (!isValid && /^\d{6}$/.test(inputCode)) {
-      isValid = true;
-    }
-
-    if (!isValid) {
-      return res.status(400).json({ error: 'លេខកូដ PIN មិនត្រឹមត្រូវឡើយ (Invalid or expired reset PIN code)' });
-    }
-
-    const supabase = getSupabase();
-    if (supabase && targetUserId) {
-      try {
-        let { data } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
-        const users = (data && Array.isArray(data.data)) ? data.data : [];
-        const idx = users.findIndex((u: any) => u.id === targetUserId);
-        if (idx !== -1) {
-          users[idx].passwordChangedAt = new Date().toISOString();
-          const item = { id: 'users', data: users, updated_at: new Date().toISOString() };
-          const { error } = await supabase.from('tc_collections').upsert(item, { onConflict: 'id' });
-          if (error) {
-            await supabase.from('tc_collections').update({ data: users, updated_at: item.updated_at }).eq('id', 'users');
-          }
-        }
-      } catch (e) {}
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: 'លេខសម្ងាត់ថ្មីត្រូវបានផ្លាស់ប្តូរដោយជោគជ័យ (Password successfully reset)'
-    });
-  } catch (err: any) {
-    return res.status(400).json({ error: err.message || 'Failed to reset password' });
+    const users = await loadUsers();
+    const idx = users.findIndex(u => u.id === claims.sub);
+    if (idx === -1) return res.status(400).json({ error: 'Invalid or expired reset PIN code' });
+    users[idx] = {
+      ...users[idx],
+      password: hashPassword(newPassword),
+      passwordChangedAt: new Date().toISOString()
+    };
+    await saveUsers(users);
+    return res.status(200).json({ success: true, message: 'Password successfully reset' });
+  } catch (e: any) {
+    console.error('[auth-reset-password]', e?.message);
+    return res.status(500).json({ error: 'Failed to reset password' });
   }
 }

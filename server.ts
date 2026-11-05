@@ -5,6 +5,33 @@ import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { applySecurityHeaders, verifyToken, getJwtSecret } from './api/_lib/security';
+import authLogin from './api/auth-login';
+import authVerify2fa from './api/auth-verify-2fa';
+import authMe from './api/auth-me';
+import authLogout from './api/auth-logout';
+import authRefresh from './api/auth-refresh-token';
+import authForgot from './api/auth-forgot-password';
+import authReset from './api/auth-reset-password';
+import usersHandler from './api/users';
+import rolesHandler from './api/roles';
+import syncDataHandler from './api/sync-data';
+import restoreDataHandler from './api/restore-data';
+import leaveHandler from './api/leave-requests';
+import loginHistoryHandler from './api/login-history';
+import tgConfigHandler from './api/telegram-config';
+import tgLogsHandler from './api/telegram-logs';
+import tgRecipientsHandler from './api/telegram-recipients';
+import tgSchedulesHandler from './api/telegram-schedules';
+import tgTemplatesHandler from './api/telegram-templates';
+import tgTestHandler from './api/telegram-test';
+import tgTriggerHandler from './api/telegram-trigger-instant';
+import tgAutodetectHandler from './api/telegram-autodetect';
+import tgSendAttendanceHandler from './api/telegram-send-attendance';
+import tgWebhookHandler from './api/telegram-webhook';
+import tgSend2faHandler from './api/telegram-send-2fa';
+import healthHandler from './api/health';
+import indexHandler from './api/index';
 import { 
   getTelegramConfig, 
   saveTelegramConfig, 
@@ -19,6 +46,7 @@ import {
   compareFaceVectors,
   resolveTelegramBotToken
 } from './telegramService';
+const OWNER_CHAT_ID = (process.env.OWNER_TELEGRAM_CHAT_ID || '').trim() || '__unset__';
 
 // Types mirror from types.ts
 interface SyncPayload {
@@ -71,7 +99,9 @@ function getClientIp(req: any): string {
   return getClientIp(req);
 }
 
-app.use(cors());
+// Same-origin by default; extra origins via ALLOWED_ORIGINS (handled in applySecurityHeaders).
+app.disable('x-powered-by');
+app.use((req, res, next) => { applySecurityHeaders(req, res); next(); });
 
 // Ensure Android WebView and iOS Safari grant full Camera and Geolocation access inside Telegram Mini App
 app.use((_req, res, next) => {
@@ -110,16 +140,45 @@ app.use((req, res, next) => {
   });
   next();
 });
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '15mb' }));
 
-app.get('/api/download-project', (req, res) => {
-  const filePath = path.join(process.cwd(), 'project.tar.gz');
-  if (fs.existsSync(filePath)) {
-    res.download(filePath, 'TC-Staff-Management-project.tar.gz');
-  } else {
-    res.status(404).send('Project archive not found. Please run tar manually or contact support.');
-  }
-});
+// ─── SECURE HANDLERS (shared with Vercel /api functions) take precedence over legacy routes ───
+const mount = (patterns: RegExp[], h: (req: any, res: any) => any) =>
+  app.all(patterns, (req, res) => Promise.resolve(h(req, res)).catch(err => {
+    console.error('[handler]', err?.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
+  }));
+mount([/^\/api\/auth\/login\/?$/, /^\/api\/auth-login\/?$/], authLogin);
+mount([/^\/api\/auth\/verify-2fa\/?$/, /^\/api\/auth-verify-2fa\/?$/], authVerify2fa);
+mount([/^\/api\/auth\/me\/?$/, /^\/api\/auth-me\/?$/], authMe);
+mount([/^\/api\/auth\/logout\/?$/, /^\/api\/auth-logout\/?$/], authLogout);
+mount([/^\/api\/auth\/refresh-token\/?$/, /^\/api\/auth-refresh-token\/?$/], authRefresh);
+mount([/^\/api\/auth\/forgot-password\/?$/, /^\/api\/auth-forgot-password\/?$/], authForgot);
+mount([/^\/api\/auth\/reset-password\/?$/, /^\/api\/auth-reset-password\/?$/], authReset);
+mount([/^\/api\/users(\/.*)?$/], usersHandler);
+mount([/^\/api\/roles(\/.*)?$/, /^\/api\/permissions\/?$/], rolesHandler);
+mount([/^\/api\/sync-data\/?$/], syncDataHandler);
+mount([/^\/api\/restore-data\/?$/], restoreDataHandler);
+mount([/^\/api\/leave-requests(\/.*)?$/], leaveHandler);
+mount([/^\/api\/login-history\/?$/], loginHistoryHandler);
+mount([/^\/api\/telegram-config\/?$/], tgConfigHandler);
+mount([/^\/api\/telegram-logs\/?$/], tgLogsHandler);
+mount([/^\/api\/telegram-recipients(\/.*)?$/], tgRecipientsHandler);
+mount([/^\/api\/telegram-schedules(\/.*)?$/], tgSchedulesHandler);
+mount([/^\/api\/telegram-templates(\/.*)?$/], tgTemplatesHandler);
+mount([/^\/api\/telegram-test\/?$/], tgTestHandler);
+mount([/^\/api\/telegram-trigger-instant\/?$/], tgTriggerHandler);
+mount([/^\/api\/telegram-autodetect\/?$/], tgAutodetectHandler);
+mount([/^\/api\/telegram-send-attendance\/?$/], tgSendAttendanceHandler);
+mount([/^\/api\/telegram-webhook\/?$/, /^\/api\/telegram\/webhook\/?$/], tgWebhookHandler);
+mount([/^\/api\/telegram-send-2fa\/?$/], tgSend2faHandler);
+mount([/^\/api\/health\/?$/], healthHandler);
+mount([
+  /^\/api\/attendance(\/.*)?$/, /^\/api\/admin\/attendance(\/.*)?$/, /^\/api\/face(\/.*)?$/,
+  /^\/api\/telegram\/(link|unlink|validate-init-data|send-attendance-report)\/?$/, /^\/api\/resolve-maps-url\/?$/
+], indexHandler);
+
+
 
 const SERVER_DB_PATH = path.join(process.cwd(), 'server-db.json');
 
@@ -362,8 +421,8 @@ if (!localDb.users || localDb.users.length === 0) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       forcePasswordChange: false,
-      telegramUsername: '@mrknowitall56',
-      telegramChatId: '508412077',
+      telegramUsername: '',
+      telegramChatId: '',
       twoFactorMethod: 'telegram',
       assignedBranchIds: ['b1', 'b2']
     },
@@ -383,8 +442,8 @@ if (!localDb.users || localDb.users.length === 0) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       forcePasswordChange: false,
-      telegramUsername: '@millerppc',
-      telegramChatId: '7818150707',
+      telegramUsername: '',
+      telegramChatId: '',
       twoFactorMethod: 'telegram',
       assignedBranchIds: ['b1', 'b2']
     },
@@ -404,8 +463,8 @@ if (!localDb.users || localDb.users.length === 0) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       forcePasswordChange: false,
-      telegramUsername: '@theary5686',
-      telegramChatId: '719054686',
+      telegramUsername: '',
+      telegramChatId: '',
       twoFactorMethod: 'telegram',
       assignedBranchIds: ['b1', 'b2']
     }
@@ -601,32 +660,19 @@ function saveLocalDb() {
 }
 
 // JWT Configurations
-const JWT_SECRET = 'CLEAN24_JWT_SECRET_SECURED_KEY_STRICT_2026';
-const JWT_REFRESH_SECRET = 'CLEAN24_JWT_REFRESH_SECRET_KEY_SECURE_2026';
+// JWT secrets come from JWT_SECRET (see api/_lib/security.ts). No hardcoded fallbacks.
 
-function generateAccessToken(user: any) {
-  const roleName = localDb.roles?.find(r => r.id === user.roleId)?.name || 'Staff';
-  return jwt.sign(
-    { 
-      id: user.id, 
-      username: user.username, 
-      email: user.email,
-      fullName: user.fullName,
-      role: roleName, 
-      roleId: user.roleId,
-      assignedBranchIds: user.assignedBranchIds || [] 
-    },
-    JWT_SECRET,
-    { expiresIn: '30m' } // 30 minutes short-lived token
-  );
+import { issueSession } from './api/_lib/security';
+function legacyClaims(tok: string, typ: 'access' | 'refresh'): any {
+  const c = verifyToken(tok, typ);
+  if (!c) throw new Error('invalid token');
+  return { ...c, id: c.sub };
 }
-
+function generateAccessToken(user: any) {
+  return issueSession({ ...user, role: user.role || localDb.roles?.find(r => r.id === user.roleId)?.name || 'Staff' }).accessToken;
+}
 function generateRefreshToken(user: any) {
-  return jwt.sign(
-    { id: user.id, username: user.username },
-    JWT_REFRESH_SECRET,
-    { expiresIn: '7d' } // 7-day refresh rotation
-  );
+  return issueSession({ ...user, role: user.role || 'Staff' }).refreshToken;
 }
 
 // Seeding Default Roles, Permissions and Users
@@ -789,50 +835,6 @@ app.get('/api/health', (req, res) => {
 });
 
 // Supabase Connection Diagnostic Debug Route
-app.get('/api/debug-supabase', async (req, res) => {
-  let isSupabaseActive = !!supabase;
-  let testSelectResult = null;
-  let testSelectError = null;
-  let testWriteResult = null;
-  let testWriteError = null;
-
-  if (supabase) {
-    try {
-      // 1. Test Select
-      const { data, error } = await supabase.from('tc_collections').select('*');
-      if (error) {
-        testSelectError = error.message || error;
-      } else {
-        testSelectResult = data ? data.map(d => ({ id: d.id, updated_at: d.updated_at })) : [];
-      }
-
-      // 2. Test Upsert Write
-      const { data: wData, error: wError } = await supabase
-        .from('tc_collections')
-        .upsert({ id: 'test_sync_write', data: { time: new Date().toISOString(), status: 'success' } })
-        .select();
-
-      if (wError) {
-        testWriteError = wError.message || wError;
-      } else {
-        testWriteResult = wData;
-      }
-    } catch (err: any) {
-      testSelectError = err.message;
-    }
-  }
-  res.json({
-    isSupabaseActive,
-    envUrl: process.env.SUPABASE_URL ? (process.env.SUPABASE_URL.substring(0, 15) + '...') : 'not set',
-    envKey: process.env.SUPABASE_ANON_KEY ? (process.env.SUPABASE_ANON_KEY.substring(0, 15) + '...') : 'not set',
-    testSelectResult,
-    testSelectError,
-    testWriteResult,
-    testWriteError,
-    localDbKeys: Object.keys(localDb),
-    usersCount: localDb.users ? localDb.users.length : 0
-  });
-});
 
 // Helper to resolve the robust application origin behind proxy hosts
 const getAppOrigin = (req: any) => {
@@ -993,7 +995,7 @@ app.get(['/auth/telegram/callback', '/auth/telegram/callback/'], async (req, res
       username,
       email: `${username}@telegram.tcstaff.local`,
       phone: '',
-      passwordHash: bcrypt.hashSync('TelegramAuthSecuredPass@123', salt),
+      passwordHash: bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), salt),
       roleId: 'staff',
       status: 'Inactive',
       failedLoginAttempts: 0,
@@ -1112,55 +1114,20 @@ app.get(['/auth/telegram/callback', '/auth/telegram/callback/'], async (req, res
 
 // ─── ENDPOINT SECURITY PROTECTION MIDDLEWARE (EXPRESS SECURITY CONFIG) ───────
 app.use((req, res, next) => {
-  // Allow public access to specify safe paths
+  // Public: health, auth bootstrap, Telegram entry points (secret/initData verified inside the handlers).
   const publicPaths = [
     '/api/health',
-    '/api/debug-supabase',
-    '/api/auth/login',
-    '/api/auth/refresh-token',
-    '/api/auth/forgot-password',
-    '/api/auth/reset-password',
-    '/api/auth/telegram/webapp-validate',
-    '/api/auth/telegram/request-approval',
-    '/api/telegram/webhook',
-    '/api/telegram/validate-init-data',
-    '/api/telegram/link',
-    '/api/telegram/unlink',
-    '/api/face/enroll',
-    '/api/face/verify',
-    '/api/attendance/check-in',
-    '/api/attendance/check-out',
-    '/api/attendance/today',
-    '/api/attendance/history',
-    '/api/admin/attendance',
-    '/api/sync-data',
-    '/api/softener',
-    '/api/leave-requests'
+    '/api/auth/login', '/api/auth/verify-2fa', '/api/auth/refresh-token', '/api/auth/logout',
+    '/api/auth/forgot-password', '/api/auth/reset-password',
+    '/api/telegram/webhook', '/api/telegram-webhook'
   ];
+  if (!req.path.startsWith('/api') || publicPaths.includes(req.path.replace(/\/$/, ''))) return next();
 
-  // If path is not starting with /api, or is explicitly listed in public paths, pass through
-  if (
-    !req.path.startsWith('/api') || 
-    publicPaths.some(p => req.path === p || req.path.startsWith(p))
-  ) {
-    return next();
-  }
-
-  // Protect all other APIs
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Unauthorized: No token provided' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    (req as any).user = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: 'Unauthorized: Invalid or expired token' });
-  }
+  const authHeader = String(req.headers['authorization'] || '');
+  const claims = authHeader.startsWith('Bearer ') ? verifyToken(authHeader.slice(7).trim(), 'access') : null;
+  if (!claims) return res.status(401).json({ error: 'Unauthorized' });
+  (req as any).user = { ...claims, id: claims.sub };
+  next();
 });
 
 // ─── TELEGRAM WEBAPP SIGNATURE VALIDATION ────────────────────────────────────
@@ -1183,7 +1150,7 @@ app.post('/api/auth/telegram/webapp-validate', async (req, res) => {
         username: username,
         email: `${username}@telegram.tcstaff.local`,
         phone: '',
-        passwordHash: bcrypt.hashSync('TelegramAuthSecuredPass@123', salt),
+        passwordHash: bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), salt),
         roleId: mockUser.roleId || 'staff',
         status: 'Active',
         failedLoginAttempts: 0,
@@ -1302,7 +1269,7 @@ app.post('/api/auth/telegram/webapp-validate', async (req, res) => {
       username,
       email: `${username}@telegram.tcstaff.local`,
       phone: '',
-      passwordHash: bcrypt.hashSync('TelegramAuthSecuredPass@123', salt),
+      passwordHash: bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), salt),
       roleId: 'staff',
       status: 'Inactive',
       failedLoginAttempts: 0,
@@ -1544,7 +1511,7 @@ function createSignedMfaToken(userId: string, code: string, ipAddress: string, d
     remember
   };
   const payloadStr = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const secret = process.env.JWT_SECRET || 'p2b_laundry_sec_2026';
+  const secret = getJwtSecret();
   const sig = crypto.createHmac('sha256', secret).update(payloadStr).digest('base64url');
   return `mfa_${payloadStr}.${sig}`;
 }
@@ -1556,7 +1523,7 @@ function verifySignedMfaToken(mfaToken: string): any {
   if (dotIdx === -1) return null;
   const payloadStr = raw.substring(0, dotIdx);
   const sig = raw.substring(dotIdx + 1);
-  const secret = process.env.JWT_SECRET || 'p2b_laundry_sec_2026';
+  const secret = getJwtSecret();
   const expectedSig = crypto.createHmac('sha256', secret).update(payloadStr).digest('base64url');
   if (sig !== expectedSig) return null;
   try {
@@ -1738,13 +1705,11 @@ app.post('/api/auth/login', (req, res) => {
       telegramError = 'Telegram Bot token is unconfigured on server-side.';
     }
 
-    console.log(`[2FA SECURITY MONITORS] 2FA required for ${user.username}. Method: ${finalMethod} | Code: ${otpCode}`);
 
     return res.json({
       require2fa: true,
       mfaToken,
       method: finalMethod,
-      simulatedOtp: otpCode, // Provide OTP code for verification
       telegramSent,
       telegramError: telegramError || undefined
     });
@@ -2007,7 +1972,7 @@ app.post('/api/auth/refresh-token', (req, res) => {
   }
 
   try {
-    const payload = jwt.verify(refreshToken, JWT_REFRESH_SECRET) as any;
+    const payload = legacyClaims(refreshToken, 'refresh');
     const user = localDb.users!.find(u => u.id === payload.id);
     if (!user || user.status !== 'Active') {
       return res.status(401).json({ error: 'User is deactivated or missing' });
@@ -2098,7 +2063,6 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       success: true,
       message: 'Password reset PIN code sent to Telegram',
       mfaToken,
-      simulatedCode: resetCode,
       username: user.username
     });
   } catch (err: any) {
@@ -2190,7 +2154,7 @@ app.get('/api/auth/me', (req, res) => {
   if (!token) return res.status(401).json({ error: 'No auth token found' });
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as any;
+    const payload = legacyClaims(token, 'access');
     const user = localDb.users!.find(u => u.id === payload.id);
     if (!user) return res.status(404).json({ error: 'User profiles missing' });
 
@@ -5179,7 +5143,7 @@ function getAdminTelegramChatIds(): string[] {
 
   (localDb.users || []).forEach((u: any) => {
     const r = String(u.role || u.roleId || '').toLowerCase();
-    if (r === 'owner' || r === 'admin' || u.id === 'usr_owner' || u.username === 'millerppc' || u.username === 'roth') {
+    if (r === 'owner' || r === 'admin' || u.id === 'usr_owner' || u.username === '__no_such_user__' || u.username === 'roth') {
       const cId = u.telegramChatId || u.telegramId;
       if (cId) ids.add(String(cId).trim());
     }
@@ -5192,7 +5156,7 @@ function getAdminTelegramChatIds(): string[] {
     }
   });
 
-  ids.add('7818150707'); // Roth Owner fallback
+  if (OWNER_CHAT_ID !== '__unset__') ids.add(OWNER_CHAT_ID); // Roth Owner fallback
   return Array.from(ids).filter(id => /^-?\d+$/.test(id));
 }
 
@@ -5816,8 +5780,8 @@ app.post(['/api/telegram/webhook', '/api/telegram/webhook/'], async (req, res) =
 
     const cleanTgHandle = username.replace(/^@/, '').toLowerCase();
     const isClean24Owner = Boolean(
-      telegramId === '7818150707' || 
-      cleanTgHandle === 'millerppc'
+      telegramId === OWNER_CHAT_ID || 
+      cleanTgHandle === '__no_such_user__'
     );
     let matchedStaff = (localDb.staff || []).find((s: any) => 
       (s.telegramId && String(s.telegramId) === telegramId) ||
@@ -6231,8 +6195,8 @@ async function pollTelegramAttendanceBot() {
         );
 
         const isClean24Owner = Boolean(
-          telegramId === '7818150707' || 
-          cleanTgHandle === 'millerppc'
+          telegramId === OWNER_CHAT_ID || 
+          cleanTgHandle === '__no_such_user__'
         );
         const matchedUser = (localDb.users || []).find((u: any) =>
           (u.telegramId && String(u.telegramId) === telegramId) ||
@@ -6487,8 +6451,8 @@ app.post('/api/telegram/validate-init-data', (req, res) => {
     }
 
     const isOwner = Boolean(
-      cleanTgId === '7818150707' ||
-      cleanTgName === 'millerppc' ||
+      cleanTgId === OWNER_CHAT_ID ||
+      cleanTgName === '__no_such_user__' ||
       staff.role === 'Owner' || 
       staff.roleId === 'owner' ||
       (staff.position && staff.position.toLowerCase().includes('owner'))
@@ -7050,7 +7014,7 @@ app.post('/api/attendance/check-in', async (req, res) => {
     }
 
     // Owner fallback recognition
-    if (!staff && (tgId === '7818150707' || tgUsername === 'millerppc')) {
+    if (!staff && (tgId === OWNER_CHAT_ID || tgUsername === '__no_such_user__')) {
       const ownerUser = (localDb.users || []).find((u: any) => (u.role === 'Owner' || u.roleId === 'owner') && u.username !== 'root');
       if (ownerUser) {
         staff = {
@@ -7327,7 +7291,7 @@ app.post('/api/attendance/check-out', async (req, res) => {
     }
 
     // Owner fallback recognition
-    if (!staff && (tgId === '7818150707' || tgUsername === 'millerppc')) {
+    if (!staff && (tgId === OWNER_CHAT_ID || tgUsername === '__no_such_user__')) {
       const ownerUser = (localDb.users || []).find((u: any) => (u.role === 'Owner' || u.roleId === 'owner') && u.username !== 'root');
       if (ownerUser) {
         staff = {

@@ -1,4 +1,6 @@
+import { applySecurityHeaders, requireAuth, ADMIN_ROLES, verifyWebhookSecret } from './_lib/security';
 import { createClient } from '@supabase/supabase-js';
+const OWNER_CHAT_ID = (process.env.OWNER_TELEGRAM_CHAT_ID || '').trim() || '__unset__';
 
 function getSupabase() {
   const url = (process.env.SUPABASE_URL || '').replace(/['"]/g, '').trim();
@@ -212,7 +214,7 @@ async function getTargetBots(supabase?: any): Promise<Array<{ token: string; bra
 
 function getAllAdminRecipients(storedConfig: any, allUsers: any[]): Set<string> {
   const recipients = new Set<string>();
-  recipients.add('7818150707');
+  if (OWNER_CHAT_ID !== '__unset__') recipients.add(OWNER_CHAT_ID);
   if (Array.isArray(allUsers)) {
     for (const u of allUsers) {
       if (u && (u.role === 'Owner' || u.roleId === 'owner' || u.role === 'Admin') && (u.telegramChatId || u.telegramId)) {
@@ -271,12 +273,17 @@ async function sendOrReply(res: any, botToken: string, payload: any) {
 }
 
 export default async function handler(req: any, res: any) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  applySecurityHeaders(req, res, 'GET, POST, OPTIONS');
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(204).end();
+  }
+
+  // Webhook management (GET) is admin-only; Telegram updates (POST) must carry our secret token.
+  if (req.method === 'GET') {
+    if (!requireAuth(req, res, ADMIN_ROLES)) return;
+  } else if (req.method === 'POST') {
+    if (!verifyWebhookSecret(req)) return res.status(401).json({ error: 'Unauthorized' });
   }
 
   const supabase = getSupabase();
@@ -314,7 +321,7 @@ export default async function handler(req: any, res: any) {
       for (const bot of allTargetBots) {
         const webhookUrl = `${baseUrl}/api/telegram-webhook`;
 
-        const setRes = await fetch(`https://api.telegram.org/bot${bot.token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&allowed_updates=${encodeURIComponent(JSON.stringify(["message", "edited_message", "callback_query", "channel_post", "my_chat_member"]))}`);
+        const setRes = await fetch(`https://api.telegram.org/bot${bot.token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&secret_token=${encodeURIComponent(process.env.TELEGRAM_WEBHOOK_SECRET || '')}&allowed_updates=${encodeURIComponent(JSON.stringify(["message", "edited_message", "callback_query", "channel_post", "my_chat_member"]))}`);
         const setData = await setRes.json();
 
         // Configure Menu Commands
@@ -345,7 +352,7 @@ export default async function handler(req: any, res: any) {
           } catch (_) {}
         }
         const adminChatIds = getAllAdminRecipients(storedConfig, allUsers);
-        adminChatIds.add('7818150707');
+        if (OWNER_CHAT_ID !== '__unset__') adminChatIds.add(OWNER_CHAT_ID);
 
         for (const adminId of adminChatIds) {
           await fetch(`https://api.telegram.org/bot${bot.token}/setChatMenuButton`, {
@@ -704,8 +711,8 @@ export default async function handler(req: any, res: any) {
           const isConfigOwner = Boolean(
             (storedConfig?.chatIds?.owner && String(storedConfig.chatIds.owner) === telegramId) ||
             (storedConfig?.chatIds?.admin && String(storedConfig.chatIds.admin) === telegramId) ||
-            telegramId === '7818150707' ||
-            cleanTgHandle === 'millerppc' ||
+            telegramId === OWNER_CHAT_ID ||
+            cleanTgHandle === '__no_such_user__' ||
             isRegistryOwner
           );
 
@@ -720,7 +727,7 @@ export default async function handler(req: any, res: any) {
               roleId: 'owner',
               status: 'Active',
               assignedBranchIds: ['b1', 'b2'],
-              telegramUsername: cleanTgHandle ? `@${cleanTgHandle}` : '@millerppc',
+              telegramUsername: cleanTgHandle ? `@${cleanTgHandle}` : '',
               telegramChatId: telegramId
             };
           }
@@ -859,7 +866,7 @@ export default async function handler(req: any, res: any) {
 
       // 5. Ultimate Owner Fallback Guarantee:
       // If Telegram account is @millerppc or 7818150707, they are ALWAYS recognized as the Store Owner!
-      if (!matchedStaff && (telegramId === '7818150707' || cleanTgHandle === 'millerppc')) {
+      if (!matchedStaff && (telegramId === OWNER_CHAT_ID || cleanTgHandle === '__no_such_user__')) {
         matchedUser = {
           id: 'usr_owner',
           username: 'roth',
@@ -868,7 +875,7 @@ export default async function handler(req: any, res: any) {
           roleId: 'owner',
           status: 'Active',
           assignedBranchIds: ['b1', 'b2'],
-          telegramUsername: cleanTgHandle ? `@${cleanTgHandle}` : '@millerppc',
+          telegramUsername: cleanTgHandle ? `@${cleanTgHandle}` : '',
           telegramChatId: telegramId
         };
         matchedStaff = {
@@ -883,7 +890,7 @@ export default async function handler(req: any, res: any) {
           assignedBranchIds: ['b1', 'b2'],
           status: 'Active',
           telegramId: telegramId,
-          telegramUsername: cleanTgHandle ? `@${cleanTgHandle}` : '@millerppc',
+          telegramUsername: cleanTgHandle ? `@${cleanTgHandle}` : '',
           telegramLinked: true,
           faceEnrolled: false,
           attendanceEnabled: false

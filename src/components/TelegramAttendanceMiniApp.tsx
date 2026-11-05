@@ -914,7 +914,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
     if (!staffInfo?.id) return;
     setIsLoadingHistory(true);
     try {
-      const res = await fetch(`/api/attendance/history?staffId=${staffInfo.id}&month=${m}&year=${y}`);
+      const res = await fetch(`/api/attendance/history?staffId=${staffInfo.id}&month=${m}&year=${y}`, { headers: { 'X-Telegram-Init-Data': initData || '' } });
       const data = await res.json();
       if (data.success) {
         setHistoryRecords(data.records || []);

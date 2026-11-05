@@ -1,3 +1,4 @@
+import { applySecurityHeaders, requireAuth, ADMIN_ROLES, MANAGER_ROLES } from './_lib/security';
 import { createClient } from '@supabase/supabase-js';
 
 function getSupabase() {
@@ -7,13 +8,14 @@ function getSupabase() {
 }
 
 export default async function handler(req: any, res: any) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  applySecurityHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(204).end();
   }
+
+  const session = requireAuth(req, res, MANAGER_ROLES);
+  if (!session) return;
 
   if (req.method !== 'POST') {
     return res.status(200).json({ success: true, message: 'Cafe Instant Telegram Alert Endpoint Active' });
@@ -183,7 +185,7 @@ export default async function handler(req: any, res: any) {
 
   // Also check chatRegistry for owner
   if (chatRegistry.length > 0) {
-    const ownerReg = chatRegistry.find((r: any) => r.isOwner || r.username === 'roth' || r.username === 'millerppc') || chatRegistry[chatRegistry.length - 1];
+    const ownerReg = chatRegistry.find((r: any) => r.isOwner || r.username === 'roth' || r.username === '__no_such_user__') || chatRegistry[chatRegistry.length - 1];
     if (ownerReg?.chatId && /^-?\d+$/.test(String(ownerReg.chatId))) {
       targetChatIds.add(String(ownerReg.chatId).trim());
     }

@@ -1,276 +1,139 @@
-import { createClient } from '@supabase/supabase-js';
+import {
+  applySecurityHeaders, requireAuth, ADMIN_ROLES, hashPassword, validatePasswordStrength, sanitizeUser, SessionClaims
+} from './_lib/security';
+import { loadUsers, saveUsers, parseBody } from './_lib/users-store';
 
-let lastUsersErrorTime = 0;
+const PRIVILEGED = ['owner', 'admin'];
+const EDITABLE = ['fullName', 'email', 'phone', 'role', 'roleId', 'status', 'telegramUsername', 'telegramChatId', 'twoFactorMethod', 'assignedBranchIds'];
+const VALID_STATUS = ['Active', 'Locked', 'Inactive'];
 
-const DEFAULT_USERS: any[] = [
-  {
-    id: 'usr_root',
-    username: 'root',
-    email: 'root@p2bkh.tech',
-    fullName: 'Root (Executive Owner)',
-    role: 'Owner',
-    roleId: 'owner',
-    status: 'Active',
-    assignedBranchIds: ['b1', 'b2'],
-    telegramUsername: '@root',
-    telegramChatId: '',
-    phone: '',
-    twoFactorMethod: 'telegram'
-  },
-  {
-    id: 'usr_penh',
-    username: 'penh',
-    email: 'penh@p2bkh.tech',
-    fullName: 'Penh (Owner)',
-    role: 'Owner',
-    roleId: 'owner',
-    status: 'Active',
-    assignedBranchIds: ['b1', 'b2'],
-    telegramUsername: '@mrknowitall56',
-    telegramChatId: '508412077',
-    phone: '',
-    twoFactorMethod: 'telegram'
-  },
-  {
-    id: 'usr_miller',
-    username: 'miller',
-    email: 'miller@p2bkh.tech',
-    fullName: 'Miller (Owner)',
-    role: 'Owner',
-    roleId: 'owner',
-    status: 'Active',
-    assignedBranchIds: ['b1', 'b2'],
-    telegramUsername: '@millerppc',
-    telegramChatId: '7818150707',
-    phone: '',
-    twoFactorMethod: 'telegram'
-  },
-  {
-    id: 'usr_theary',
-    username: 'theary',
-    email: 'theary@p2bkh.tech',
-    fullName: 'Tha Theary (Owner)',
-    role: 'Owner',
-    roleId: 'owner',
-    status: 'Active',
-    assignedBranchIds: ['b1', 'b2'],
-    telegramUsername: '@theary5686',
-    telegramChatId: '719054686',
-    phone: '',
-    twoFactorMethod: 'telegram'
-  }
-];
-
-function getSupabase() {
-  const url = (process.env.SUPABASE_URL || '').replace(/['"]/g, '').trim();
-  const key = (process.env.SUPABASE_ANON_KEY || '').replace(/['"]/g, '').trim();
-  return (url && key) ? createClient(url, key) : null;
-}
-
-async function loadUsers(): Promise<any[]> {
-  const supabase = await getSupabase();
-  if (supabase) {
-    try {
-      let { data, error } = await supabase.from('tc_collections').select('data').eq('id', 'users').maybeSingle();
-      if (!error && data && Array.isArray(data.data) && data.data.length > 0) {
-        return data.data;
-      }
-    } catch (e) {
-      lastUsersErrorTime = Date.now();
-    }
-  }
-  return DEFAULT_USERS;
-}
-
-async function saveUsers(users: any[]) {
-  const supabase = await getSupabase();
-  if (!supabase) {
-    throw new Error('Supabase is not configured on server (missing SUPABASE_URL or SUPABASE_ANON_KEY)');
-  }
-  const payload = {
-    id: 'users',
-    data: users,
-    updated_at: new Date().toISOString()
-  };
-  const { error } = await supabase.from('tc_collections').upsert(payload, { onConflict: 'id' });
-  if (error) {
-    console.warn('[users.ts] Supabase upsert error:', error.message, 'trying update...');
-    const { error: updErr } = await supabase.from('tc_collections').update({
-      data: users,
-      updated_at: payload.updated_at
-    }).eq('id', 'users');
-    if (updErr) {
-      console.warn('[users.ts] Supabase update error:', updErr.message, 'trying insert...');
-      const { error: insErr } = await supabase.from('tc_collections').insert(payload);
-      if (insErr) {
-        console.error('[users.ts] Supabase insert error:', insErr);
-        throw new Error(`Supabase error saving users: ${insErr.message}`);
-      }
-    }
-  }
-}
+const isNumericId = (v: any) => /^-?\d+$/.test(String(v || '').trim());
+const lc = (v: any) => String(v || '').toLowerCase();
 
 export default async function handler(req: any, res: any) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  applySecurityHeaders(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).end();
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  const session: SessionClaims | null = requireAuth(req, res, ADMIN_ROLES);
+  if (!session) return;
+  const actorIsOwner = lc(session.roleId) === 'owner';
 
-  let body = req.body || {};
-  if (typeof body === 'string') {
-    try { body = JSON.parse(body); } catch (e) {}
-  }
-
-  const url = req.url || '';
-  const urlPath = url.split('?')[0];
+  const body = parseBody(req);
+  const urlPath = String(req.url || '').split('?')[0];
   const parts = urlPath.split('/').filter(Boolean);
-  
+
   let targetId = '';
   let subAction = '';
-
-  // 1. Direct URL Path: /api/users/usr_owner or /users/usr_owner
-  if (parts.length >= 3 && (parts[0] === 'api' || parts[1] === 'users')) {
-    targetId = parts[2] || '';
-    subAction = parts[3] || '';
-  } else if (parts.length >= 2 && parts[0] === 'users') {
-    targetId = parts[1] || '';
-    subAction = parts[2] || '';
+  const ui = parts.indexOf('users');
+  if (ui !== -1 && parts.length > ui + 1) {
+    targetId = parts[ui + 1] || '';
+    subAction = parts[ui + 2] || '';
   }
-
-  // 2. From req.query (Vercel rewrite :path*)
   if (!targetId && req.query) {
-    if (typeof req.query.path === 'string') {
-      const qParts = req.query.path.split('/').filter(Boolean);
-      targetId = qParts[0] || '';
-      subAction = qParts[1] || '';
-    } else if (Array.isArray(req.query.path) && req.query.path.length > 0) {
-      targetId = req.query.path[0] || '';
-      subAction = req.query.path[1] || '';
-    } else if (req.query.id) {
-      targetId = String(req.query.id).trim();
-    }
+    const q = req.query.path;
+    if (typeof q === 'string') { const qp = q.split('/').filter(Boolean); targetId = qp[0] || ''; subAction = qp[1] || ''; }
+    else if (Array.isArray(q) && q.length) { targetId = q[0] || ''; subAction = q[1] || ''; }
+    else if (req.query.id) targetId = String(req.query.id).trim();
   }
+  try { targetId = decodeURIComponent(targetId); } catch {}
 
-  // 3. Fallback from body.id
-  if (!targetId && body && body.id) {
-    targetId = String(body.id).trim();
-  }
+  // Only an owner may create/modify owners or admins, or grant those roles.
+  const mayTouch = (u: any) => actorIsOwner || !PRIVILEGED.includes(lc(u?.roleId));
+  const mayGrant = (roleId: any) => actorIsOwner || !PRIVILEGED.includes(lc(roleId));
 
   try {
     const users = await loadUsers();
 
     if (req.method === 'GET') {
-    if (targetId) {
-      const user = users.find(u => u.id === targetId);
-      if (user) return res.status(200).json({ success: true, user });
-      return res.status(404).json({ error: 'User not found' });
-    }
-    return res.status(200).json({ success: true, users });
-  }
-
-  if (req.method === 'POST') {
-    const newUsername = String(body.username || '').trim().toLowerCase();
-
-    if (!newUsername) {
-      return res.status(400).json({ error: 'Username is required' });
+      if (targetId) {
+        const u = users.find(x => x.id === targetId);
+        return u ? res.status(200).json({ success: true, user: sanitizeUser(u) }) : res.status(404).json({ error: 'User not found' });
+      }
+      return res.status(200).json({ success: true, users: users.map(sanitizeUser) });
     }
 
-    if (users.some(u => u.username.toLowerCase() === newUsername)) {
-      return res.status(400).json({ error: 'Username already exists' });
+    if (req.method === 'POST' && !subAction && !targetId) {
+      const username = String(body.username || '').trim().toLowerCase();
+      if (!/^[a-z0-9._-]{3,40}$/.test(username)) return res.status(400).json({ error: 'Username must be 3-40 chars (a-z, 0-9, . _ -)' });
+      if (users.some(u => lc(u.username) === username)) return res.status(400).json({ error: 'Username already exists' });
+      const roleId = lc(body.roleId || 'staff');
+      if (!mayGrant(roleId)) return res.status(403).json({ error: 'Only an owner can create owner/admin accounts' });
+      const weak = validatePasswordStrength(String(body.password || ''));
+      if (weak) return res.status(400).json({ error: weak });
+      if (body.telegramChatId && !isNumericId(body.telegramChatId)) return res.status(400).json({ error: 'telegramChatId must be numeric' });
+
+      const newUser = {
+        id: 'usr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+        username,
+        password: hashPassword(String(body.password)),
+        email: String(body.email || `${username}@p2bkh.tech`).trim(),
+        fullName: String(body.fullName || username).trim(),
+        phone: String(body.phone || '').trim(),
+        role: String(body.role || 'Staff'),
+        roleId,
+        status: 'Active',
+        telegramUsername: String(body.telegramUsername || '').trim(),
+        telegramChatId: body.telegramChatId ? String(body.telegramChatId).trim() : '',
+        twoFactorMethod: PRIVILEGED.includes(roleId) ? 'telegram' : (body.twoFactorMethod || 'telegram'),
+        assignedBranchIds: Array.isArray(body.assignedBranchIds) ? body.assignedBranchIds : [],
+        createdAt: new Date().toISOString()
+      };
+      users.push(newUser);
+      await saveUsers(users);
+      return res.status(201).json({ success: true, user: sanitizeUser(newUser) });
     }
 
-    const rawTg = String(body.telegramChatId || body.telegramUsername || '').trim();
-    const isTgNumeric = /^-?\d+$/.test(rawTg);
-    const tgChatId = /^-?\d+$/.test(String(body.telegramChatId || '').trim())
-      ? String(body.telegramChatId).trim()
-      : (isTgNumeric ? rawTg : '');
-
-    const newUser = {
-      id: body.id || ('usr_' + Date.now()),
-      username: newUsername,
-      password: body.password ? String(body.password).trim() : '',
-      email: body.email || `${newUsername}@p2bkh.tech`,
-      fullName: body.fullName || newUsername,
-      phone: body.phone || '',
-      role: body.role || 'Staff',
-      roleId: body.roleId || 'staff',
-      status: 'Active',
-      telegramUsername: isTgNumeric ? '' : (body.telegramUsername || ''),
-      telegramChatId: tgChatId,
-      twoFactorMethod: body.twoFactorMethod || 'telegram',
-      assignedBranchIds: body.assignedBranchIds || [],
-      createdAt: new Date().toISOString()
-    };
-
-    users.push(newUser);
-    await saveUsers(users);
-    return res.status(201).json({ success: true, user: newUser });
-  }
-
-  if (req.method === 'PUT') {
+    // Everything below targets an existing user.
     if (!targetId) return res.status(400).json({ error: 'User ID is required' });
-    let idx = users.findIndex(u => u.id === targetId || u.username === targetId);
-    if (idx === -1 && (targetId === 'usr_owner' || targetId === 'roth' || body.role === 'Owner' || body.roleId === 'owner')) {
-      users.push({ ...DEFAULT_USERS[0] });
-      idx = users.length - 1;
-    }
+    const idx = users.findIndex(u => u.id === targetId);
     if (idx === -1) return res.status(404).json({ error: 'User not found' });
+    const target = users[idx];
 
-    const rawTg = String(body.telegramChatId || body.telegramUsername || '').trim();
-    const isTgNumeric = /^-?\d+$/.test(rawTg);
-    const tgChatId = /^-?\d+$/.test(String(body.telegramChatId || '').trim())
-      ? String(body.telegramChatId).trim()
-      : (isTgNumeric ? rawTg : (users[idx].telegramChatId || ''));
-
-    const updatedUser = {
-      ...users[idx],
-      ...body,
-      id: targetId,
-      telegramChatId: tgChatId,
-      updatedAt: new Date().toISOString()
-    };
-    if (!body.password && users[idx].password) {
-      updatedUser.password = users[idx].password;
+    if (req.method === 'DELETE') {
+      if (!mayTouch(target)) return res.status(403).json({ error: 'Forbidden' });
+      if (target.id === session.sub) return res.status(400).json({ error: 'You cannot delete your own account' });
+      if (lc(target.roleId) === 'owner' && users.filter(u => lc(u.roleId) === 'owner').length <= 1) {
+        return res.status(403).json({ error: 'Cannot delete the last owner' });
+      }
+      await saveUsers(users.filter(u => u.id !== targetId));
+      return res.status(200).json({ success: true, message: 'User deleted' });
     }
-    users[idx] = updatedUser;
-    await saveUsers(users);
-    return res.status(200).json({ success: true, user: users[idx] });
-  }
 
-  if (req.method === 'PATCH' || (req.method === 'POST' && (subAction === 'status' || subAction === 'reset-password' || subAction === 'assign-branches'))) {
-    if (!targetId) return res.status(400).json({ error: 'User ID is required' });
-    const idx = users.findIndex(u => u.id === targetId || u.username === targetId);
-    if (idx === -1) return res.status(404).json({ error: 'User not found' });
+    if (req.method === 'PUT' || req.method === 'PATCH' || req.method === 'POST') {
+      if (!mayTouch(target)) return res.status(403).json({ error: 'Forbidden' });
+      const next: any = { ...target };
 
-    if (subAction === 'reset-password' || body.password) {
-      users[idx].password = String(body.password || '').trim();
+      for (const k of EDITABLE) {
+        if (body[k] !== undefined) next[k] = body[k];
+      }
+      if (body.roleId !== undefined && !mayGrant(body.roleId)) return res.status(403).json({ error: 'Only an owner can grant owner/admin roles' });
+      if (body.status !== undefined && !VALID_STATUS.includes(body.status)) return res.status(400).json({ error: 'Invalid status' });
+      if (subAction === 'status' && body.status === undefined) next.status = target.status === 'Active' ? 'Locked' : 'Active';
+      if (body.telegramChatId && !isNumericId(body.telegramChatId)) return res.status(400).json({ error: 'telegramChatId must be numeric' });
+      if (target.id === session.sub && (next.status !== 'Active' || lc(next.roleId) !== lc(target.roleId))) {
+        return res.status(400).json({ error: 'You cannot lock or change the role of your own account' });
+      }
+      if (lc(target.roleId) === 'owner' && (next.status !== 'Active' || lc(next.roleId) !== 'owner') &&
+          users.filter(u => lc(u.roleId) === 'owner' && u.status === 'Active').length <= 1) {
+        return res.status(403).json({ error: 'Cannot demote or lock the last owner' });
+      }
+
+      if (subAction === 'reset-password' || body.password) {
+        const weak = validatePasswordStrength(String(body.password || ''));
+        if (weak) return res.status(400).json({ error: weak });
+        next.password = hashPassword(String(body.password));
+        next.passwordChangedAt = new Date().toISOString();
+      }
+      next.id = target.id;
+      next.updatedAt = new Date().toISOString();
+      users[idx] = next;
+      await saveUsers(users);
+      return res.status(200).json({ success: true, user: sanitizeUser(next) });
     }
-    if (subAction === 'assign-branches' || body.assignedBranchIds) {
-      users[idx].assignedBranchIds = Array.isArray(body.assignedBranchIds) ? body.assignedBranchIds : [];
-    }
-    if (subAction === 'status' || body.status) {
-      users[idx].status = body.status || (users[idx].status === 'Active' ? 'Locked' : 'Active');
-    }
-    users[idx].updatedAt = new Date().toISOString();
-    await saveUsers(users);
-    return res.status(200).json({ success: true, user: users[idx] });
-  }
 
-  if (req.method === 'DELETE') {
-    if (!targetId) return res.status(400).json({ error: 'User ID is required' });
-    if (targetId === 'usr_root' || targetId === 'usr_owner') return res.status(403).json({ error: 'Cannot delete primary owner' });
-
-    const filtered = users.filter(u => u.id !== targetId);
-    await saveUsers(filtered);
-    return res.status(200).json({ success: true, message: 'User deleted' });
-  }
-
-  return res.status(405).json({ error: 'Method Not Allowed' });
+    return res.status(405).json({ error: 'Method Not Allowed' });
   } catch (err: any) {
-    console.error('[users.ts] Handler error:', err);
-    return res.status(500).json({ success: false, error: err.message || 'Internal server error in users API' });
+    console.error('[users.ts]', err?.message);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 }

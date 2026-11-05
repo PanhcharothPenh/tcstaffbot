@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { applySecurityHeaders, getSession, verifyCron, validateInitData, MANAGER_ROLES, escHtml } from './_lib/security';
+const OWNER_CHAT_ID = (process.env.OWNER_TELEGRAM_CHAT_ID || '').trim() || '__unset__';
 
 // In-memory cache to prevent duplicate Telegram alerts across invocations
 const sentAlertKeysMemoryCache = new Set<string>();
@@ -55,40 +57,7 @@ function getBotToken(branchId?: string, branchName?: string): string {
 }
 
 function validateTelegramInitData(initData: string, candidateTokens: string[] | string): { valid: boolean; user?: any; error?: string } {
-  if (!initData) return { valid: false, error: 'initData is empty' };
-  const tokens = (Array.isArray(candidateTokens) ? candidateTokens : [candidateTokens]).filter(Boolean);
-  try {
-    const urlParams = new URLSearchParams(initData);
-    const userRaw = urlParams.get('user');
-    let user: any = null;
-    if (userRaw) {
-      try { user = JSON.parse(userRaw); } catch {}
-    }
-
-    const hash = urlParams.get('hash');
-    if (!hash) {
-      return { valid: Boolean(user), user, error: 'hash parameter missing' };
-    }
-
-    urlParams.delete('hash');
-    const dataCheckArr: string[] = [];
-    Array.from(urlParams.keys()).sort().forEach(key => {
-      dataCheckArr.push(`${key}=${urlParams.get(key)}`);
-    });
-    const dataCheckString = dataCheckArr.join('\n');
-
-    for (const token of tokens) {
-      const secretKey = crypto.createHmac('sha256', 'WebAppData').update(token).digest();
-      const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-      if (calculatedHash === hash) {
-        return { valid: true, user };
-      }
-    }
-
-    return { valid: Boolean(user), user };
-  } catch (err: any) {
-    return { valid: false, error: err.message };
-  }
+  return validateInitData(initData, candidateTokens);
 }
 
 async function sendTelegramNotification(token: string, chatId: string, text: string, photo?: string) {
@@ -311,18 +280,30 @@ function calculateWorkHours(checkIn?: string, checkOut?: string, status?: string
 }
 
 export default async function handler(req: any, res: any) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  applySecurityHeaders(req, res);
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Telegram-Init-Data');
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(204).end();
   }
 
   const path = (req.url || '').split('?')[0];
   const supabase = getSupabase();
   const botToken = getBotToken();
   const allBotTokens = getAllBotTokens();
+
+  // ── Auth helpers ──────────────────────────────────────────────────────────
+  let _session: any = null;
+  try { _session = getSession(req); } catch {}
+  const isManagerSession = Boolean(_session && MANAGER_ROLES.includes(String(_session.roleId || '').toLowerCase()));
+  const deny = (code = 401) => res.status(code).json({ success: false, error: code === 401 ? 'Unauthorized' : 'Forbidden' });
+  /** Telegram user proven by a valid, fresh, signed initData (body or header). */
+  const verifiedTg = (initData?: any): any | null => {
+    const raw = String(initData || req.headers['x-telegram-init-data'] || '');
+    if (!raw) return null;
+    const v = validateInitData(raw, allBotTokens);
+    return v.valid ? v.user : null;
+  };
 
   // Global In-Memory Cache for Supabase Collections (speeds up reads from seconds to sub-milliseconds)
   const INDEX_MEM_CACHE: Record<string, { data: any[]; expires: number }> = {};
@@ -441,7 +422,7 @@ export default async function handler(req: any, res: any) {
       const bId = String(branchId || '').toLowerCase().trim();
 
       // 1. ALWAYS INCLUDE SYSTEM ADMIN TELEGRAM CHAT ID
-      recipients.add('7818150707');
+      if (OWNER_CHAT_ID !== '__unset__') recipients.add(OWNER_CHAT_ID);
 
       // 2. All Users with role 'Owner' or 'Admin' in users collection
       if (Array.isArray(allUsers)) {
@@ -451,7 +432,7 @@ export default async function handler(req: any, res: any) {
           if (!tgId || !/^-?\d+$/.test(tgId)) continue;
 
           // Owners always get alerted
-          if (r === 'owner' || u.id === 'usr_root' || u.username === 'root' || u.id === 'usr_owner' || u.username === 'roth' || u.username === 'millerppc') {
+          if (r === 'owner' || u.id === 'usr_root' || u.username === 'root' || u.id === 'usr_owner' || u.username === 'roth' || u.username === '__no_such_user__') {
             recipients.add(tgId);
           } else if (r === 'admin' || r === 'manager') {
             // Admin / Manager: check branch assignment
@@ -481,7 +462,7 @@ export default async function handler(req: any, res: any) {
       if (Array.isArray(chatRegistry) && chatRegistry.length > 0) {
         for (const reg of chatRegistry) {
           if (reg?.chatId && /^-?\d+$/.test(String(reg.chatId))) {
-            if (reg.isOwner || reg.username === 'roth' || reg.username === 'millerppc') {
+            if (reg.isOwner || reg.username === 'roth' || reg.username === '__no_such_user__') {
               recipients.add(String(reg.chatId));
             }
           }
@@ -494,11 +475,11 @@ export default async function handler(req: any, res: any) {
       }
     } catch (e) {
       console.error('Error resolving alert recipient chat IDs:', e);
-      recipients.add('7818150707');
+      if (OWNER_CHAT_ID !== '__unset__') recipients.add(OWNER_CHAT_ID);
     }
 
     // Exclude regular staff Telegram ID from getting admin alert
-    if (exclude && exclude !== '7818150707') {
+    if (exclude && exclude !== OWNER_CHAT_ID) {
       recipients.delete(exclude);
     }
 
@@ -514,6 +495,7 @@ export default async function handler(req: any, res: any) {
 
   // 1. FACE ENROLLMENT (POST /api/face/enroll)
   if (path === '/api/face/enroll' && req.method === 'POST') {
+    if (!isManagerSession) return deny(403);
     try {
       const { staffId, faceReference, photoUrl } = req.body || {};
       if (!staffId || !faceReference) {
@@ -547,6 +529,7 @@ export default async function handler(req: any, res: any) {
 
   // 2. TELEGRAM LINK (POST /api/telegram/link)
   if (path === '/api/telegram/link' && req.method === 'POST') {
+    if (!isManagerSession) return deny(403);
     try {
       const { staffId, telegramId, telegramUsername, staffData } = req.body || {};
       if (!staffId || !telegramId) {
@@ -634,6 +617,7 @@ export default async function handler(req: any, res: any) {
 
   // 3. TELEGRAM UNLINK (POST /api/telegram/unlink)
   if (path === '/api/telegram/unlink' && req.method === 'POST') {
+    if (!isManagerSession && !verifiedTg(req.body?.initData)) return deny(401);
     try {
       const { staffId } = req.body || {};
       if (!staffId) return res.status(400).json({ success: false, error: 'staffId is required' });
@@ -656,7 +640,13 @@ export default async function handler(req: any, res: any) {
   // 4. VALIDATE TELEGRAM MINI APP SESSION (POST /api/telegram/validate-init-data)
   if (path === '/api/telegram/validate-init-data' && req.method === 'POST') {
     try {
-      const { initData, simulationStaffId, unsafeUser, telegramId, telegramUsername } = req.body || {};
+      let { initData, simulationStaffId, unsafeUser, telegramId, telegramUsername } = req.body || {};
+      if (!isManagerSession) {
+        const _tg = verifiedTg(initData);
+        if (!_tg) return deny(401);
+        simulationStaffId = undefined; unsafeUser = undefined;
+        telegramId = String(_tg.id); telegramUsername = _tg.username || '';
+      }
       const allStaff = await getCollection('staff');
       const allBranches = await getCollection('branches');
       const allAtt = await getCollection('attendance');
@@ -746,7 +736,7 @@ export default async function handler(req: any, res: any) {
           const cfgRaw = await getCollection('telegramConfig');
           const storedConfig = (Array.isArray(cfgRaw) && cfgRaw[0]) ? cfgRaw[0] : (cfgRaw || {});
           const isConfigOwner = 
-            (cleanTgId === '7818150707' || cleanTgName === 'millerppc') ||
+            (cleanTgId === OWNER_CHAT_ID || cleanTgName === '__no_such_user__') ||
             (storedConfig?.chatIds?.owner && String(storedConfig.chatIds.owner) === cleanTgId);
 
           if (isConfigOwner) {
@@ -792,8 +782,8 @@ export default async function handler(req: any, res: any) {
 
       // Check if user is assigned to all branches or owner
       const isOwner = Boolean(
-        cleanTgId === '7818150707' ||
-        cleanTgName === 'millerppc' ||
+        cleanTgId === OWNER_CHAT_ID ||
+        cleanTgName === '__no_such_user__' ||
         matchedStaff.role === 'Owner' || 
         matchedStaff.roleId === 'owner' ||
         (matchedStaff.position && matchedStaff.position.toLowerCase().includes('owner'))
@@ -894,7 +884,13 @@ export default async function handler(req: any, res: any) {
   // 5. ATTENDANCE CHECK-IN (POST /api/attendance/check-in)
   if (path === '/api/attendance/check-in' && req.method === 'POST') {
     try {
-      const { initData, faceDescriptor, photo, latitude, longitude, simulationStaffId, staffId, telegramId, telegramUsername } = req.body || {};
+      let { initData, faceDescriptor, photo, latitude, longitude, simulationStaffId, staffId, telegramId, telegramUsername } = req.body || {};
+      if (!isManagerSession) {
+        const _tg = verifiedTg(initData);
+        if (!_tg) return deny(401);
+        simulationStaffId = undefined; staffId = undefined;
+        telegramId = String(_tg.id); telegramUsername = _tg.username || '';
+      }
       const allStaff = await getCollection('staff');
       const allBranches = await getCollection('branches');
       const allAtt = await getCollection('attendance');
@@ -958,7 +954,7 @@ export default async function handler(req: any, res: any) {
       }
 
       // Owner fallback recognition (Only known master developer / configured owner)
-      if (!staff && (tgId === '7818150707' || tgName === 'millerppc')) {
+      if (!staff && (tgId === OWNER_CHAT_ID || tgName === '__no_such_user__')) {
         const ownerUser = allUsers.find((u: any) => 
           u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_root' || u.username === 'root' || u.id === 'usr_owner' || u.username === 'roth'
         );
@@ -1003,8 +999,8 @@ export default async function handler(req: any, res: any) {
         String(staff.position || '').toLowerCase().includes('owner') ||
         staff.id?.startsWith('staff_usr_usr_owner') ||
         staff.id === 'usr_owner' ||
-        String(val?.user?.id) === '7818150707' ||
-        (val?.user?.username || '').toLowerCase() === 'millerppc'
+        String(val?.user?.id) === OWNER_CHAT_ID ||
+        (val?.user?.username || '').toLowerCase() === '__no_such_user__'
       );
 
       // Multi-Branch resolution & GPS Auto-Detection
@@ -1272,7 +1268,13 @@ export default async function handler(req: any, res: any) {
   // 6. ATTENDANCE CHECK-OUT (POST /api/attendance/check-out)
   if (path === '/api/attendance/check-out' && req.method === 'POST') {
     try {
-      const { initData, faceDescriptor, photo, latitude, longitude, simulationStaffId, staffId, telegramId, telegramUsername } = req.body || {};
+      let { initData, faceDescriptor, photo, latitude, longitude, simulationStaffId, staffId, telegramId, telegramUsername } = req.body || {};
+      if (!isManagerSession) {
+        const _tg = verifiedTg(initData);
+        if (!_tg) return deny(401);
+        simulationStaffId = undefined; staffId = undefined;
+        telegramId = String(_tg.id); telegramUsername = _tg.username || '';
+      }
       const allStaff = await getCollection('staff');
       const allBranches = await getCollection('branches');
       const allAtt = await getCollection('attendance');
@@ -1336,7 +1338,7 @@ export default async function handler(req: any, res: any) {
       }
 
       // Owner fallback recognition (Only known master developer / configured owner)
-      if (!staff && (tgId === '7818150707' || tgName === 'millerppc')) {
+      if (!staff && (tgId === OWNER_CHAT_ID || tgName === '__no_such_user__')) {
         const ownerUser = allUsers.find((u: any) => 
           u.role === 'Owner' || u.roleId === 'owner' || u.id === 'usr_root' || u.username === 'root' || u.id === 'usr_owner' || u.username === 'roth'
         );
@@ -1503,8 +1505,8 @@ export default async function handler(req: any, res: any) {
         String(staff.position || '').toLowerCase().includes('owner') ||
         staff.id?.startsWith('staff_usr_usr_owner') ||
         staff.id === 'usr_owner' ||
-        String(val?.user?.id) === '7818150707' ||
-        (val?.user?.username || '').toLowerCase() === 'millerppc' ||
+        String(val?.user?.id) === OWNER_CHAT_ID ||
+        (val?.user?.username || '').toLowerCase() === '__no_such_user__' ||
         attRecord.isOwner
       );
 
@@ -1612,10 +1614,16 @@ export default async function handler(req: any, res: any) {
 
   // 7. ATTENDANCE HISTORY (GET /api/attendance/history)
   if (path === '/api/attendance/history' && req.method === 'GET') {
+    const _hTg = verifiedTg();
+    if (!isManagerSession && !_hTg) return deny(401);
     try {
       const qParams = req.query || Object.fromEntries(new URL(req.url || '', 'http://localhost').searchParams);
       const { staffId, month, year } = qParams;
       if (!staffId) return res.status(400).json({ success: false, error: 'staffId is required' });
+      if (!isManagerSession) {
+        const _own = (await getCollection('staff')).find((x: any) => x.id === staffId);
+        if (!_own || String(_own.telegramId || '') !== String(_hTg.id)) return deny(403);
+      }
 
       const currentYear = year ? String(year) : String(new Date().getFullYear());
       const currentMonth = month ? String(month).padStart(2, '0') : String(new Date().getMonth() + 1).padStart(2, '0');
@@ -1639,6 +1647,7 @@ export default async function handler(req: any, res: any) {
 
   // 7b. ADMIN MANUAL ATTENDANCE CREATION (POST /api/admin/attendance)
   if ((path === '/api/admin/attendance' || path === '/api/admin/attendance/') && req.method === 'POST') {
+    if (!isManagerSession) return deny(isManagerSession ? 403 : 401);
     try {
       const record = req.body;
       if (!record || !record.staffId || !record.date) {
@@ -1678,6 +1687,7 @@ export default async function handler(req: any, res: any) {
 
   // 7c. ADMIN ATTENDANCE CORRECTION (PATCH /api/admin/attendance/:id)
   if (path.startsWith('/api/admin/attendance') && req.method === 'PATCH') {
+    if (!isManagerSession) return deny(401);
     try {
       const parts = path.split('/').filter(Boolean);
       const id = parts[parts.length - 1];
@@ -1778,6 +1788,19 @@ export default async function handler(req: any, res: any) {
 
   // 8. RESOLVE GOOGLE MAPS URL / LINK (POST /api/resolve-maps-url)
   if (path === '/api/resolve-maps-url' && req.method === 'POST') {
+    if (!_session && !verifiedTg()) return deny(401);
+    {
+      const raw0 = String(req.body?.url || req.query?.url || '');
+      const m0 = raw0.match(/https?:\/\/[^\s"'<>]+/);
+      if (m0) {
+        let okHost = false;
+        try {
+          const u0 = new URL(m0[0]);
+          okHost = u0.protocol === 'https:' && /^(www\.|maps\.)?(google\.[a-z.]+|goo\.gl|maps\.app\.goo\.gl|g\.page)$/i.test(u0.hostname);
+        } catch {}
+        if (!okHost) return res.status(400).json({ success: false, error: 'Only Google Maps links are supported' });
+      }
+    }
     try {
       let body = req.body;
       if (typeof body === 'string') {
@@ -1855,6 +1878,7 @@ export default async function handler(req: any, res: any) {
 
   // 10. SEND ATTENDANCE REPORT TO TELEGRAM (POST /api/telegram/send-attendance-report)
   if (path === '/api/telegram/send-attendance-report' && req.method === 'POST') {
+    if (!isManagerSession) return deny(401);
     try {
       const { 
         target, // 'staff' | 'admin' | 'custom'
@@ -2011,6 +2035,7 @@ export default async function handler(req: any, res: any) {
 
   // 11. INSTANT TELEGRAM ALERT / REPORT FOR BRANCHES (POST /api/telegram-trigger-instant)
   if ((path === '/api/telegram-trigger-instant' || path === '/api/telegram-trigger-instant/') && req.method === 'POST') {
+    if (!isManagerSession) return deny(401);
     try {
       const { 
         category, 
@@ -2143,6 +2168,7 @@ export default async function handler(req: any, res: any) {
 
   // 12. CHECK MISSING ATTENDANCE ALERTS (GET/POST /api/attendance/check-missing-alerts)
   if (path === '/api/attendance/check-missing-alerts' || path === '/api/attendance/check-missing-alerts/') {
+    if (!verifyCron(req) && !isManagerSession) return deny(401);
     try {
       const now = new Date();
       const todayStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Phnom_Penh' });

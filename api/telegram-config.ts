@@ -1,3 +1,4 @@
+import { applySecurityHeaders, requireAuth, ADMIN_ROLES, MANAGER_ROLES } from './_lib/security';
 import { createClient } from '@supabase/supabase-js';
 
 const DEFAULT_TG_CONFIG = {
@@ -20,13 +21,14 @@ function getSupabase() {
 }
 
 export default async function handler(req: any, res: any) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  applySecurityHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(204).end();
   }
+
+  const session = requireAuth(req, res, ADMIN_ROLES);
+  if (!session) return;
 
   const envBotToken = 
     process.env.TELEGRAM_BOT_TOKEN_ATTENDANCE ||
@@ -115,7 +117,8 @@ export default async function handler(req: any, res: any) {
         ...storedConfig.chatIds,
         branches
       },
-      botToken: effectiveToken,
+      botToken: effectiveToken ? '••••••••' + String(effectiveToken).slice(-4) : '',
+      botTokenSet: Boolean(effectiveToken),
       configured: Boolean(effectiveToken || vengSrengToken || chomkaDoungToken),
       branchBots: {
         b1: { name: 'Veng Sreng', configured: Boolean(vengSrengToken), chatId: branches.b1 },
@@ -125,7 +128,9 @@ export default async function handler(req: any, res: any) {
   }
 
   if (req.method === 'POST') {
-    const body = req.body || {};
+    const body = { ...(req.body || {}) };
+    // The token is never sent to the browser; ignore the masked placeholder if it is posted back.
+    if (typeof body.botToken === 'string' && (body.botToken.includes('•') || !body.botToken.trim())) delete body.botToken;
     const updated = { ...storedConfig, ...body, updatedAt: new Date().toISOString() };
     if (supabase) {
       try {

@@ -261,8 +261,8 @@ const SEED_USERS: User[] = [
     phone: '',
     roleId: 'owner',
     status: 'Active',
-    telegramUsername: '@mrknowitall56',
-    telegramChatId: '508412077',
+    telegramUsername: '',
+    telegramChatId: '',
     twoFactorMethod: 'telegram',
     assignedBranchIds: ['b1', 'b2']
   },
@@ -275,8 +275,8 @@ const SEED_USERS: User[] = [
     phone: '',
     roleId: 'owner',
     status: 'Active',
-    telegramUsername: '@millerppc',
-    telegramChatId: '7818150707',
+    telegramUsername: '',
+    telegramChatId: '',
     twoFactorMethod: 'telegram',
     assignedBranchIds: ['b1', 'b2']
   },
@@ -289,8 +289,8 @@ const SEED_USERS: User[] = [
     phone: '',
     roleId: 'owner',
     status: 'Active',
-    telegramUsername: '@theary5686',
-    telegramChatId: '719054686',
+    telegramUsername: '',
+    telegramChatId: '',
     twoFactorMethod: 'telegram',
     assignedBranchIds: ['b1', 'b2']
   }
