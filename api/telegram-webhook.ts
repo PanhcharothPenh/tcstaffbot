@@ -283,7 +283,11 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'GET') {
     if (!requireAuth(req, res, ADMIN_ROLES)) return;
   } else if (req.method === 'POST') {
-    if (!verifyWebhookSecret(req)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!verifyWebhookSecret(req)) {
+      const configured = Boolean((process.env.TELEGRAM_WEBHOOK_SECRET || '').trim());
+      console.warn('[webhook] rejected: ' + (configured ? 'secret header missing or mismatched' : 'TELEGRAM_WEBHOOK_SECRET is not set on this deployment'));
+      return res.status(401).json({ error: 'Unauthorized', reason: configured ? 'secret-mismatch' : 'secret-not-configured' });
+    }
   }
 
   const supabase = getSupabase();
