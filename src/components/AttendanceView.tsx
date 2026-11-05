@@ -1634,14 +1634,10 @@ export default function AttendanceView({
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-100/70 text-slate-600 border-b border-slate-200 text-[10.5px] uppercase font-bold tracking-wider">
-                      <th className="py-3 px-3.5">ឈ្មោះបុគ្គលិក</th>
-                      <th className="py-3 px-3">សាខា</th>
-                      <th className="py-3 px-3 text-center">ចូល (Check In)</th>
-                      <th className="py-3 px-3 text-center">ចេញ (Check Out)</th>
-                      <th className="py-3 px-3 text-center">រយៈពេលធ្វើការ</th>
-                      <th className="py-3 px-3 text-center">ស្ថានភាព</th>
-                      <th className="py-3 px-3 text-center">ប្រភព</th>
-                      <th className="py-3 px-3 text-center">ឧបករណ៍ / Device</th>
+                      <th className="py-3 px-3.5">បុគ្គលិក / សាខា</th>
+                      <th className="py-3 px-3 text-center">ចូល</th>
+                      <th className="py-3 px-3 text-center">ចេញ</th>
+                      <th className="py-3 px-3 text-center">ស្ថានភាព / ម៉ោងធ្វើការ</th>
                       <th className="py-3 px-3.5 text-right">សកម្មភាព</th>
                     </tr>
                   </thead>
@@ -1709,7 +1705,25 @@ export default function AttendanceView({
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[10px] text-slate-400 font-mono mt-0.5">{rec.date} • {rec.shiftType || 'Shift'}</div>
+                              <div className="text-[10.5px] text-slate-500 mt-0.5 flex items-center gap-x-2 gap-y-0.5 flex-wrap">
+                                <span className="font-bold text-slate-700">{getBranchName(rec.branchId)}</span>
+                                <span className="text-slate-300">•</span>
+                                <span className="font-mono">{rec.date} • {rec.shiftType || 'Shift'}</span>
+                                <span className={`px-1.5 py-0 rounded text-[9.5px] font-bold inline-flex items-center gap-0.5 ${
+                                  rec.source === 'telegram' ? 'bg-sky-50 text-sky-700 border border-sky-200' : 'bg-slate-50 text-slate-600 border border-slate-200'
+                                }`}>
+                                  {rec.source === 'telegram' ? <Smartphone size={10} /> : <FileText size={10} />}
+                                  <span>{rec.source === 'telegram' ? 'Telegram' : 'Manual'}</span>
+                                </span>
+                                {(rec.checkInDevice || rec.checkOutDevice) && (
+                                  <span
+                                    className="text-[9.5px] text-slate-400 truncate max-w-[9rem]"
+                                    title={`Check-In: ${rec.checkInDevice || 'N/A'}\nCheck-Out: ${rec.checkOutDevice || 'N/A'}\nPlatform: ${rec.checkInPlatform || rec.checkOutPlatform || 'N/A'}`}
+                                  >
+                                    📱 {rec.checkInDevice || rec.checkOutDevice}
+                                  </span>
+                                )}
+                              </div>
                               {rec.notes && (
                                 <div className={`text-[10px] font-medium italic mt-1 bg-white/80 px-2 py-0.5 rounded-md border inline-block max-w-xs truncate ${
                                   rec.status === 'Permission' ? 'text-rose-700 border-rose-200' :
@@ -1721,11 +1735,6 @@ export default function AttendanceView({
                               )}
                             </div>
                           </div>
-                        </td>
-
-                        {/* Branch */}
-                        <td className="py-3 px-3">
-                          <span className="text-slate-600 font-medium">{getBranchName(rec.branchId)}</span>
                         </td>
 
                         {/* Check In */}
@@ -1783,13 +1792,6 @@ export default function AttendanceView({
                           )}
                         </td>
 
-                        {/* Work Hours */}
-                        <td className="py-3 px-3 text-center font-mono font-bold text-slate-700">
-                          <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md text-xs">
-                            {formatWorkDuration(getRecordWorkHours(rec), lang)}
-                          </span>
-                        </td>
-
                         {/* Status */}
                         <td className="py-3 px-3 text-center">
                           <span className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold inline-flex items-center gap-1 ${
@@ -1812,33 +1814,11 @@ export default function AttendanceView({
                              rec.status === 'Late' ? (rec.lateMinutes ? `⏰ យឺត ${formatLateMinutes(rec.lateMinutes, lang)} (~$${Number(rec.indicativeLateAmount || 0).toFixed(2)})` : (rec.isLateExcused ? '⏰ យឺតមិនកាត់' : (rec.lateDeduction && rec.lateDeduction > 0 ? `⚠️ យឺតកាត់ ($${rec.lateDeduction})` : 'មកយឺត'))) :
                              rec.status === 'Absent' ? 'អវត្តមាន' : rec.status}
                           </span>
-                        </td>
-
-                        {/* Source Badge */}
-                        <td className="py-3 px-3 text-center">
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold inline-flex items-center gap-1 ${
-                            rec.source === 'telegram' 
-                              ? 'bg-sky-50 text-sky-700 border border-sky-200' 
-                              : 'bg-slate-50 text-slate-600 border border-slate-200'
-                          }`}>
-                            {rec.source === 'telegram' ? <Smartphone size={11} /> : <FileText size={11} />}
-                            <span>{rec.source === 'telegram' ? 'Telegram' : 'Manual'}</span>
-                          </span>
-                        </td>
-
-                        {/* Device / Session Info Column */}
-                        <td className="py-3 px-3 text-center">
-                          {(rec.checkInDevice || rec.checkOutDevice) ? (
-                            <span 
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10.5px] font-medium border border-slate-200/80 transition shadow-2xs max-w-[160px] truncate cursor-default"
-                              title={`Check-In: ${rec.checkInDevice || 'N/A'}\nCheck-Out: ${rec.checkOutDevice || 'N/A'}\nPlatform: ${rec.checkInPlatform || rec.checkOutPlatform || 'N/A'}`}
-                            >
-                              <Smartphone size={12} className="text-blue-600 shrink-0" />
-                              <span className="truncate">{rec.checkInDevice || rec.checkOutDevice}</span>
+                          <div className="mt-1.5">
+                            <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold">
+                              ⏱ {formatWorkDuration(getRecordWorkHours(rec), lang)}
                             </span>
-                          ) : (
-                            <span className="text-[10px] text-slate-400 font-mono">--</span>
-                          )}
+                          </div>
                         </td>
 
                         {/* Actions */}
