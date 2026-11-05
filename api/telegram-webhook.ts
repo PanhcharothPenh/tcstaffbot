@@ -1,4 +1,5 @@
-import { applySecurityHeaders, requireAuth, ADMIN_ROLES, verifyWebhookSecret, signTgLink } from './_lib/security.js';
+import { applySecurityHeaders, requireAuth, ADMIN_ROLES, verifyWebhookSecret, signTgLink, rateLimit } from './_lib/security.js';
+import { notifyAdminsOfLinkRequest, handleLinkCallback } from './_lib/link-request.js';
 import { createClient } from '@supabase/supabase-js';
 const OWNER_CHAT_ID = (process.env.OWNER_TELEGRAM_CHAT_ID || '').trim() || '__unset__';
 
@@ -428,6 +429,7 @@ export default async function handler(req: any, res: any) {
   // HANDLE INCOMING TELEGRAM WEBHOOK UPDATE (POST)
   // =================================================================================
   if (req.method === 'POST') {
+    let _errChat = '';
     try {
       const update = req.body;
       if (!update) return res.status(200).json({ ok: true });
@@ -445,12 +447,18 @@ export default async function handler(req: any, res: any) {
       }
 
       const chatId = String(msg.chat.id);
+      _errChat = chatId;
       const from = isCallback ? callbackQuery.from : (msg.from || {});
       const firstName = from.first_name || msg.chat.first_name || msg.chat.title || 'Barista';
       const username = from.username || msg.chat.username || '';
       const telegramId = from.id ? String(from.id) : chatId;
       const cleanTgHandle = (username || '').replace(/^@/, '').toLowerCase().trim();
       const userText = String(isCallback ? callbackQuery.data : (msg.text || '')).trim();
+
+      // Basic flood protection per Telegram user
+      if (!rateLimit('bot:' + telegramId, 40, 60_000)) {
+        return res.status(200).json({ ok: true, throttled: true });
+      }
 
       // Timezone helper (Asia/Phnom_Penh)
       const now = new Date();
@@ -1149,6 +1157,27 @@ export default async function handler(req: any, res: any) {
             body: JSON.stringify({ callback_query_id: callbackQuery.id })
           });
         } catch {}
+      }
+
+      // =================================================================================
+      // ACTION: 🔗 ADMIN ONE-TAP LINKING OF TELEGRAM ACCOUNTS + STAFF "ASK ADMIN" BUTTON
+      // =================================================================================
+      if (isCallback && (userText.startsWith('lk_') || userText.startsWith('lkx_'))) {
+        const out = await handleLinkCallback(botToken, userText, telegramId);
+        if (out) return sendOrReply(res, botToken, { chat_id: chatId, text: out, parse_mode: 'HTML' });
+      }
+      if (isCallback && userText === 'reqlink') {
+        if (!rateLimit('reqlink:' + telegramId, 3, 60 * 60_000)) {
+          return sendOrReply(res, botToken, { chat_id: chatId, text: 'ℹ️ អ្នកបានផ្ញើសំណើរួចហើយ សូមរង់ចាំ Admin ឆ្លើយតប។', parse_mode: 'HTML' });
+        }
+        const n = await notifyAdminsOfLinkRequest(botToken, { id: telegramId, username, first_name: from.first_name, last_name: from.last_name });
+        return sendOrReply(res, botToken, {
+          chat_id: chatId,
+          text: n > 0
+            ? '✅ <b>បានផ្ញើសំណើទៅ Admin ហើយ</b>\n\nសូមរង់ចាំការភ្ជាប់គណនី។ អ្នកនឹងទទួលសារបញ្ជាក់នៅទីនេះ។'
+            : 'ℹ️ គណនីរបស់អ្នកត្រូវបានភ្ជាប់រួចហើយ ឬមិនមាន Admin ដើម្បីទទួលសំណើ។ សូមផ្ញើ /start ម្តងទៀត។',
+          parse_mode: 'HTML'
+        });
       }
 
       // =================================================================================
@@ -3134,6 +3163,16 @@ export default async function handler(req: any, res: any) {
         });
       }
 
+      // Unlinked user: explain clearly and offer a one-tap request to the admins
+      if (!matchedStaff && !isOwnerRole) {
+        return sendOrReply(res, botToken, {
+          chat_id: chatId,
+          text: unlinkedStaffNotice,
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: [[{ text: '📨 ស្នើសុំ Admin ភ្ជាប់គណនីខ្ញុំ', callback_data: 'reqlink' }]] }
+        });
+      }
+
       const welcomeText = `👋 <b>សួស្តី ${greetingName}!</b>\n\n` +
         `🏢 <b>សាខា:</b> ${branchDisplay}\n` +
         `💼 <b>តួនាទី:</b> ${staffPos}\n` +
@@ -3149,7 +3188,19 @@ export default async function handler(req: any, res: any) {
           reply_markup: persistentReplyKeyboard
         });
     } catch (e: any) {
-      return res.status(200).json({ ok: true, error: e?.message });
+      console.error('[webhook] handler error:', e?.message);
+      // Tell the user instead of staying silent
+      try {
+        const tok = allTargetBots[0]?.token;
+        if (_errChat && tok) {
+          await fetch(`https://api.telegram.org/bot${tok}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: _errChat, text: '⚠️ ប្រព័ន្ធមានបញ្ហាបន្តិច សូមព្យាយាមម្តងទៀតក្នុងរយៈពេលមួយភ្លែត។' })
+          });
+        }
+      } catch {}
+      return res.status(200).json({ ok: true });
     }
   }
 

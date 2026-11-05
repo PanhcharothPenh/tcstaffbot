@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { notifyAdminsOfLinkRequest } from './_lib/link-request.js';
 import { applySecurityHeaders, getSession, verifyCron, validateInitData, verifyTgLink, MANAGER_ROLES, escHtml, limit } from './_lib/security.js';
 const OWNER_CHAT_ID = (process.env.OWNER_TELEGRAM_CHAT_ID || '').trim() || '__unset__';
 
@@ -668,24 +669,8 @@ export default async function handler(req: any, res: any) {
     if (!tg) return deny(401);
     if (!limit(req, res, 'request-link', 3, 60 * 60_000, String(tg.id))) return;
     try {
-      const users = await getCollection('users');
-      const adminIds = new Set<string>();
-      if (OWNER_CHAT_ID !== '__unset__') adminIds.add(OWNER_CHAT_ID);
-      for (const u of users) {
-        const r = String(u?.roleId || '').toLowerCase();
-        const cid = String(u?.telegramChatId || '').trim();
-        if ((r === 'owner' || r === 'admin') && /^-?\d+$/.test(cid)) adminIds.add(cid);
-      }
-      const name = [tg.first_name, tg.last_name].filter(Boolean).join(' ') || '-';
-      const text = `🔔 <b>សំណើភ្ជាប់គណនី Telegram</b>
-
-👤 ឈ្មោះ: ${escHtml(name)}
-🆔 Telegram ID: <code>${escHtml(tg.id)}</code>
-👤 Username: ${tg.username ? '@' + escHtml(tg.username) : '-'}
-
-សូមភ្ជាប់ Telegram ID នេះជាមួយបុគ្គលិកក្នុង Staff Management។`;
-      for (const cid of adminIds) await sendTelegramNotification(botToken, cid, text);
-      return res.status(200).json({ success: true, notified: adminIds.size });
+      const notified = await notifyAdminsOfLinkRequest(botToken, tg);
+      return res.status(200).json({ success: true, notified });
     } catch (e: any) {
       return res.status(500).json({ success: false, error: 'Could not notify admin' });
     }

@@ -138,6 +138,10 @@
     {
       "path": "/api/attendance/check-missing-alerts",
       "schedule": "0,30 * * * *"
+    },
+    {
+      "path": "/api/daily-summary",
+      "schedule": "0 14 * * *"
     }
   ]
 }
