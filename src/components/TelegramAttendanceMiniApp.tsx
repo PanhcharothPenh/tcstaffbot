@@ -31,7 +31,7 @@ interface TelegramAttendanceMiniAppProps {
   initialAction?: 'checkin' | 'checkout' | 'history';
 }
 
-const APP_VERSION = '2026-11-05.4';
+const APP_VERSION = '2026-11-05.5';
 
 // Signed link proof added by the bot to the Mini App URL (used when Telegram does not provide initData)
 const getTgSig = (): string => {
@@ -1566,23 +1566,18 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                 })()}
 
 
-                {/* Camera / Photo Frame */}
-                <div className="relative mx-auto w-72 h-72 flex items-center justify-center">
-                  {/* soft glow + gradient ring */}
-                  <div className={`absolute inset-0 rounded-full blur-xl opacity-30 ${currentAction === 'checkin' ? 'bg-blue-500' : 'bg-rose-500'}`} />
-                  <div className={`absolute inset-0 rounded-full p-[5px] ${
+                {/* Camera / Photo Frame: large portrait viewport, easy to tap */}
+                <div
+                  className={`relative w-full aspect-[3/4] max-h-[64vh] mx-auto rounded-3xl overflow-hidden bg-slate-900 shadow-xl ring-2 transition ${
                     capturedImage && !isCameraActive
-                      ? 'bg-gradient-to-br from-emerald-400 to-emerald-600'
-                      : currentAction === 'checkin'
-                        ? 'bg-gradient-to-br from-sky-400 via-blue-600 to-indigo-700'
-                        : 'bg-gradient-to-br from-rose-400 via-rose-600 to-red-700'
-                  } ${isCameraActive ? 'animate-pulse' : ''}`}>
-                    <div className="w-full h-full rounded-full bg-white" />
-                  </div>
-                  <div className="relative w-[17rem] h-[17rem] rounded-full overflow-hidden bg-slate-900 flex items-center justify-center shadow-inner">
+                      ? 'ring-emerald-400'
+                      : currentAction === 'checkin' ? 'ring-blue-500/60' : 'ring-rose-500/60'
+                  }`}
+                  onClick={() => { if (!isCameraActive && !capturedImage && !isVerifying) startCamera(true); }}
+                >
                   {isCameraActive ? (
                     <>
-                      <video 
+                      <video
                         ref={(el) => {
                           videoRef.current = el;
                           if (el && streamRef.current) {
@@ -1597,119 +1592,98 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                           }
                         }}
                         autoPlay
-                        playsInline 
-                        muted 
-                        className="w-full h-full object-cover transition-transform duration-150"
+                        playsInline
+                        muted
+                        className="absolute inset-0 w-full h-full object-cover"
                         style={{ transform: isMirrored ? 'scaleX(-1)' : 'none' }}
                       />
-                      {/* Face positioning guide */}
-                      <div className="absolute inset-0 pointer-events-none" style={{ boxShadow: 'inset 0 0 0 9999px rgba(0,0,0,0.12)' }} />
-                      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-52 border-2 border-white/80 rounded-[50%] pointer-events-none shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />
-                      <div className="absolute bottom-5 left-0 right-0 text-center pointer-events-none">
-                        <span className="inline-block bg-black/55 text-white text-[11px] font-bold px-3 py-1 rounded-full">ដាក់មុខក្នុងរង្វង់</span>
+                      {/* Face guide */}
+                      <div className="absolute left-1/2 top-[44%] -translate-x-1/2 -translate-y-1/2 w-[62%] aspect-[3/4] border-[3px] border-white/85 rounded-[50%] pointer-events-none shadow-[0_0_0_9999px_rgba(0,0,0,0.38)]" />
+                      <div className="absolute top-3 left-0 right-0 flex justify-center pointer-events-none">
+                        <span className="bg-black/55 text-white text-xs font-bold px-3.5 py-1.5 rounded-full">ដាក់មុខក្នុងរង្វង់ រួចចុចប៊ូតុងថត</span>
+                      </div>
+                      {/* Bottom control bar */}
+                      <div className="absolute bottom-0 inset-x-0 pt-10 pb-4 px-5 bg-gradient-to-t from-black/75 to-transparent flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); stopCamera(); }}
+                          className="w-14 h-14 rounded-full bg-white/15 backdrop-blur text-white text-xs font-bold flex items-center justify-center active:scale-95 transition cursor-pointer"
+                        >
+                          បោះបង់
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); capturePhoto(); }}
+                          disabled={isVerifying}
+                          aria-label="ថតរូប"
+                          className="w-[78px] h-[78px] rounded-full border-4 border-white flex items-center justify-center active:scale-90 transition cursor-pointer disabled:opacity-50"
+                        >
+                          <span className={`w-[58px] h-[58px] rounded-full ${currentAction === 'checkin' ? 'bg-blue-600' : 'bg-rose-600'}`} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const next = !isMirrored;
+                            setIsMirrored(next);
+                            try { localStorage.setItem('tc_camera_mirrored', String(next)); } catch (_) {}
+                          }}
+                          className={`w-14 h-14 rounded-full backdrop-blur text-[11px] font-bold flex items-center justify-center active:scale-95 transition cursor-pointer ${isMirrored ? 'bg-amber-400/90 text-slate-900' : 'bg-white/15 text-white'}`}
+                          title="ត្រឡប់រូបភាព / Toggle Mirror"
+                        >
+                          <RefreshCw size={20} />
+                        </button>
                       </div>
                     </>
                   ) : capturedImage ? (
-                    <img 
-                      src={capturedImage} 
-                      alt="Selfie" 
-                      className="w-full h-full object-cover" 
-                    />
+                    <>
+                      <img src={capturedImage} alt="Selfie" className="absolute inset-0 w-full h-full object-cover" />
+                      <div className="absolute top-3 left-3 bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-md">✓ ថតរូបរួចរាល់</div>
+                    </>
                   ) : (
-                    <div 
-                      onClick={() => startCamera(true)}
-                      className="text-slate-400 space-y-2 p-4 cursor-pointer hover:text-white transition flex flex-col items-center justify-center select-none"
-                    >
-                      <div className="w-20 h-20 rounded-full bg-white/10 border border-white/20 flex items-center justify-center">
-                        <Camera size={38} className="text-sky-300" />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 cursor-pointer select-none bg-gradient-to-b from-slate-800 to-slate-900">
+                      <div className={`w-28 h-28 rounded-full flex items-center justify-center mb-4 ${currentAction === 'checkin' ? 'bg-blue-500/20 border-2 border-blue-400/50' : 'bg-rose-500/20 border-2 border-rose-400/50'}`}>
+                        <Camera size={52} className={currentAction === 'checkin' ? 'text-sky-300' : 'text-rose-300'} />
                       </div>
-                      <p className="text-xs font-bold text-slate-300">
-                        {currentAction === 'checkin' ? 'ចុចទីនេះដើម្បីបើក Camera ក្នុង Bot' : 'ចុចទីនេះដើម្បីបើក Camera ក្នុង Bot'}
-                      </p>
+                      <p className="text-base font-black text-white">ចុចទីនេះដើម្បីបើក Camera</p>
+                      <p className="text-xs text-slate-300 mt-1.5">ថតរូបមុខដើម្បី{currentAction === 'checkin' ? 'ចុះវត្តមានចូល' : 'ចុះវត្តមានចេញ'}</p>
                     </div>
                   )}
 
                   {isVerifying && (
-                    <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-center text-white space-y-2">
-                      <Loader2 size={32} className="animate-spin text-blue-400" />
-                      <span className="text-xs font-bold">កំពុងផ្ទៀងផ្ទាត់ផ្ទៃមុខ...</span>
-                    </div>
-                  )}
-                  </div>
-                  {capturedImage && !isCameraActive && !isVerifying && (
-                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1">
-                      <span>✓</span><span>ថតរូបរួចរាល់</span>
+                    <div className="absolute inset-0 bg-slate-950/75 backdrop-blur-sm flex flex-col items-center justify-center text-white space-y-3">
+                      <Loader2 size={40} className="animate-spin text-blue-400" />
+                      <span className="text-sm font-bold">កំពុងផ្ទៀងផ្ទាត់ផ្ទៃមុខ...</span>
                     </div>
                   )}
                 </div>
 
-                {/* Mirror / Orientation Control Toggle */}
-                {isCameraActive && (
-                  <div className="flex items-center justify-center pt-1 pb-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const next = !isMirrored;
-                        setIsMirrored(next);
-                        try { localStorage.setItem('tc_camera_mirrored', String(next)); } catch (_) {}
-                      }}
-                      className={`px-3.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer border shadow-xs ${
-                        isMirrored 
-                          ? 'bg-amber-50 border-amber-300 text-amber-900' 
-                          : 'bg-slate-100 border-slate-300 text-slate-700'
-                      }`}
-                      title="ត្រឡប់រូបភាព / Toggle Mirror"
-                    >
-                      <span>{isMirrored ? 'កញ្ចក់ឆ្លុះ (Mirror): បើក' : 'រូបភាពធម្មតា (Normal)'}</span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Camera Buttons */}
-                {!isCameraActive ? (
+                {/* Big primary action button under the viewport */}
+                {!isCameraActive && (
                   <div className="space-y-2">
                     <button
                       type="button"
                       onClick={() => startCamera(true)}
                       disabled={isVerifying}
-                      className={`w-full py-4 text-white rounded-2xl text-sm font-black transition active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 shadow-lg ${
-                        currentAction === 'checkin'
-                          ? 'bg-[#003D9B] hover:bg-blue-800 shadow-blue-900/10'
-                          : 'bg-rose-600 hover:bg-rose-700 shadow-rose-900/10'
+                      className={`w-full h-14 text-white rounded-2xl text-base font-black transition active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2.5 shadow-lg ${
+                        capturedImage
+                          ? 'bg-slate-700 hover:bg-slate-800'
+                          : currentAction === 'checkin'
+                            ? 'bg-[#003D9B] hover:bg-blue-800 shadow-blue-900/20'
+                            : 'bg-rose-600 hover:bg-rose-700 shadow-rose-900/20'
                       }`}
                     >
-                      <Camera size={18} />
+                      <Camera size={22} />
                       <span>{capturedImage ? 'ថតឡើងវិញ' : 'បើក Camera ថតរូប'}</span>
                     </button>
-                    <input 
-                      ref={fileInputRef} 
-                      type="file" 
-                      accept="image/*" 
-                      capture="user" 
-                      className="hidden" 
-                      onChange={handleNativeCameraCapture} 
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="user"
+                      className="hidden"
+                      onChange={handleNativeCameraCapture}
                     />
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={stopCamera}
-                      className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-xs font-bold transition cursor-pointer"
-                    >
-                      បោះបង់
-                    </button>
-                    <button
-                      onClick={capturePhoto}
-                      disabled={isVerifying}
-                      className={`flex-1 py-4 text-white rounded-2xl text-sm font-black transition active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 shadow-lg ${
-                        currentAction === 'checkin'
-                          ? 'bg-[#003D9B] hover:bg-blue-800 shadow-blue-900/10'
-                          : 'bg-rose-600 hover:bg-rose-700 shadow-rose-900/10'
-                      }`}
-                    >
-                      <Camera size={16} />
-                      <span>{currentAction === 'checkin' ? 'ថតរូបចុះវត្តមានចូល' : 'ថតរូបចុះវត្តមានចេញ'}</span>
-                    </button>
                   </div>
                 )}
               </div>
