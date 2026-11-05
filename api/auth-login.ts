@@ -1,8 +1,8 @@
 import {
   applySecurityHeaders, limit, verifyPassword, hashPassword, createMfaToken, generateOtp, issueSession,
   sanitizeUser, ADMIN_ROLES
-} from './_lib/security';
-import { loadUsers, saveUsers, chatIdForUser, sendTelegram, parseBody } from './_lib/users-store';
+} from './_lib/security.js';
+import { loadUsers, saveUsers, chatIdForUser, sendTelegram, parseBody } from './_lib/users-store.js';
 
 // Constant-time-ish decoy so unknown users cost the same as wrong passwords.
 let decoy: string | null = null;

@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
-import { applySecurityHeaders, getSession, verifyCron, validateInitData, MANAGER_ROLES, escHtml } from './_lib/security';
+import { applySecurityHeaders, getSession, verifyCron, validateInitData, MANAGER_ROLES, escHtml } from './_lib/security.js';
 const OWNER_CHAT_ID = (process.env.OWNER_TELEGRAM_CHAT_ID || '').trim() || '__unset__';
 
 // In-memory cache to prevent duplicate Telegram alerts across invocations

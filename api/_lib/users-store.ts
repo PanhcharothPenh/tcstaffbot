@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { hashPassword } from './security';
+import { hashPassword } from './security.js';
 
 /**
  * Prefer SUPABASE_SERVICE_ROLE_KEY (server only, never shipped to the browser) so that Row Level Security

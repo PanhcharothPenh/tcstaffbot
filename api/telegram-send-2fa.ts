@@ -1,4 +1,4 @@
-import { applySecurityHeaders } from './_lib/security';
+import { applySecurityHeaders } from './_lib/security.js';
 
 // Removed: this endpoint let any caller send an arbitrary PIN to arbitrary chats.
 // 2FA codes are now generated and delivered server-side by /api/auth-login.

@@ -1,5 +1,5 @@
-import { applySecurityHeaders, limit, verifyToken, issueSession } from './_lib/security';
-import { loadUsers, parseBody } from './_lib/users-store';
+import { applySecurityHeaders, limit, verifyToken, issueSession } from './_lib/security.js';
+import { loadUsers, parseBody } from './_lib/users-store.js';
 
 export default async function handler(req: any, res: any) {
   applySecurityHeaders(req, res, 'POST, OPTIONS');

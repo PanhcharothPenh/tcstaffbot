@@ -1,5 +1,5 @@
-import { applySecurityHeaders, limit, createMfaToken, generateOtp, escHtml } from './_lib/security';
-import { loadUsers, chatIdForUser, sendTelegram, parseBody } from './_lib/users-store';
+import { applySecurityHeaders, limit, createMfaToken, generateOtp, escHtml } from './_lib/security.js';
+import { loadUsers, chatIdForUser, sendTelegram, parseBody } from './_lib/users-store.js';
 
 export default async function handler(req: any, res: any) {
   applySecurityHeaders(req, res, 'POST, OPTIONS');

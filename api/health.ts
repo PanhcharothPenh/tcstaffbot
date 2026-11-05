@@ -1,4 +1,4 @@
-import { applySecurityHeaders } from './_lib/security';
+import { applySecurityHeaders } from './_lib/security.js';
 
 export default async function handler(req: any, res: any) {
   applySecurityHeaders(req, res, 'GET, OPTIONS');

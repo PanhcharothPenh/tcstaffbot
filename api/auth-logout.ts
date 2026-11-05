@@ -1,4 +1,4 @@
-import { applySecurityHeaders } from './_lib/security';
+import { applySecurityHeaders } from './_lib/security.js';
 
 // Tokens are stateless; the client discards them. Access tokens live 1h, refresh tokens are
 // invalidated server-side when the password changes or the account is locked.

@@ -1,7 +1,7 @@
 import {
   applySecurityHeaders, requireAuth, ADMIN_ROLES, hashPassword, validatePasswordStrength, sanitizeUser, SessionClaims
-} from './_lib/security';
-import { loadUsers, saveUsers, parseBody } from './_lib/users-store';
+} from './_lib/security.js';
+import { loadUsers, saveUsers, parseBody } from './_lib/users-store.js';
 
 const PRIVILEGED = ['owner', 'admin'];
 const EDITABLE = ['fullName', 'email', 'phone', 'role', 'roleId', 'status', 'telegramUsername', 'telegramChatId', 'twoFactorMethod', 'assignedBranchIds'];

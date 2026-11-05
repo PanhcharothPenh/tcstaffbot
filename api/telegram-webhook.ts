@@ -1,4 +1,4 @@
-import { applySecurityHeaders, requireAuth, ADMIN_ROLES, verifyWebhookSecret } from './_lib/security';
+import { applySecurityHeaders, requireAuth, ADMIN_ROLES, verifyWebhookSecret } from './_lib/security.js';
 import { createClient } from '@supabase/supabase-js';
 const OWNER_CHAT_ID = (process.env.OWNER_TELEGRAM_CHAT_ID || '').trim() || '__unset__';
 

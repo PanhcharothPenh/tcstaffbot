@@ -1,4 +1,4 @@
-import { applySecurityHeaders, requireAuth, ADMIN_ROLES, MANAGER_ROLES } from './_lib/security';
+import { applySecurityHeaders, requireAuth, ADMIN_ROLES, MANAGER_ROLES } from './_lib/security.js';
 import { createClient } from '@supabase/supabase-js';
 
 const DEFAULT_ROLES = [

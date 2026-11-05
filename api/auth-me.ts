@@ -1,5 +1,5 @@
-import { applySecurityHeaders, requireAuth, sanitizeUser } from './_lib/security';
-import { loadUsers } from './_lib/users-store';
+import { applySecurityHeaders, requireAuth, sanitizeUser } from './_lib/security.js';
+import { loadUsers } from './_lib/users-store.js';
 
 export default async function handler(req: any, res: any) {
   applySecurityHeaders(req, res, 'GET, OPTIONS');
