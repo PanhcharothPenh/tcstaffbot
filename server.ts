@@ -5,7 +5,7 @@ import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { applySecurityHeaders, verifyToken, getJwtSecret } from './api/_lib/security';
+import { applySecurityHeaders, verifyToken, getJwtSecret, limit, validateInitData } from './api/_lib/security';
 import authLogin from './api/auth-login';
 import authVerify2fa from './api/auth-verify-2fa';
 import authMe from './api/auth-me';
@@ -950,9 +950,7 @@ app.get(['/auth/telegram/callback', '/auth/telegram/callback/'], async (req, res
 
   let isValid = false;
 
-  if (hash === 'MOCK_TELEGRAM_HASH_FOR_TESTS') {
-    isValid = true;
-  } else if (!botToken) {
+  if (!botToken) {
     return res.status(400).send('System Telegram Bot Token is not yet configured. Please use simulations or set details.');
   } else {
     try {
@@ -968,7 +966,9 @@ app.get(['/auth/telegram/callback', '/auth/telegram/callback/'], async (req, res
       const secretKey = crypto.createHash('sha256').update(botToken).digest();
       const hmac = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
       
-      isValid = (hmac === hash);
+      const authDate = Number((query as any).auth_date || 0);
+      const fresh = authDate > 0 && Date.now() / 1000 - authDate < 24 * 3600;
+      isValid = fresh && hmac.length === hash.length && crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(hash));
     } catch (e: any) {
       return res.status(500).send(`Telegram validation exception: ${e.message}`);
     }
@@ -979,13 +979,14 @@ app.get(['/auth/telegram/callback', '/auth/telegram/callback/'], async (req, res
   }
 
   // Retrieve user payload and link profiles
-  const username = query.username as string || `tg_id_${query.id}`;
+  let username = query.username as string || `tg_id_${query.id}`;
   const first_name = query.first_name as string || '';
   const last_name = query.last_name as string || '';
   const fullName = [first_name, last_name].filter(Boolean).join(' ') || 'Telegram User';
 
-  // Attempt matching existing registered user profile
-  let user = localDb.users!.find(u => u.username.toLowerCase() === username.toLowerCase());
+  // Match ONLY on the verified numeric Telegram id (usernames are claimable and must never grant access).
+  let user = localDb.users!.find(u => String((u as any).telegramChatId || '') === String(query.id));
+  if (!user && localDb.users!.some(u => u.username.toLowerCase() === username.toLowerCase())) username = `tg_id_${query.id}`;
 
   if (!user) {
     const salt = bcrypt.genSaltSync(10);
@@ -1135,73 +1136,7 @@ app.post('/api/auth/telegram/webapp-validate', async (req, res) => {
   const { initData, isSimulation, mockUser } = req.body;
 
   if (isSimulation) {
-    if (!mockUser || !mockUser.username) {
-      return res.status(400).json({ error: 'Simulation is missing required mockUser profile fields.' });
-    }
-
-    const username = mockUser.username;
-    let user = localDb.users!.find(u => u.username.toLowerCase() === username.toLowerCase());
-
-    if (!user) {
-      const salt = bcrypt.genSaltSync(10);
-      user = {
-        id: 'usr_tg_sim_' + (mockUser.id || Date.now()),
-        fullName: mockUser.fullName || 'Simulated Telegram User',
-        username: username,
-        email: `${username}@telegram.tcstaff.local`,
-        phone: '',
-        passwordHash: bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), salt),
-        roleId: mockUser.roleId || 'staff',
-        status: 'Active',
-        failedLoginAttempts: 0,
-        lockedUntil: null,
-        lastLoginAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        forcePasswordChange: false,
-        assignedBranchIds: ['b1']
-      };
-      localDb.users!.push(user);
-    } else {
-      user.lastLoginAt = new Date().toISOString();
-      user.status = 'Active';
-    }
-
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
-
-    localDb.refreshTokens!.push({
-      token: refreshToken,
-      userId: user.id,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-    });
-
-    localDb.loginHistory!.unshift({
-      id: 'lh_tg_webapp_sim_' + Date.now(),
-      userId: user.id,
-      username: user.username,
-      timestamp: new Date().toISOString(),
-      ipAddress: getClientIp(req),
-      device: req.headers['user-agent'] || 'Web Browser',
-      status: 'Success (Simulated WebApp)'
-    });
-    saveLocalDb();
-
-    return res.json({
-      accessToken,
-      refreshToken,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        fullName: user.fullName,
-        phone: user.phone,
-        role: localDb.roles!.find(r => r.id === user.roleId)?.name || 'Staff',
-        roleId: user.roleId,
-        assignedBranchIds: user.assignedBranchIds || [],
-        forcePasswordChange: false
-      }
-    });
+    return res.status(403).json({ error: 'Simulation login is disabled.' });
   }
 
   if (!initData) {
@@ -1210,56 +1145,25 @@ app.post('/api/auth/telegram/webapp-validate', async (req, res) => {
 
   const telegramConfig = getTelegramConfig();
   const botToken = telegramConfig.botToken || process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) return res.status(400).json({ error: 'Telegram bot token is not configured.' });
 
-  let isValid = false;
-  let parsedUser: any = null;
-
-  try {
-    const urlParams = new URLSearchParams(initData);
-    const hash = urlParams.get('hash');
-    
-    const userStr = urlParams.get('user');
-    if (userStr) {
-      parsedUser = JSON.parse(userStr);
-    }
-
-    if (hash === 'MOCK_TELEGRAM_HASH_FOR_TESTS') {
-      isValid = true;
-    } else if (!botToken) {
-      return res.status(400).json({ error: 'System Telegram Bot Token is not yet configured. Please configure in Settings or use Simulation authentication.' });
-    } else {
-      const dataCheckArr: string[] = [];
-      for (const [key, val] of urlParams.entries()) {
-        if (key !== 'hash') {
-          dataCheckArr.push(`${key}=${val}`);
-        }
-      }
-      dataCheckArr.sort();
-      const dataCheckString = dataCheckArr.join('\n');
-
-      const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
-      const hmac = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-
-      isValid = (hmac === hash);
-    }
-  } catch (e: any) {
-    return res.status(500).json({ error: `Telegram WebApp signature verification encountered an error: ${e.message}` });
+  const verdict = validateInitData(String(initData), botToken);
+  if (!verdict.valid) {
+    return res.status(401).json({ error: 'Telegram authentication failed.' });
   }
-
-  if (!isValid) {
-    return res.status(401).json({ error: 'Telegram authentication checksum failed. Signature could not be verified.' });
-  }
+  const parsedUser: any = verdict.user;
 
   if (!parsedUser || !parsedUser.id) {
     return res.status(400).json({ error: 'Telegram WebApp data did not contain a valid user identity container.' });
   }
 
-  const username = parsedUser.username || `tg_id_${parsedUser.id}`;
+  let username = parsedUser.username || `tg_id_${parsedUser.id}`;
+  if (localDb.users!.some(u => u.username.toLowerCase() === String(username).toLowerCase() && u.id !== 'usr_tg_wa_' + parsedUser.id && String((u as any).telegramChatId || '') !== String(parsedUser.id))) username = `tg_id_${parsedUser.id}`;
   const first_name = parsedUser.first_name || '';
   const last_name = parsedUser.last_name || '';
   const fullName = [first_name, last_name].filter(Boolean).join(' ') || 'Telegram User';
 
-  let user = localDb.users!.find(u => u.username.toLowerCase() === username.toLowerCase());
+  let user = localDb.users!.find(u => String((u as any).telegramChatId || '') === String(parsedUser.id) || u.id === 'usr_tg_wa_' + parsedUser.id);
 
   if (!user) {
     const salt = bcrypt.genSaltSync(10);
@@ -1333,7 +1237,12 @@ app.post('/api/auth/telegram/webapp-validate', async (req, res) => {
 // ─── TELEGRAM BOT LOGIN RELATIONSHIP & ACTIVE APPROVAL MODULES ──────────────────
 
 // Staff request to notify administrator / send interactive approval gateway to bot channel
+function approvalToken(username: string): string {
+  return crypto.createHmac('sha256', getJwtSecret()).update('approve:' + String(username).toLowerCase()).digest('hex');
+}
+
 app.post('/api/auth/telegram/request-approval', async (req, res) => {
+  if (!limit(req, res, 'req-approval', 5, 15 * 60_000)) return;
   const { username, fullName } = req.body;
 
   if (!username) {
@@ -1344,7 +1253,7 @@ app.post('/api/auth/telegram/request-approval', async (req, res) => {
   const actualFullName = user ? user.fullName : (fullName || 'Unknown Employee');
 
   const appOrigin = getAppOrigin(req);
-  const token = 'SECURE_APP_VERIFICATION_TOKEN_' + username;
+  const token = approvalToken(username);
   const approvalLink = `${appOrigin}/auth/telegram/approve-user?username=${encodeURIComponent(username)}&token=${token}`;
 
   // Build the rich notifications block
@@ -1406,8 +1315,10 @@ app.get('/auth/telegram/approve-user', async (req, res) => {
   }
 
   // Validate approval token
-  const expectedToken = 'SECURE_APP_VERIFICATION_TOKEN_' + username;
-  if (token !== expectedToken) {
+  const expectedToken = approvalToken(String(username));
+  const tokOk = typeof token === 'string' && token.length === expectedToken.length &&
+    crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expectedToken));
+  if (!tokOk) {
     return res.status(403).send('Unauthorized approval token signature verification failed.');
   }
 
