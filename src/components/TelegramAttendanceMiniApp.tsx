@@ -31,7 +31,7 @@ interface TelegramAttendanceMiniAppProps {
   initialAction?: 'checkin' | 'checkout' | 'history';
 }
 
-const APP_VERSION = '2026-11-05.3';
+const APP_VERSION = '2026-11-05.4';
 
 // Signed link proof added by the bot to the Mini App URL (used when Telegram does not provide initData)
 const getTgSig = (): string => {
@@ -1567,7 +1567,19 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
 
 
                 {/* Camera / Photo Frame */}
-                <div className="relative w-64 h-64 mx-auto rounded-full overflow-hidden border-4 border-[#003D9B]/20 bg-slate-900 flex items-center justify-center shadow-inner">
+                <div className="relative mx-auto w-72 h-72 flex items-center justify-center">
+                  {/* soft glow + gradient ring */}
+                  <div className={`absolute inset-0 rounded-full blur-xl opacity-30 ${currentAction === 'checkin' ? 'bg-blue-500' : 'bg-rose-500'}`} />
+                  <div className={`absolute inset-0 rounded-full p-[5px] ${
+                    capturedImage && !isCameraActive
+                      ? 'bg-gradient-to-br from-emerald-400 to-emerald-600'
+                      : currentAction === 'checkin'
+                        ? 'bg-gradient-to-br from-sky-400 via-blue-600 to-indigo-700'
+                        : 'bg-gradient-to-br from-rose-400 via-rose-600 to-red-700'
+                  } ${isCameraActive ? 'animate-pulse' : ''}`}>
+                    <div className="w-full h-full rounded-full bg-white" />
+                  </div>
+                  <div className="relative w-[17rem] h-[17rem] rounded-full overflow-hidden bg-slate-900 flex items-center justify-center shadow-inner">
                   {isCameraActive ? (
                     <>
                       <video 
@@ -1590,8 +1602,12 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                         className="w-full h-full object-cover transition-transform duration-150"
                         style={{ transform: isMirrored ? 'scaleX(-1)' : 'none' }}
                       />
-                      {/* Face positioning oval overlay */}
-                      <div className="absolute inset-4 border-2 border-dashed border-white/60 rounded-full pointer-events-none" />
+                      {/* Face positioning guide */}
+                      <div className="absolute inset-0 pointer-events-none" style={{ boxShadow: 'inset 0 0 0 9999px rgba(0,0,0,0.12)' }} />
+                      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-52 border-2 border-white/80 rounded-[50%] pointer-events-none shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />
+                      <div className="absolute bottom-5 left-0 right-0 text-center pointer-events-none">
+                        <span className="inline-block bg-black/55 text-white text-[11px] font-bold px-3 py-1 rounded-full">ដាក់មុខក្នុងរង្វង់</span>
+                      </div>
                     </>
                   ) : capturedImage ? (
                     <img 
@@ -1604,7 +1620,9 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                       onClick={() => startCamera(true)}
                       className="text-slate-400 space-y-2 p-4 cursor-pointer hover:text-white transition flex flex-col items-center justify-center select-none"
                     >
-                      <Camera size={48} className="mx-auto text-blue-400 animate-pulse" />
+                      <div className="w-20 h-20 rounded-full bg-white/10 border border-white/20 flex items-center justify-center">
+                        <Camera size={38} className="text-sky-300" />
+                      </div>
                       <p className="text-xs font-bold text-slate-300">
                         {currentAction === 'checkin' ? 'ចុចទីនេះដើម្បីបើក Camera ក្នុង Bot' : 'ចុចទីនេះដើម្បីបើក Camera ក្នុង Bot'}
                       </p>
@@ -1615,6 +1633,12 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-xs flex flex-col items-center justify-center text-white space-y-2">
                       <Loader2 size={32} className="animate-spin text-blue-400" />
                       <span className="text-xs font-bold">កំពុងផ្ទៀងផ្ទាត់ផ្ទៃមុខ...</span>
+                    </div>
+                  )}
+                  </div>
+                  {capturedImage && !isCameraActive && !isVerifying && (
+                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1">
+                      <span>✓</span><span>ថតរូបរួចរាល់</span>
                     </div>
                   )}
                 </div>
@@ -1648,14 +1672,14 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                       type="button"
                       onClick={() => startCamera(true)}
                       disabled={isVerifying}
-                      className={`w-full py-3.5 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-md ${
+                      className={`w-full py-4 text-white rounded-2xl text-sm font-black transition active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 shadow-lg ${
                         currentAction === 'checkin'
                           ? 'bg-[#003D9B] hover:bg-blue-800 shadow-blue-900/10'
                           : 'bg-rose-600 hover:bg-rose-700 shadow-rose-900/10'
                       }`}
                     >
-                      <Camera size={16} />
-                      <span>{currentAction === 'checkin' ? '📸 បើក Camera ថតរូបក្នុង Bot' : '📸 បើក Camera ថតរូបក្នុង Bot'}</span>
+                      <Camera size={18} />
+                      <span>{capturedImage ? 'ថតឡើងវិញ' : 'បើក Camera ថតរូប'}</span>
                     </button>
                     <input 
                       ref={fileInputRef} 
@@ -1677,7 +1701,7 @@ export default function TelegramAttendanceMiniApp({ initialAction }: TelegramAtt
                     <button
                       onClick={capturePhoto}
                       disabled={isVerifying}
-                      className={`flex-1 py-3 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-md ${
+                      className={`flex-1 py-4 text-white rounded-2xl text-sm font-black transition active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 shadow-lg ${
                         currentAction === 'checkin'
                           ? 'bg-[#003D9B] hover:bg-blue-800 shadow-blue-900/10'
                           : 'bg-rose-600 hover:bg-rose-700 shadow-rose-900/10'
