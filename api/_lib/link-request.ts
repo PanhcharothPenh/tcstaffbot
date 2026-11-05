@@ -46,9 +46,17 @@ export async function notifyAdminsOfLinkRequest(
   // already linked? nothing to do
   if (staff.some(s => String(s?.telegramId || '') === tgId)) return 0;
 
-  const unlinked = staff
-    .filter(s => s && isActive(s) && !s.telegramId && !String(s.role || '').toLowerCase().includes('owner'))
-    .slice(0, 10);
+  const uname = String(tg.username || '').replace(/^@/, '').toLowerCase();
+  const candidates = staff
+    .filter(s => s && isActive(s) && !String(s.role || '').toLowerCase().includes('owner') && String(s.roleId || '').toLowerCase() !== 'owner')
+    .map(s => {
+      const su = String(s.telegramUsername || '').replace(/^@/, '').toLowerCase();
+      const match = uname && su === uname;
+      const linked = Boolean(s.telegramId);
+      return { s, rank: match ? 0 : linked ? 2 : 1, match, linked };
+    })
+    .sort((x, y) => x.rank - y.rank || String(x.s.fullName || '').localeCompare(String(y.s.fullName || '')))
+    .slice(0, 15);
 
   const name = [tg.first_name, tg.last_name].filter(Boolean).join(' ') || '-';
   const text =
@@ -56,9 +64,13 @@ export async function notifyAdminsOfLinkRequest(
     `👤 ឈ្មោះ Telegram: ${escHtml(name)}\n` +
     `🆔 Telegram ID: <code>${escHtml(tgId)}</code>\n` +
     `👤 Username: ${tg.username ? '@' + escHtml(tg.username) : '-'}\n\n` +
-    `👇 ជ្រើសរើសបុគ្គលិកដែលត្រូវភ្ជាប់ ឬបដិសេធ៖`;
+    `👇 ជ្រើសរើសបុគ្គលិកដែលត្រូវភ្ជាប់ ឬបដិសេធ៖
+⭐ ត្រូវនឹង username   ✅ មិនទាន់មាន ID   🔄 មាន ID ចាស់ (នឹងប្តូរ)`;
 
-  const rows: any[] = unlinked.map(s => [{ text: `✅ ${String(s.fullName || s.id).slice(0, 30)}`, callback_data: `lk_${tgId}_${s.id}` }]);
+  const rows: any[] = candidates.map(({ s, match, linked }) => [{
+    text: `${match ? '⭐' : linked ? '🔄' : '✅'} ${String(s.fullName || s.id).slice(0, 28)}${linked ? ' (ប្តូរ ID)' : ''}`,
+    callback_data: `lk_${tgId}_${s.id}`
+  }]);
   rows.push([{ text: '❌ បដិសេធ', callback_data: `lkx_${tgId}` }]);
 
   const admins = await adminChatIds();
@@ -88,12 +100,12 @@ export async function handleLinkCallback(botToken: string, data: string, actorId
   const idx = staff.findIndex(s => s?.id === staffId);
   if (idx === -1) return '⚠️ រកមិនឃើញបុគ្គលិកនេះទេ';
   if (staff.some(s => String(s?.telegramId || '') === tgId)) return 'ℹ️ Telegram ID នេះត្រូវបានភ្ជាប់រួចហើយ។';
-  if (staff[idx].telegramId && String(staff[idx].telegramId) !== tgId) return 'ℹ️ បុគ្គលិកនេះមាន Telegram ភ្ជាប់រួចហើយ។';
 
+  const oldId = staff[idx].telegramId ? String(staff[idx].telegramId) : '';
   staff[idx] = { ...staff[idx], telegramId: tgId, telegramLinked: true, updatedAt: new Date().toISOString() };
   const { error } = await sb.from('tc_collections').upsert({ id: 'staff', data: staff, updated_at: new Date().toISOString() }, { onConflict: 'id' });
   if (error) return '⚠️ រក្សាទុកមិនបានទេ សូមព្យាយាមម្តងទៀត។';
 
   await tgSend(botToken, tgId, `✅ គណនីរបស់អ្នកត្រូវបានភ្ជាប់ជាមួយ <b>${escHtml(staff[idx].fullName || '')}</b> រួចរាល់។\nផ្ញើ /start ដើម្បីចាប់ផ្តើមចុះវត្តមាន។`);
-  return `✅ បានភ្ជាប់ ${staff[idx].fullName || staffId} ជាមួយ Telegram ${tgId}`;
+  return `✅ បានភ្ជាប់ ${staff[idx].fullName || staffId} ជាមួយ Telegram ${tgId}${oldId ? ` (ជំនួស ID ចាស់ ${oldId})` : ''}`;
 }
