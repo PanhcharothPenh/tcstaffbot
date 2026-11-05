@@ -291,17 +291,30 @@ export default async function handler(req: any, res: any) {
   const supabase = getSupabase();
   const botToken = getBotToken();
   const allBotTokens = getAllBotTokens();
+  // Bot token may also be stored in the database config (same lookup the webhook uses).
+  if (supabase && (path.startsWith('/api/telegram') || path.startsWith('/api/attendance') || path.startsWith('/api/face'))) {
+    try {
+      const { data: cfgRow } = await supabase.from('tc_collections').select('data').eq('id', 'telegramConfig').maybeSingle();
+      const c: any = cfgRow?.data || {};
+      for (const t of [c.botToken, c.token, c.attendanceBotToken, c.bot_token]) {
+        const tt = typeof t === 'string' ? t.trim() : '';
+        if (tt && !allBotTokens.includes(tt)) allBotTokens.push(tt);
+      }
+    } catch {}
+  }
 
   // ── Auth helpers ──────────────────────────────────────────────────────────
   let _session: any = null;
   try { _session = getSession(req); } catch {}
   const isManagerSession = Boolean(_session && MANAGER_ROLES.includes(String(_session.roleId || '').toLowerCase()));
-  const deny = (code = 401) => res.status(code).json({ success: false, error: code === 401 ? 'Unauthorized' : 'Forbidden' });
+  let _tgReason = '';
+  const deny = (code = 401) => res.status(code).json({ success: false, error: (code === 401 ? 'Unauthorized' : 'Forbidden') + (_tgReason ? ' (' + _tgReason + ')' : '') });
   /** Telegram user proven by a valid, fresh, signed initData (body or header). */
   const verifiedTg = (initData?: any): any | null => {
     const raw = String(initData || req.headers['x-telegram-init-data'] || '');
-    if (!raw) return null;
+    if (!raw) { _tgReason = 'no-initdata'; return null; }
     const v = validateInitData(raw, allBotTokens);
+    if (!v.valid) _tgReason = String(v.error || 'invalid').replace(/\s+/g, '-');
     return v.valid ? v.user : null;
   };
 
