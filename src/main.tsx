@@ -1,6 +1,7 @@
 import React, { StrictMode, ReactNode, ErrorInfo, Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
+import { attemptTokenRefresh, getSavedRefreshToken } from './utils/api';
 
 // Check if current session is Telegram Attendance Mini App for isolated ultra-fast mobile loading
 const isMiniAppSession = typeof window !== 'undefined' && (
@@ -27,6 +28,7 @@ const App = lazy(() => import('./App'));
 
 // Global Fetch Interceptor to attach Authorization Bearer Header automatically for /api requests
 const originalFetch = window.fetch.bind(window);
+let refreshInFlight: Promise<string | null> | null = null;
 window.fetch = async function (input, init) {
   let url = '';
   if (typeof input === 'string') {
@@ -58,9 +60,25 @@ window.fetch = async function (input, init) {
     }
   }
 
-  const response = await originalFetch(input, init);
+  let response = await originalFetch(input, init);
 
-  if (response.status === 401 && isApi && !url.includes('auth-login') && !url.includes('/api/auth/login')) {
+  // Access tokens are short lived (1h). Refresh once and retry before treating the session as expired.
+  const isAuthCall = url.includes('/api/auth');
+  if (response.status === 401 && isApi && !isAuthCall && getSavedRefreshToken()) {
+    try {
+      refreshInFlight = refreshInFlight || attemptTokenRefresh().finally(() => { refreshInFlight = null; });
+      const fresh = await refreshInFlight;
+      if (fresh && typeof input === 'string') {
+        const headers = new Headers((init && init.headers) || {});
+        headers.set('Authorization', `Bearer ${fresh}`);
+        const retry = await originalFetch(input, { ...(init || {}), headers });
+        if (retry.status !== 401) return retry;
+        response = retry;
+      }
+    } catch (_) {}
+  }
+
+  if (response.status === 401 && isApi && !isAuthCall) {
     const hasToken = !!localStorage.getItem('coffee_access_token');
     if (hasToken) {
       localStorage.removeItem('coffee_access_token');

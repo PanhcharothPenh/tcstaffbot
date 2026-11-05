@@ -72,7 +72,7 @@ async function apiRequest<T>(url: string, options: RequestInit = {}): Promise<T>
   return response.json() as Promise<T>;
 }
 
-async function attemptTokenRefresh(): Promise<string | null> {
+export async function attemptTokenRefresh(): Promise<string | null> {
   const refreshToken = getSavedRefreshToken();
   if (!refreshToken || refreshToken === 'null' || refreshToken === 'undefined') return null;
 
