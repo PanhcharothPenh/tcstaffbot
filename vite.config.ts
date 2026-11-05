@@ -18,6 +18,11 @@ export default defineConfig(() => {
       rollupOptions: {
         output: {
           manualChunks(id) {
+            // Keep Vite's tiny preload helper out of heavy vendor chunks, otherwise the entry script
+            // would download the 600KB PDF library on every start (including the Telegram Mini App).
+            if (id.includes('vite/preload-helper') || id.includes('vite/modulepreload-polyfill')) {
+              return 'vendor-react';
+            }
             if (id.includes('node_modules/jspdf') || id.includes('node_modules/html2canvas')) {
               return 'vendor-pdf';
             }

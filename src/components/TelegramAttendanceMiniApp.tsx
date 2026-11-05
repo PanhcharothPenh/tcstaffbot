@@ -31,7 +31,7 @@ interface TelegramAttendanceMiniAppProps {
   initialAction?: 'checkin' | 'checkout' | 'history';
 }
 
-const APP_VERSION = '2026-11-05.2';
+const APP_VERSION = '2026-11-05.3';
 
 // Signed link proof added by the bot to the Mini App URL (used when Telegram does not provide initData)
 const getTgSig = (): string => {
